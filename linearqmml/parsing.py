@@ -154,24 +154,24 @@ def ase_from_entries(entries, pbc=True):
     return ase_atoms
 
 
-def get_distances(ase_atoms, radial_cutoff=6):
-    """
-    Args:
-        ase_atoms: nested dictionary of geometries from ase_from_entries.
-
-    Returns:
-        raw_distances (dict): Flattened lists of observed distances per entry
-    """
-    raw_distances = {}
-    for key, atoms in ase_atoms.items():
-        centers = atoms.get_positions()
-        ext_system, cell_indices = get_extended_system(atoms,
-                                                       radial_cutoff,
-                                                       centers)
-        coordinates = ext_system.get_positions()
-        distance_matrix = pdist(coordinates)
-        distance_matrix = distance_matrix[:, :len(centers)]
-        # slice of original atoms
-        distances = distance_matrix[distance_matrix<radial_cutoff].tolist()
-        raw_distances[key] = distances
-    return raw_distances
+# def get_distances(ase_atoms, radial_cutoff=6):
+#     """
+#     Args:
+#         ase_atoms: nested dictionary of geometries from ase_from_entries.
+#
+#     Returns:
+#         raw_distances (dict): Flattened lists of observed distances per entry
+#     """
+#     raw_distances = {}
+#     for key, atoms in ase_atoms.items():
+#         centers = atoms.get_positions()
+#         ext_system, cell_indices = get_extended_system(atoms,
+#                                                        radial_cutoff,
+#                                                        centers)
+#         coordinates = ext_system.get_positions()
+#         distance_matrix = pdist(coordinates)
+#         distance_matrix = distance_matrix[:, :len(centers)]
+#         # slice of original atoms
+#         distances = distance_matrix[distance_matrix<radial_cutoff].tolist()
+#         raw_distances[key] = distances
+#     return raw_distances

@@ -160,4 +160,5 @@ def plot_morse_performance(coefficients,
     ax[2].text(plot_center, plot_bottom, rmse_text, ha='center', va='top',
                fontsize=8)
     ax[2].set_title('Testing Error')
+    fig.tight_layout()
     return fig, ax
