@@ -140,7 +140,7 @@ def plot_morse_performance(coefficients,
     plot_descriptions(sample_representations, r, ax=ax[0])
     ax[0].set_xlabel('r ($\mathrm{\AA}$)')
     ax[0].set_ylabel('$\mathrm{g(r)}$')
-    ax[0].set_title('Description')
+    ax[0].set_title('Representations')
 
     morse = get_morse_potential(r)
     ax[1].plot(r, morse, 'blue', label='Morse\nPotential', zorder=1)
