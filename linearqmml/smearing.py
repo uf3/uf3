@@ -38,7 +38,7 @@ class RealspaceHandler:
         self.upper_bound = upper_bound
         self.resolutions = resolutions
         self.cdf = triangle_cdf  # TODO: Options
-        self.bin_clip = np.array(resolutions) - 1
+        self.bin_clip = np.array(resolutions)
         self.bin_widths = np.divide(np.subtract(upper_bound, lower_bound),
                                     resolutions)
         self.sigma = np.multiply(self.sigma_factor, self.bin_widths)
@@ -46,28 +46,35 @@ class RealspaceHandler:
                            for n_bins, r_min, r_max
                            in zip(resolutions, lower_bound, upper_bound)]
 
-    def smear(self, mu, sigma, bin_range, idx_lower, idx_upper):
+    def smear(self, mu, sigma, bin_width, bin_offset, idx_lower, idx_upper):
         try:
-            bin_edges = bin_range[idx_lower:idx_upper + 1]
+            bin_edges = np.arange(idx_lower,
+                                  idx_upper + 1) * bin_width + bin_offset
             cdfs = self.cdf(bin_edges, mu, sigma)
             bin_sums = np.subtract(cdfs[1:], cdfs[:-1])
-        except ValueError:
+        except KeyboardInterrupt:
             return np.zeros(idx_upper - idx_lower + 1)
         return bin_sums
 
     def smear_nd(self, x):
         x_relative = np.subtract(x, self.lower_bound)  # use the box origin
         delta = self.sigma  # how far from x to compute the integrals
-        local_lower = np.floor(np.divide(x_relative - delta, self.bin_widths))
+        local_lower = np.floor(np.divide(x_relative - delta,
+                                         self.bin_widths))
         # index of lower bound of bins across which to integrate
-        local_upper = np.ceil(np.divide(x_relative + delta, self.bin_widths))
+        local_upper = np.ceil(np.divide(x_relative + delta,
+                                        self.bin_widths))
         # index of upper bound of bins across which to integrate
         local_lower = np.clip(local_lower, 0, self.bin_clip).astype(int)
         local_upper = np.clip(local_upper, 0, self.bin_clip).astype(int)
 
-        components = [self.smear(xi, sigma, bin_range, idx_lower, idx_upper)
-                      for xi, sigma, bin_range, idx_lower, idx_upper
-                      in zip(x_relative, self.sigma, self.bin_ranges,
+        components = [self.smear(xi, sigma, bin_width, bin_offset,
+                                 idx_lower, idx_upper)
+                      for xi, sigma,
+                          bin_width, bin_offset,
+                          idx_lower, idx_upper
+                      in zip(x, self.sigma,
+                             self.bin_widths, self.lower_bound,
                              local_lower, local_upper)]
         # compute 1D smeared vector for each dimension
         if len(components) == 1:
@@ -84,9 +91,20 @@ class RealspaceHandler:
             raise ValueError
         return grid, local_lower, local_upper
 
-    def describe(self, x_list):
+    def describe_1d(self, sample_geometry):
+        r_min = self.lower_bound[0]
+        r_max = self.upper_bound[0]
+        skin = self.sigma[0]
+        positions = sample_geometry.get_positions().astype(np.float64)
+        cell = sample_geometry.cell.diagonal().astype(np.float64)
+        sample_distance_matrix = distance_matrix_periodic(positions, cell)
+        matrix_mask = np.logical_and(sample_distance_matrix > r_min,
+                                     sample_distance_matrix < r_max + skin)
+        sample_distances = sample_distance_matrix[matrix_mask]
+        if len(np.shape(sample_distances)) == 1:
+            sample_distances = sample_distances[:, np.newaxis]
         full_grid = np.zeros(self.resolutions)
-        for x in x_list:
+        for x in sample_distances:
             grid, local_lower, local_upper = self.smear_nd(x)
             # TODO: generalize dimensions
             if len(self.resolutions) == 1:
