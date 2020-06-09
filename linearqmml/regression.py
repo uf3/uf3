@@ -1,10 +1,46 @@
 import numpy as np
 
 
+def cross_validation(func, x, y, n_folds=5, **kwargs):
+    """
+    Args:
+        func: regression function, e.g. linearqmml.ridge_regression
+        x (np.ndarray): Inputs matrix.
+        y (list): Outputs vector.
+        n_folds: number of folds (k) for k-fold cross validation.
+
+    Returns:
+        rmse (float): Root-mean-square error from direct evaluation of func.
+        cv_rmse (float): Root-mean-square error from k-fold cross validation.
+    """
+    regression_results = func(x, y, **kwargs)
+    predictions = regression_results[1]
+    rmse = np.sqrt(np.mean(np.subtract(predictions, y) ** 2))
+
+    cv_predictions = []
+    cv_targets = []
+    entry_indices = np.arange(len(x))
+    np.random.shuffle(entry_indices)
+    folds = np.array_split(entry_indices, n_folds)
+    for k in range(n_folds):
+        x_holdout = np.take(x, folds[k], axis=0)
+        y_holdout = np.take(y, folds[k], axis=0)
+
+        cv = np.concatenate(np.delete(folds, k, axis=0), axis=0)
+        x_cv = np.take(x, cv, axis=0)
+        y_cv = np.take(y, cv, axis=0)
+        regression_results = func(x_cv, y_cv, **kwargs)
+        coefficients = regression_results[0]
+        fold_predictions = np.dot(coefficients, x_holdout.T)
+        cv_predictions.extend(fold_predictions)
+        cv_targets.extend(y_holdout)
+    cv_rmse = np.sqrt(np.mean(np.subtract(cv_predictions, cv_targets) ** 2))
+    return (rmse, cv_rmse)
+
 def ridge_regression(A, y, lambda_=1):
     """
     Solves the Ax=y with ridge regression
-    x = np.linalg.inv(A.T*A + alpha * I)*A.T*y
+    x = np.linalg.inv(A.T*A + lambda * I)*A.T*y
 
     Args:
         A (np.ndarray): representations.
@@ -22,6 +58,43 @@ def ridge_regression(A, y, lambda_=1):
     inverted_kernel = np.linalg.inv(kernel)
     beta = np.dot(np.dot(inverted_kernel, A.T), y)
     y_beta = np.dot(beta, A.T)
+    return beta, y_beta, A_mean
+
+
+def fused_ridge_regression(A, y, lambda_=1, eta=1):
+    """
+    Solves the Ax=y with fused ridge regression.
+
+    Goeman, J. J. (2008). Autocorrelated logistic ridge regression for
+        prediction based on proteomics spectra. Statistical Applications in
+        Genetics and Molecular Biology, 7(2).
+
+    See https://arxiv.org/pdf/1509.09169.pdf for details.
+
+    Args:
+        A (np.ndarray): representations.
+        y (np.ndarray): energies.
+        lambda_ (float): regularization parameter.
+
+    Returns:
+        beta (np.ndarray): coefficients.
+        y_beta (np.ndarray): predicted energies.
+        A_mean (np.ndarray): average representation; used for centering.
+    """
+    l, w = A.shape
+    reg_diag = np.eye(w) * eta * 2
+    reg_minus = np.eye(w, k=-1) * -eta
+    reg_plus = np.eye(w, k=1) * -eta
+    fused = reg_diag + reg_minus + reg_plus
+    fused[0, 0] /= 2
+    fused[w - 1, w - 1] /= 2
+    ridge = np.eye(w) * lambda_
+    reg = fused + ridge
+    kernel = np.dot(A.T, A) + reg
+    inverted_kernel = np.linalg.inv(kernel)
+    beta = np.dot(np.dot(inverted_kernel, A.T), y)
+    y_beta = np.dot(beta, A.T)
+    A_mean = np.mean(A, axis=0)
     return beta, y_beta, A_mean
 
 
@@ -186,7 +259,7 @@ def collected_kernel_ridge_regression(x_list, y, lambda_=1):
 # def ridge_regression(A, y, lambda_=1):
 #     """
 #     Solves the Ax=y with ridge regression
-#     x = np.linalg.inv(A.T*A + alpha * I)*A.T*y
+#     x = np.linalg.inv(A.T*A + lambda * I)*A.T*y
 #     """
 #     l, w = A.shape
 #     A_offset = np.mean(A, axis=0)
@@ -201,10 +274,6 @@ def collected_kernel_ridge_regression(x_list, y, lambda_=1):
 
 
 # def ridge_predict(beta, A, A_offset, y_offset):
-#     """
-#     Solves the Ax=y with ridge regression
-#     x = np.linalg.inv(A.T*A + alpha * I)*A.T*y
-#     """
 #     A_centered = A - A_offset
 #     y_beta = np.dot(beta, A_centered.T) + y_offset
 #     return y_beta
