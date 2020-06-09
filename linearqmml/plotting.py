@@ -89,7 +89,8 @@ def scatter_rmse(predictions, references, factor=1,
     else:
         return rmse_text
 
-def plot_descriptions(representations, r, ax=None):
+
+def plot_representations(representations, r, ax=None):
     """
     Plot distance-based representation.
 
@@ -116,12 +117,13 @@ def plot_descriptions(representations, r, ax=None):
     if return_ax:
         return fig, ax
 
+
 def plot_morse_performance(coefficients,
                            predictions,
                            references,
                            sample_representations,
-                           r,
-                           figsize=(13*0.75, 4)):
+                           bin_edges,
+                           figsize=(13 * 0.75, 4)):
     """
     Plot 3 panel summary of performance with morse potential.
 
@@ -129,36 +131,46 @@ def plot_morse_performance(coefficients,
         coefficients (list): regression coefficients.
         predictions (list): input for scatter_rmse.
         references (list): input for scatter_rmse.
-        sample_representations (list): input for plot_descriptions.
-        r (list): list of x-axis distances corresponding to representation.
+        sample_representations (list): input for plot_representations.
+        bin_edges (list): list of bin edges for representation.
         figsize (tuple): optional tuple of figure width and length.
 
     Returns:
         fig & ax: new matplotlib figure & axis objects.
     """
-    fig, ax = plt.subplots(1,3, figsize=figsize)
-    plot_descriptions(sample_representations, r, ax=ax[0])
+    r = bin_edges[:-1]
+    fig, ax = plt.subplots(1, 3, figsize=figsize)
+    plot_representations(sample_representations, r, ax=ax[0])
     ax[0].set_xlabel('r ($\mathrm{\AA}$)')
     ax[0].set_ylabel('$\mathrm{g(r)}$')
     ax[0].set_title('Representations')
 
     morse = get_morse_potential(r)
+    bin_widths = bin_edges[1:] - bin_edges[:-1]
     ax[1].plot(r, morse, 'blue', label='Morse\nPotential', zorder=1)
-    ax[1].plot(r, coefficients, color='#FF7F00', marker='s', linestyle=':',
-               label=r'$\beta$', zorder=0, markersize=1.5)
+    # ax[1].plot(r, coefficients, color='#FF7F00', marker='s', linestyle=':',
+    #            label=r'$\beta$', zorder=0, markersize=1.5)
+    ax[1].bar(bin_edges[:-1],
+              coefficients,
+              edgecolor='black', linewidth=1,
+              align='edge',
+              color='#FF7F00',
+              label=r'$\beta$',
+              width=bin_widths)
 
-    ax[1].legend(loc=(0.25,0.7))
+    ax[1].legend(loc=(0.25, 0.7))
     ax[1].set_xlim(r[0], r[-1])
-    ax[1].set_ylim(-0.25, 2)
+    ax[1].set_ylim(-0.5, 1.5)
     ax[1].set_xlabel('r ($\mathrm{\AA}$)')
     ax[1].set_ylabel('V(r) (eV/atom)')
     ax[1].set_title('Regression Coefficients')
 
-    rmse_text = scatter_rmse(predictions, references, 2, ax=ax[2])
+    rmse_text = scatter_rmse(predictions, references, 2, ax=ax[2]) + '\n'
+    ax[2].set_title('Testing Error')
+    ax[2].axis('square')
+    fig.tight_layout()
     plot_center = np.mean(ax[2].get_xlim())
     plot_bottom, plot_top = ax[2].get_ylim()
-    ax[2].text(plot_center, plot_bottom, rmse_text, ha='center', va='top',
+    ax[2].text(plot_center, plot_bottom, rmse_text, ha='center', va='bottom',
                fontsize=8)
-    ax[2].set_title('Testing Error')
-    fig.tight_layout()
     return fig, ax
