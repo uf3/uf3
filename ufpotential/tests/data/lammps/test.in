@@ -1,0 +1,33 @@
+units           metal
+boundary        p p p
+
+atom_style      atomic
+
+lattice         bcc 3.206
+region          box block -2 2 -2 2 -2 2
+create_box      1 box
+create_atoms    1 region box	
+
+mass            1  180.95 
+
+pair_style      table spline 25
+pair_coeff      * * /home/sxiexie/PycharmProjects/tungsten/potentials/uf_w.table UF_W 5.5
+
+
+timestep        0.01
+thermo_style custom step temp pe press vol
+compute peratom all pe/atom
+compute pe all reduce sum c_peratom
+dump fix_dump all custom 1000 test.lammpstrj id type x y z fx fy fz c_peratom
+
+velocity        all create 600.0 4928459 dist gaussian
+fix             1 all npt temp 300 300  0.1 iso 0 0 0.2
+thermo          1000
+run             3000
+
+reset_timestep 0
+velocity        all create 8000.0 4928459 dist gaussian
+fix             1 all npt temp 4000 4000  0.1 iso 0 0 0.2
+thermo          1000
+run             3000
+
