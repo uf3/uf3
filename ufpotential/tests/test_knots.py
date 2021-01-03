@@ -1,4 +1,3 @@
-import numpy as np
 from ufpotential.bspline.knots import *
 
 
@@ -19,3 +18,8 @@ class TestKnots:
         sequence = generate_uniform_knots(1, 6, 5, sequence=True)
         assert np.allclose(points, [1, 2, 3, 4, 5, 6])
         assert np.allclose(sequence, [1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 6, 6])
+
+    def test_lammps_knots(self):
+        points = generate_lammps_knots(0, 1, 2)
+        points = np.round(points, 4)
+        assert np.allclose(points, [0, 0, 0, 0, 0.7071, 1, 1, 1, 1])

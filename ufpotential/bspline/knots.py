@@ -53,3 +53,28 @@ def generate_uniform_knots(r_min, r_max, n_intervals, sequence=True):
     if sequence:
         knots = knot_sequence_from_points(knots)
     return knots
+
+
+def generate_lammps_knots(r_min, r_max, n_intervals, sequence=True):
+    """
+    Generate knot points or knot sequence using LAMMPS convention of
+    distance^2. This scheme yields somewhat higher resolution at larger
+    distances and somewhat lower resolution at smaller distances.
+    Since speed is mostly unaffected by the number of basis functions, due
+    to the local support, a high value of n_intervals ensures resolution
+    while ensuring expected behavior in LAMMPS.
+
+    Args:
+        r_min (float): lower-bound for knot points.
+        r_max (float): upper-bound for knot points.
+        n_intervals (int): number of unique intervals in the knot sequence,
+            i.e. n_intervals + 1 samples will be taken between r_min and r_max.
+        sequence (bool): whether to repeat ends to yield knot sequence.
+
+    Returns:
+        knots (numpy.ndarray): knot points or knot sequence.
+    """
+    knots = np.linspace(r_min ** 2, r_max ** 2, n_intervals + 1) ** 0.5
+    if sequence:
+        knots = knot_sequence_from_points(knots)
+    return knots
