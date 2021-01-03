@@ -7,11 +7,11 @@ def knot_sequence_from_points(knot_points):
         and second derivatives to zero).
 
     Args:
-        knot_points (list or numpy.ndarray): sorted knot points in
+        knot_points (list or np.ndarray): sorted knot points in
             increasing order.
 
     Returns:
-        knots (numpy.ndarray): knot sequence with repeated ends.
+        knots (np.ndarray): knot sequence with repeated ends.
     """
     knots = np.concatenate([np.repeat(knot_points[0], 3),
                             knot_points,
@@ -25,7 +25,7 @@ def get_knot_subintervals(knots):
         from specified knot sequence.
 
     Args:
-        knots (numpy.ndarray): knot sequence with repeated ends.
+        knots (np.ndarray): knot sequence with repeated ends.
 
     Returns:
         subintervals (list): list of 5-knot subintervals.
@@ -47,7 +47,7 @@ def generate_uniform_knots(r_min, r_max, n_intervals, sequence=True):
         sequence (bool): whether to repeat ends to yield knot sequence.
 
     Returns:
-        knots (numpy.ndarray): knot points or knot sequence.
+        knots (np.ndarray): knot points or knot sequence.
     """
     knots = np.linspace(r_min, r_max, n_intervals + 1)
     if sequence:
@@ -72,7 +72,7 @@ def generate_lammps_knots(r_min, r_max, n_intervals, sequence=True):
         sequence (bool): whether to repeat ends to yield knot sequence.
 
     Returns:
-        knots (numpy.ndarray): knot points or knot sequence.
+        knots (np.ndarray): knot points or knot sequence.
     """
     knots = np.linspace(r_min ** 2, r_max ** 2, n_intervals + 1) ** 0.5
     if sequence:

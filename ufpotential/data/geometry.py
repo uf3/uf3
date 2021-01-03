@@ -10,9 +10,9 @@ def get_supercell(geometry, r_cut=10, sort_indices=False):
     images) at distances of r_cut or more.
 
     Args:
-        geometry: ase.Atoms of interest with periodic boundary conditions.
-        r_cut (optional): radial cutoff, default = 10.
-        sort_indices (optional): sort images by distance to origin.
+        geometry (ase.Atoms): configuration with periodic boundary conditions.
+        r_cut (float): radial cutoff, default = 10.
+        sort_indices (bool): sort images by distance to origin.
 
     Returns:
         supercell: ase.Atoms with maximum distances.
@@ -61,8 +61,8 @@ def get_supercell_factors(cell, r_cut):
     (in periodic images) at distances of r_cut or more.
 
     Args:
-        cell: ase.cell or 3x3 np.ndarray of lattice vectors.
-        r_cut: cutoff radius.
+        cell (ase.cell, np.ndarray): 3x3 array of lattice vectors.
+        r_cut (float): cutoff radius.
 
     Returns:
         supercell_factors: minimum number of images per direction (radius).
@@ -89,10 +89,13 @@ def sort_image_indices(a_indices,
     Sort image indices based on distance to origin.
 
     Args:
-        a_indices: flattened coordinate array of image indices in a direction.
-        b_indices: flattened coordinate array of image indices in b direction.
-        c_indices: flattened coordinate array of image indices in c direction.
-        cell: 3x3 np.ndarray of a, b, c lattice vectors.
+        a_indices (np.ndarray): flattened coordinate array of image indices
+            in a direction.
+        b_indices (np.ndarray): flattened coordinate array of image indices
+            in b direction.
+        c_indices (np.ndarray): flattened coordinate array of image indices
+            in c direction.
+        cell (np.ndarray): 3x3 array of a, b, c lattice vectors.
 
     Returns:
         Sorted, flattened coordinate arrays of image indices in each direction.

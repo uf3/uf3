@@ -152,13 +152,13 @@ def mask_matrix_by_pair_interaction(pair,
 
     Args:
         pair (tuple): pair interaction of interest e.g. (A-B)
-        geo_composition (list, numpy.ndarray): list of elements
+        geo_composition (list, np.ndarray): list of elements
             for each atom in geometry.
-        sup_composition (list, numpy.ndarray): optional list of elements
+        sup_composition (list, np.ndarray): optional list of elements
             for each atom in supercell.
 
     Returns:
-        comp_mask (numpy.ndarray): Boolean mask of dimension (n x m)
+        comp_mask (np.ndarray): Boolean mask of dimension (n x m)
             corresponding to pair interactions of the specified type,
             where n and m are the number of atoms in the geometry
             and its supercell, respectively.
@@ -186,7 +186,7 @@ def get_distance_matrix(geometry, supercell=None):
             used to account for atoms in periodic images.
 
     Returns:
-        distance_matrix (numpy.ndarray): square (n x n) if supercell
+        distance_matrix (np.ndarray): square (n x n) if supercell
             is not provided, rectangular (n x m) otherwise, where
             n and m are the number of atoms in the geometry
             and its supercell, respectively.

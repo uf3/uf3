@@ -176,7 +176,7 @@ def prepare_dataframe_from_lists(geometries,
         geometries (list): list of ase.Atoms configurations.
         prefix (str): prefix for DataFrame index.
             e.g. "bulk" -> [bulk_0, bulk_1, bulk_2, ...]
-        energies (list or numpy.ndarray): vector of energy for each geometry.
+        energies (list or np.ndarray): vector of energy for each geometry.
         forces (list): list of n x 3 arrays of forces for each geometry.
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
