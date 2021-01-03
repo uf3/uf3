@@ -3,15 +3,170 @@ import re
 import io
 import numpy as np
 import pandas as pd
-
-from ase import Atoms
-from ase.io import read as ase_read
-from ase.io.lammpsrun import construct_cell
-from ase.calculators.calculator import PropertyNotImplementedError
+import ase
+from ase import io as ase_io
+from ase.io import lammpsrun as ase_lammpsrun
 
 
-def prepare_dataframe_from_lists(geometries, energies=None, forces=None,
-                                 atoms_key='geometry', energy_key='energy'):
+class DataCoordinator:
+    def __init__(self,
+                 atoms_key='geometry',
+                 energy_key='energy',
+                 size_key='size',
+                 overwrite=False):
+        self.atoms_key = atoms_key
+        self.energy_key = energy_key
+        self.size_key = size_key
+        self.overwrite=overwrite
+
+        self.data = {}
+        self.keys = []
+
+    @staticmethod
+    def from_config(config):
+        """Instantiate from configuration dictionary"""
+        keys = ['atoms_key', 'energy_key', 'size_key', 'overwrite']
+        config = {k: v for k, v in config.items() if k in keys}
+        return DataCoordinator(**config)
+
+    def consolidate(self, remove_duplicates=True, keep='first'):
+        """Wrapper for concat_dataframes"""
+        dataframes = [self.data[k] for k in self.keys]
+        df = concat_dataframes(dataframes,
+                               remove_duplicates=remove_duplicates,
+                               keep=keep)
+        return df
+
+    def load_dataframe(self, dataframe, prefix=None):
+        """Load dataframe manually."""
+        assert self.atoms_key in dataframe.columns, \
+            "\"{}\" column is missing.".format(self.atoms_key)
+        assert self.energy_key in dataframe.columns, \
+            "\"{}\" column is missing.".format(self.energy_key)
+        assert self.size_key in dataframe.columns, \
+            "\"{}\" column is missing.".format(self.size_key)
+        name_0 = dataframe.index[0]  # existing prefix takes priority
+        if isinstance(name_0, str):
+            if '_' in name_0:
+                prefix = '_'.join(name_0.split('_')[:-1])
+        if prefix is None:  # no prefix provided
+            prefix = len(self.data)
+            pattern = '{}_{{}}'.format(prefix)
+            dataframe = dataframe.rename(pattern.format)
+        if prefix in self.data.keys():
+            print('Data already exists with prefix "{}".', end=' ')
+            if self.overwrite is True:
+                print('Overwriting...')
+                self.data[prefix] = dataframe
+            else:
+                print('Skipping...')
+                return
+        else:
+            self.data[prefix] = dataframe
+            self.keys.append(prefix)
+
+    def dataframe_from_lists(self,
+                             geometries,
+                             prefix=None,
+                             energies=None,
+                             forces=None,
+                             load=True):
+        """Wrapper for prepare_dataframe_from_lists"""
+        if prefix is None:
+            prefix = len(self.data)
+        df = prepare_dataframe_from_lists(geometries,
+                                          prefix,
+                                          energies=energies,
+                                          forces=forces,
+                                          atoms_key=self.atoms_key,
+                                          energy_key=self.energy_key,
+                                          size_key=self.size_key)
+        if load:
+            self.load_dataframe(df, prefix=prefix)
+        else:
+            return df
+
+    def dataframe_from_trajectory(self,
+                                  filename,
+                                  prefix=None,
+                                  scalar_keys=(),
+                                  array_keys=(),
+                                  load=True):
+        """Wrapper for parse_trajectory"""
+        if prefix is None:
+            prefix = len(self.data)
+        df = parse_trajectory(filename,
+                              prefix=prefix,
+                              scalar_keys=scalar_keys,
+                              array_keys=array_keys,
+                              atoms_key=self.atoms_key,
+                              energy_key=self.energy_key,
+                              size_key=self.size_key)
+        if load:
+            self.load_dataframe(df, prefix=prefix)
+        else:
+            return df
+
+    dataframe_from_xyz = dataframe_from_trajectory
+    dataframe_from_vasprun = dataframe_from_trajectory
+
+    def dataframe_from_lammps_run(self,
+                                  path,
+                                  element_aliases,
+                                  prefix=None,
+                                  column_subs={"PotEng": "energy"},
+                                  log_fname="log.lammps",
+                                  dump_fname="dump.lammpstrj",
+                                  log_regex=None,
+                                  load=True):
+        """Wrapper for parse_lammps_outputs"""
+        if prefix is None:
+            prefix = len(self.data)
+        df = parse_lammps_outputs(path,
+                                  element_aliases,
+                                  prefix=prefix,
+                                  column_subs=column_subs,
+                                  log_fname=log_fname,
+                                  dump_fname=dump_fname,
+                                  atoms_key=self.atoms_key,
+                                  size_key=self.size_key,
+                                  log_regex=log_regex)
+        if load:
+            self.load_dataframe(df, prefix=prefix)
+        else:
+            return df
+
+
+def concat_dataframes(dataframes,
+                      remove_duplicates=True, keep='first'):
+    """
+    Concatenate list of dataframes with optional removal of duplicate keys.
+
+    Args:
+        dataframes (list): list of DataFrames to merge
+        remove_duplicates (bool)
+        keep (str, bool): 'first', 'last', or False.
+
+    Returns:
+        df (pandas.DataFrame)
+    """
+    df = pd.concat(dataframes)
+    duplicate_array = df.index.duplicated(keep=keep)
+    if np.any(duplicate_array):
+        print('Duplicates keys found:', np.sum(duplicate_array))
+        if remove_duplicates:
+            print('Removing with keep=', keep)
+            df = df[~duplicate_array]
+    return df
+
+
+def prepare_dataframe_from_lists(geometries,
+                                 prefix=None,
+                                 energies=None,
+                                 forces=None,
+                                 atoms_key='geometry',
+                                 energy_key='energy',
+                                 size_key='size'):
     """
     Convenience function for arranging data into pandas DataFrame
         with expected column names. Extracts energies and forces from
@@ -22,16 +177,19 @@ def prepare_dataframe_from_lists(geometries, energies=None, forces=None,
 
     Args:
         geometries (list): list of ase.Atoms configurations.
+        prefix (str): prefix for DataFrame index.
+            e.g. "bulk" -> [bulk_0, bulk_1, bulk_2, ...]
         energies (list or numpy.ndarray): vector of energy for each geometry.
         forces (list): list of n x 3 arrays of forces for each geometry.
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
         energy_key (str): column name for energies, default "energy".
-        force_key (str): column name for forces, default "force".
+        size_key (str):  column name for number of atoms per geometry,
+            default "size".
 
     Returns:
         df (pandas.DataFrame): standard dataframe with columns
-           [atoms_key, energy_key, force_key]
+           [atoms_key, energy_key, fx, fy, fz]
     """
     geometries = update_geometries_from_calc(geometries)
     # generate dataframe
@@ -44,9 +202,9 @@ def prepare_dataframe_from_lists(geometries, energies=None, forces=None,
         df[energy_key] = energies
         scalar_keys = ('energy',)  # add energies to ase.Atoms objects
     if forces is not None:
-        df['fx'] = [array[:, 0] for array in forces]
-        df['fy'] = [array[:, 1] for array in forces]
-        df['fz'] = [array[:, 2] for array in forces]
+        df['fx'] = [np.array(array)[:, 0] for array in forces]
+        df['fy'] = [np.array(array)[:, 1] for array in forces]
+        df['fz'] = [np.array(array)[:, 2] for array in forces]
         array_keys = ('fx', 'fy', 'fz')  # add forces to ase.Atoms objects
     # object-dataframe consistency
     update_geometries_from_dataframe(df,
@@ -60,8 +218,14 @@ def prepare_dataframe_from_lists(geometries, energies=None, forces=None,
     if forces is None:
         array_keys = ('fx', 'fy', 'fz')  # get forces from ase.Atoms objects
     df = update_dataframe_from_geometries(df,
+                                          atoms_key=atoms_key,
+                                          size_key=size_key,
                                           scalar_keys=scalar_keys,
-                                          array_keys=array_keys)
+                                          array_keys=array_keys,
+                                          inplace=True)
+    if prefix is not None:
+        pattern = '{}_{{}}'.format(prefix)
+        df = df.rename(pattern.format)
     return df
 
 
@@ -71,7 +235,7 @@ def parse_trajectory(fname,
                      prefix=None,
                      atoms_key="geometry",
                      energy_key="energy",
-                     ):
+                     size_key='size'):
     """
     Wrapper for ase.io.read, which is compatible with
     many file formats (notably VASP's vasprun.xml and extended xyz).
@@ -89,12 +253,14 @@ def parse_trajectory(fname,
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
         energy_key (str): column name for energies, default "energy".
+        size_key (str):  column name for number of atoms per geometry,
+            default "size".
 
     Returns:
         df (pandas.DataFrame): standard dataframe with columns
-           [atoms_key, energy_key, force_key]
+           [atoms_key, energy_key, fx, fy, fz]
     """
-    geometries = ase_read(fname, index=slice(None, None))
+    geometries = ase_io.read(fname, index=slice(None, None))
     if not isinstance(geometries, list):
         geometries = [geometries]
     geometries = update_geometries_from_calc(geometries,
@@ -111,6 +277,7 @@ def parse_trajectory(fname,
     # object-dataframe consistency
     df = update_dataframe_from_geometries(df,
                                           atoms_key=atoms_key,
+                                          size_key=size_key,
                                           scalar_keys=scalar_keys,
                                           array_keys=array_keys,
                                           inplace=True)
@@ -127,8 +294,8 @@ def parse_lammps_outputs(path,
                          log_fname="log.lammps",
                          dump_fname="dump.lammpstrj",
                          atoms_key="geometry",
-                         log_regex=None,
-                         ):
+                         size_key='size',
+                         log_regex=None):
     """
     Convenience wrapper for parsing both LAMMPS log and dump
     in a run directory.
@@ -144,8 +311,8 @@ def parse_lammps_outputs(path,
         dump_fname (str): dump filename, default "dump.lammpstrj".
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
-        energy_key (str): column name for energies, default "energy".
-        force_key (str): column name for forces, default "force".
+        size_key (str):  column name for number of atoms per geometry,
+            default "size".
         log_regex (str): Regular expression for identifying step information.
             Defaults to '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
 
@@ -175,8 +342,6 @@ def parse_lammps_outputs(path,
         log_timesteps = np.delete(log_timesteps, i)
         log_idxs = np.delete(log_idxs, i)
         intersection_idxs.append(idx)
-    print(snapshots.index)
-    print(intersection_idxs)
     for i, (timestep, geometry) in enumerate(snapshots.items()):
         log_idx = intersection_idxs[i]  # index of matching log row
         timestep_info = df.iloc[log_idx].to_dict()  # log row
@@ -184,7 +349,6 @@ def parse_lammps_outputs(path,
         for key, value in timestep_info.items():
             geometry.info[key] = value
     # Add geometries to DataFrame and remove timesteps with no geometry.
-    print(df)
     df = df.dropna()
     if prefix is not None:
         pattern = '{}_{{}}'.format(prefix)
@@ -192,6 +356,7 @@ def parse_lammps_outputs(path,
     # object-dataframe consistency
     df = update_dataframe_from_geometries(df,
                                           atoms_key=atoms_key,
+                                          size_key=size_key,
                                           scalar_keys=['energy'],
                                           array_keys=['fx', 'fy', 'fz'],
                                           inplace=True)
@@ -202,6 +367,7 @@ def update_dataframe_from_geometries(df,
                                      scalar_keys=(),
                                      array_keys=(),
                                      atoms_key='geometry',
+                                     size_key='size',
                                      inplace=True):
     """Intermediate function for object-dataframe consistency"""
     if not inplace:
@@ -213,11 +379,15 @@ def update_dataframe_from_geometries(df,
         if scalar not in df.columns:
             df[scalar] = pd.Series(dtype=object)
         scalar_idxs.append(df.columns.get_loc(scalar))
+    if size_key not in df.columns:
+        df[size_key] = pd.Series(dtype=int)
+    size_idx = df.columns.get_loc(size_key)
     for array in array_keys:
         if array not in df.columns:
             df[array] = pd.Series(dtype=object)
         array_idxs.append(df.columns.get_loc(array))
     for idx, geometry in enumerate(geometries):
+        df.iat[idx, size_idx] = len(geometry)
         for scalar, scalar_idx in zip(scalar_keys, scalar_idxs):
             try:
                 df.iat[idx, scalar_idx] = geometry.info[scalar]
@@ -241,11 +411,13 @@ def update_geometries_from_calc(geometries,
     for idx, geometry in enumerate(geometries):
         try:
             geometry.info[energy_key] = geometry.calc.get_potential_energy()
-        except PropertyNotImplementedError:
+        except (ase.calculators.calculator.PropertyNotImplementedError,
+                AttributeError):
             pass  # no energy
         try:
             forces = geometry.calc.get_forces()
-        except PropertyNotImplementedError:
+        except (ase.calculators.calculator.PropertyNotImplementedError,
+                AttributeError):
             if force_key in geometry.arrays.keys():
                 forces = geometry.arrays[force_key]
             else:
@@ -293,7 +465,8 @@ def df_from_tsv_text(text):
 def atoms_from_df(df,
                   element_key='element',
                   element_aliases=None,
-                  info=None, **atom_kwargs):
+                  info=None,
+                  **atom_kwargs):
     """
     Create ase.Atoms from DataFrame. Minimum required columns include:
         x, y, z, [element_key]
@@ -316,7 +489,7 @@ def atoms_from_df(df,
     species = df[element_key]
     species = [element_aliases.get(el, el)
                for el in species]  # substitute aliases
-    atoms = Atoms(species, positions=positions, **atom_kwargs)
+    atoms = ase.Atoms(species, positions=positions, **atom_kwargs)
     # Add extra columns, e.g. fx or per-atom quantities, as array entries.
     extra_keys = list(set(df.columns).difference(req_keys))
     for key in extra_keys:
@@ -408,7 +581,7 @@ def parse_lammps_dump(fname, element_aliases, timesteps=None):
                                 # timestep is absent from the dump.
                                 break
                 timestep = int(f.readline())
-                atom_lines = [] # reset timestep data
+                atom_lines = []  # reset timestep data
             elif "ITEM: NUMBER OF ATOMS" in line:
                 n_atoms = int(f.readline())  # parsed but not necessary
             elif "ITEM: BOX BOUNDS" in line:  # cell data
@@ -431,7 +604,8 @@ def parse_lammps_dump(fname, element_aliases, timesteps=None):
                     pbc = [('p' in condition.lower())
                            for condition in conditions[3:]]
                     off_diag = cell_data[:, 2]
-                cell, cell_displacement = construct_cell(cell_bounds, off_diag)
+                c_data = ase_lammpsrun.construct_cell(cell_bounds, off_diag)
+                cell, cell_displacement = c_data
             elif "ITEM: ATOMS" in line:  # header
                 atom_lines.append(line.replace("ITEM: ATOMS ", ""))
             else:  # atom data
