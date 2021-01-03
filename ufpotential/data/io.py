@@ -39,12 +39,9 @@ class DataCoordinator:
 
     def load_dataframe(self, dataframe, prefix=None):
         """Load dataframe manually."""
-        assert self.atoms_key in dataframe.columns, \
-            "\"{}\" column is missing.".format(self.atoms_key)
-        assert self.energy_key in dataframe.columns, \
-            "\"{}\" column is missing.".format(self.energy_key)
-        assert self.size_key in dataframe.columns, \
-            "\"{}\" column is missing.".format(self.size_key)
+        for key in [self.atoms_key, self.energy_key, self.size_key]:
+            if key not in dataframe.columns:
+                raise RuntimeError("Missing \"{}\" column.".format(key))
         name_0 = dataframe.index[0]  # existing prefix takes priority
         if isinstance(name_0, str):
             if '_' in name_0:
