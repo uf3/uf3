@@ -50,7 +50,7 @@ class DataCoordinator:
             prefix = len(self.data)
             pattern = '{}_{{}}'.format(prefix)
             dataframe = dataframe.rename(pattern.format)
-        if prefix in self.data.keys():
+        if prefix in self.data:
             print('Data already exists with prefix "{}".', end=' ')
             if self.overwrite is True:
                 print('Overwriting...')
@@ -415,7 +415,7 @@ def update_geometries_from_calc(geometries,
             forces = geometry.calc.get_forces()
         except (ase.calculators.calculator.PropertyNotImplementedError,
                 AttributeError):
-            if force_key in geometry.arrays.keys():
+            if force_key in geometry.arrays:
                 forces = geometry.arrays[force_key]
             else:
                 continue  # no forces
