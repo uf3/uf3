@@ -1,5 +1,5 @@
 import numpy as np
-from ase import Atoms
+import ase
 
 
 def get_supercell(geometry, r_cut=10, sort_indices=False):
@@ -50,7 +50,7 @@ def get_supercell(geometry, r_cut=10, sort_indices=False):
             img_offset = np.dot([a_idx, b_idx, c_idx], cell)
             img_positions = positions + img_offset
             sup_positions.extend(img_positions.tolist())
-    supercell = Atoms(sup_z, positions=sup_positions)
+    supercell = ase.Atoms(sup_z, positions=sup_positions)
     return supercell
 
 

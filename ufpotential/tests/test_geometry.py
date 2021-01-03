@@ -4,10 +4,10 @@ from ufpotential.data.geometry import *
 
 @pytest.fixture()
 def simple_structure():
-    geometry = Atoms('Au2',
-                     positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
-                     pbc=True,
-                     cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
+    geometry = ase.Atoms('Au2',
+                         positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
+                         pbc=True,
+                         cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
     yield geometry
 
 

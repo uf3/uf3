@@ -7,12 +7,12 @@ from itertools import combinations_with_replacement as cwr
 
 @pytest.fixture()
 def simple_unary():
-    geometry = Atoms('Au2',
-                     positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
-                     pbc=True,
-                     cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
+    geometry = ase.Atoms('Au2',
+                         positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
+                         pbc=True,
+                         cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
     yield geometry
-    
+
 
 @pytest.fixture()
 def simple_binary():
@@ -30,8 +30,8 @@ class TestUnary:
         # parameters
         element_list = ['Au']
         interactions_map = {2: sorted(cwr(element_list, 2))}
-        r_min_map = {('Au', 'Au'): 0.5,}
-        r_max_map = {('Au', 'Au'): 3.0,}
+        r_min_map = {('Au', 'Au'): 0.5, }
+        r_max_map = {('Au', 'Au'): 3.0, }
         # compute
         distances = distances_by_interaction(geometry,
                                              interactions_map,
@@ -50,8 +50,8 @@ class TestUnary:
         # parameters
         element_list = ['Au']
         interactions_map = {2: sorted(cwr(element_list, 2))}
-        r_min_map = {('Au', 'Au'): 0.5,}
-        r_max_map = {('Au', 'Au'): 3.0,}
+        r_min_map = {('Au', 'Au'): 0.5, }
+        r_max_map = {('Au', 'Au'): 3.0, }
         # compute
         distances, derivatives = derivatives_by_interaction(geometry,
                                                             supercell,
@@ -73,10 +73,10 @@ class TestBinary:
         interactions_map = {2: sorted(cwr(element_list, 2))}
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
-                     ('Xe', 'Xe'): 0.7,}
+                     ('Xe', 'Xe'): 0.7, }
         r_max_map = {('Ne', 'Ne'): 3.0,
                      ('Ne', 'Xe'): 4.0,
-                     ('Xe', 'Xe'): 5.0,}
+                     ('Xe', 'Xe'): 5.0, }
         # compute
         distances = distances_by_interaction(geometry,
                                              interactions_map,
@@ -105,10 +105,10 @@ class TestBinary:
         interactions_map = {2: sorted(cwr(element_list, 2))}
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
-                     ('Xe', 'Xe'): 0.7,}
+                     ('Xe', 'Xe'): 0.7, }
         r_max_map = {('Ne', 'Ne'): 3.0,
                      ('Ne', 'Xe'): 4.0,
-                     ('Xe', 'Xe'): 5.0,}
+                     ('Xe', 'Xe'): 5.0, }
         # compute
         distances, derivatives = derivatives_by_interaction(geometry,
                                                             supercell,
@@ -131,6 +131,7 @@ class TestBinary:
 
 class TestUnaryLegacy:
     """Legacy functions"""
+
     def test_distances(self, simple_unary):
         supercell = get_supercell(simple_unary, r_cut=2)
         distances = distances_from_geometry(simple_unary,

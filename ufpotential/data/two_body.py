@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.spatial.distance import cdist
+from scipy import spatial
 
 
 def distances_by_interaction(geometry, interactions_map,
@@ -195,7 +195,7 @@ def get_distance_matrix(geometry, supercell=None):
         supercell = geometry
     sup_positions = supercell.get_positions()
     geo_positions = geometry.get_positions()
-    distance_matrix = cdist(geo_positions, sup_positions)
+    distance_matrix = spatial.distance.cdist(geo_positions, sup_positions)
     return distance_matrix
 
 
@@ -221,12 +221,12 @@ def get_distance_derivatives(geometry, supercell, r_min=0, r_max=10):
     """
     sup_positions = supercell.get_positions()
     geo_positions = geometry.get_positions()
-    distance_matrix = cdist(geo_positions, sup_positions)
+    distance_matrix = spatial.distance.cdist(geo_positions, sup_positions)
     weight_mask = distance_matrix <= r_max  # mask distance matrix by r_max
     valids_mask = np.any(weight_mask, axis=0)
     sup_positions = sup_positions[valids_mask, :]
 
-    distance_matrix = cdist(sup_positions, sup_positions)
+    distance_matrix = spatial.distance.cdist(sup_positions, sup_positions)
     n_geo = len(geo_positions)
 
     cut_mask = (distance_matrix >= r_min) & (distance_matrix <= r_max)
@@ -272,7 +272,8 @@ def compute_drij_dR(sup_positions, distance_matrix,
 
     Args:
         sup_positions: atom positions in supercell.
-        distance_matrix: output of cdist(sup_positions, sup_positions).
+        distance_matrix: output of spatial.distance.cdist(sup_positions,
+            sup_positions).
         i_where: indices of i-th atom based on distance mask.
         j_where: indices of j-th atom based on distance mask.
         n_geo: number of atoms in original entry.
