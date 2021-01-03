@@ -1,8 +1,7 @@
 import pytest
 from ufpotential.data.geometry import *
 from ufpotential.data.two_body import *
-
-from itertools import combinations_with_replacement as cwr
+import itertools
 
 
 @pytest.fixture()
@@ -16,10 +15,10 @@ def simple_unary():
 
 @pytest.fixture()
 def simple_binary():
-    geometry = Atoms('NeXe',
-                     positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
-                     pbc=True,
-                     cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
+    geometry = ase.Atoms('NeXe',
+                         positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
+                         pbc=True,
+                         cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
     yield geometry
 
 
@@ -29,7 +28,8 @@ class TestUnary:
         supercell = get_supercell(geometry, r_cut=4)
         # parameters
         element_list = ['Au']
-        interactions_map = {2: sorted(cwr(element_list, 2))}
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        interactions_map = {2: sorted(cwr)}
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
@@ -49,7 +49,8 @@ class TestUnary:
         supercell = get_supercell(geometry, r_cut=4)
         # parameters
         element_list = ['Au']
-        interactions_map = {2: sorted(cwr(element_list, 2))}
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        interactions_map = {2: sorted(cwr)}
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
@@ -70,7 +71,8 @@ class TestBinary:
         supercell = get_supercell(geometry, r_cut=4)
         # parameters
         element_list = ['Ne', 'Xe']
-        interactions_map = {2: sorted(cwr(element_list, 2))}
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        interactions_map = {2: sorted(cwr)}
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
                      ('Xe', 'Xe'): 0.7, }
@@ -102,7 +104,8 @@ class TestBinary:
         supercell = get_supercell(geometry, r_cut=4)
         # parameters
         element_list = ['Ne', 'Xe']
-        interactions_map = {2: sorted(cwr(element_list, 2))}
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        interactions_map = {2: sorted(cwr)}
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
                      ('Xe', 'Xe'): 0.7, }
