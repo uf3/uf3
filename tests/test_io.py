@@ -120,7 +120,4 @@ class TestDataCoordinator:
         assert len(df) == 7
         # keep duplicates
         df = data_handler.consolidate(remove_duplicates=False)
-        for v in data_handler.data.values():
-            print(v)
-        print(df)
         assert len(df) == 11
