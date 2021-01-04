@@ -2,9 +2,12 @@ import numpy as np
 from scipy import spatial
 
 
-def distances_by_interaction(geometry, interactions_map,
-                             r_min_map, r_max_map, supercell=None,
-                             average=True):
+def distances_by_interaction(geometry,
+                             pair_tuples,
+                             r_min_map,
+                             r_max_map,
+                             supercell=None,
+                             atomic=False):
     """
     Identify pair distances within an entry (or between an entry and its
     supercell), subject to lower and upper bounds given by r_min_map
@@ -12,31 +15,32 @@ def distances_by_interaction(geometry, interactions_map,
 
     Args:
         geometry: ase.Atoms of interest.
-        interactions_map (dict): map of interactions per degree
-            e.g. {2: [(A-A), (A-B), ...)], 3: [(A-A-A), (A-A-B), ...]}
+        pair_tuples (list): list of interactions per degree
+            e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
         r_min_map (dict): map of minimum pair distance per interaction.
             e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
         r_max_map (dict): map of maximum pair distance per interaction.
         supercell (optional): ase.Atoms output of get_supercell
             used to account for atoms in periodic images.
+        atomic (bool): whether to split array into lists of vectors
+            corresponding to each atom's atomic environment.
+
     Returns:
         distances_map (dict): for each interaction key (A-A, A-B, ...),
-            flattened np.ndarray of pair distances within range.
-            If average=False, splits array into lists of vectors
-            corresponding to each atom's atomic environment.
+            flattened np.ndarray of pair distances within range
+            or list of flattened np.ndarray if atomic is True.
     """
     distance_matrix = get_distance_matrix(geometry, supercell)
     if supercell is None:
         supercell = geometry
     geo_composition = np.array(geometry.get_chemical_symbols())
     sup_composition = np.array(supercell.get_chemical_symbols())
-    pair_tuples = interactions_map[2]
     s_geo = len(geometry)
     # loop through interactions
-    if average:
-        distances_map = {}
-    else:
+    if atomic:
         distances_map = {tuple_: [] for tuple_ in pair_tuples}
+    else:
+        distances_map = {}
     for pair in pair_tuples:
         r_min = r_min_map[pair]
         r_max = r_max_map[pair]
@@ -44,7 +48,7 @@ def distances_by_interaction(geometry, interactions_map,
                                                     geo_composition,
                                                     sup_composition)
         cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
-        if average:  # valid distances across configuration
+        if not atomic:  # valid distances across configuration
             interaction_mask = comp_mask & cut_mask
             distances_map[pair] = distance_matrix[interaction_mask]
         else:  # valid distances per atom
@@ -55,8 +59,7 @@ def distances_by_interaction(geometry, interactions_map,
     return distances_map
 
 
-
-def derivatives_by_interaction(geometry, supercell, interactions_map,
+def derivatives_by_interaction(geometry, supercell, pair_tuples,
                                r_min_map, r_max_map):
     """
     Identify pair distances within a supercell and derivatives for evaluating
@@ -65,8 +68,8 @@ def derivatives_by_interaction(geometry, supercell, interactions_map,
 
     Args:
         geometry: unit cell ase.Atoms.
-        interactions_map (dict): map of interactions per degree
-            e.g. {2: [(A-A), (A-B), ...)], 3: [(A-A-A), (A-A-B), ...]}
+        pair_tuples (list): list of interactions per degree
+            e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
         r_min_map (dict): map of minimum pair distance per interaction.
             e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
         r_max_map (dict): map of maximum pair distance per interaction.
@@ -83,7 +86,6 @@ def derivatives_by_interaction(geometry, supercell, interactions_map,
     if supercell is None:
         supercell = geometry
     n_geo = len(geometry)
-    pair_tuples = interactions_map[2]
     # extract atoms from supercell that are within the maximum
     # cutoff distance of atoms in the unit cell.
     r_max = np.max(list(r_max_map.values()))

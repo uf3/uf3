@@ -29,16 +29,17 @@ class TestUnary:
         # parameters
         element_list = ['Au']
         cwr = itertools.combinations_with_replacement(element_list, 2)
-        interactions_map = {2: sorted(cwr)}
+        pair_tuples = sorted(cwr)
+        print(pair_tuples)
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
         distances = distances_by_interaction(geometry,
-                                             interactions_map,
+                                             pair_tuples,
                                              r_min_map,
                                              r_max_map,
                                              supercell=supercell,
-                                             average=True)
+                                             atomic=False)
         d_aa = distances[('Au', 'Au')]
         assert len(d_aa) == 58
         assert np.min(d_aa) >= r_min_map[('Au', 'Au')]
@@ -50,13 +51,13 @@ class TestUnary:
         # parameters
         element_list = ['Au']
         cwr = itertools.combinations_with_replacement(element_list, 2)
-        interactions_map = {2: sorted(cwr)}
+        pair_tuples = sorted(cwr)
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
         distances, derivatives = derivatives_by_interaction(geometry,
                                                             supercell,
-                                                            interactions_map,
+                                                            pair_tuples,
                                                             r_min_map,
                                                             r_max_map)
         d_aa = distances[('Au', 'Au')]
@@ -72,7 +73,7 @@ class TestBinary:
         # parameters
         element_list = ['Ne', 'Xe']
         cwr = itertools.combinations_with_replacement(element_list, 2)
-        interactions_map = {2: sorted(cwr)}
+        pair_tuples = sorted(cwr)
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
                      ('Xe', 'Xe'): 0.7, }
@@ -81,11 +82,11 @@ class TestBinary:
                      ('Xe', 'Xe'): 5.0, }
         # compute
         distances = distances_by_interaction(geometry,
-                                             interactions_map,
+                                             pair_tuples,
                                              r_min_map,
                                              r_max_map,
                                              supercell=supercell,
-                                             average=True)
+                                             atomic=False)
         d_aa = distances[('Ne', 'Ne')]
         d_ab = distances[('Ne', 'Xe')]
         d_bb = distances[('Xe', 'Xe')]
@@ -105,7 +106,7 @@ class TestBinary:
         # parameters
         element_list = ['Ne', 'Xe']
         cwr = itertools.combinations_with_replacement(element_list, 2)
-        interactions_map = {2: sorted(cwr)}
+        pair_tuples = sorted(cwr)
         r_min_map = {('Ne', 'Ne'): 0.5,
                      ('Ne', 'Xe'): 0.6,
                      ('Xe', 'Xe'): 0.7, }
@@ -115,7 +116,7 @@ class TestBinary:
         # compute
         distances, derivatives = derivatives_by_interaction(geometry,
                                                             supercell,
-                                                            interactions_map,
+                                                            pair_tuples,
                                                             r_min_map,
                                                             r_max_map)
         d_aa = distances[('Ne', 'Ne')]
