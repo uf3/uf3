@@ -1,0 +1,7 @@
+numpy
+scipy
+tqdm
+ase
+pandas
+scikit_learn
+pytest
