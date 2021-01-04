@@ -10,7 +10,7 @@ before_install:
     - pip install -U pytest
     - pip install codecov
 install:
-    - python setup.py develop
+    - pip install .
 script: pytest
 after_success:
     - codecov
