@@ -17,7 +17,7 @@ class DataCoordinator:
         self.atoms_key = atoms_key
         self.energy_key = energy_key
         self.size_key = size_key
-        self.overwrite=overwrite
+        self.overwrite = overwrite
 
         self.data = {}
         self.keys = []
@@ -67,7 +67,8 @@ class DataCoordinator:
                              prefix=None,
                              energies=None,
                              forces=None,
-                             load=True):
+                             load=True,
+                             **kwargs):
         """Wrapper for prepare_dataframe_from_lists"""
         if prefix is None:
             prefix = len(self.data)
@@ -77,7 +78,8 @@ class DataCoordinator:
                                           forces=forces,
                                           atoms_key=self.atoms_key,
                                           energy_key=self.energy_key,
-                                          size_key=self.size_key)
+                                          size_key=self.size_key,
+                                          **kwargs)
         if load:
             self.load_dataframe(df, prefix=prefix)
         else:
@@ -86,19 +88,17 @@ class DataCoordinator:
     def dataframe_from_trajectory(self,
                                   filename,
                                   prefix=None,
-                                  scalar_keys=(),
-                                  array_keys=(),
-                                  load=True):
+                                  load=True,
+                                  **kwargs):
         """Wrapper for parse_trajectory"""
         if prefix is None:
             prefix = len(self.data)
         df = parse_trajectory(filename,
                               prefix=prefix,
-                              scalar_keys=scalar_keys,
-                              array_keys=array_keys,
                               atoms_key=self.atoms_key,
                               energy_key=self.energy_key,
-                              size_key=self.size_key)
+                              size_key=self.size_key,
+                              **kwargs)
         if load:
             self.load_dataframe(df, prefix=prefix)
         else:
@@ -114,8 +114,8 @@ class DataCoordinator:
                                   column_subs={"PotEng": "energy"},
                                   log_fname="log.lammps",
                                   dump_fname="dump.lammpstrj",
-                                  log_regex=None,
-                                  load=True):
+                                  load=True,
+                                  **kwargs):
         """Wrapper for parse_lammps_outputs"""
         if prefix is None:
             prefix = len(self.data)
@@ -127,7 +127,7 @@ class DataCoordinator:
                                   dump_fname=dump_fname,
                                   atoms_key=self.atoms_key,
                                   size_key=self.size_key,
-                                  log_regex=log_regex)
+                                  **kwargs)
         if load:
             self.load_dataframe(df, prefix=prefix)
         else:
@@ -135,7 +135,8 @@ class DataCoordinator:
 
 
 def concat_dataframes(dataframes,
-                      remove_duplicates=True, keep='first'):
+                      remove_duplicates=True,
+                      keep='first'):
     """
     Concatenate list of dataframes with optional removal of duplicate keys.
 
@@ -163,7 +164,8 @@ def prepare_dataframe_from_lists(geometries,
                                  forces=None,
                                  atoms_key='geometry',
                                  energy_key='energy',
-                                 size_key='size'):
+                                 size_key='size',
+                                 copy=True):
     """
     Convenience function for arranging data into pandas DataFrame
         with expected column names. Extracts energies and forces from
@@ -183,11 +185,14 @@ def prepare_dataframe_from_lists(geometries,
         energy_key (str): column name for energies, default "energy".
         size_key (str):  column name for number of atoms per geometry,
             default "size".
+        copy (bool): copy geometries, energies and forces before modification.
 
     Returns:
         df (pandas.DataFrame): standard dataframe with columns
            [atoms_key, energy_key, fx, fy, fz]
     """
+    if copy:
+        geometries = [geometry.copy() for geometry in geometries]
     geometries = update_geometries_from_calc(geometries)
     # generate dataframe
     default_columns = [atoms_key, energy_key, 'fx', 'fy', 'fz']
@@ -196,9 +201,13 @@ def prepare_dataframe_from_lists(geometries,
     scalar_keys = ()
     array_keys = ()
     if energies is not None:
+        if copy:
+            energies = np.array(energies)
         df[energy_key] = energies
         scalar_keys = ('energy',)  # add energies to ase.Atoms objects
     if forces is not None:
+        if copy:
+            forces = [array.copy() for array in forces]
         df['fx'] = [np.array(array)[:, 0] for array in forces]
         df['fy'] = [np.array(array)[:, 1] for array in forces]
         df['fz'] = [np.array(array)[:, 2] for array in forces]
@@ -400,11 +409,8 @@ def update_dataframe_from_geometries(df,
 
 def update_geometries_from_calc(geometries,
                                 energy_key='energy',
-                                force_key='force',
-                                inplace=True):
+                                force_key='force'):
     """Intermediate function for object-dataframe consistency"""
-    if not inplace:
-        geometries = [geometry.copy() for geometry in geometries]
     for idx, geometry in enumerate(geometries):
         try:
             geometry.info[energy_key] = geometry.calc.get_potential_energy()
@@ -433,9 +439,12 @@ def update_geometries_from_calc(geometries,
 def update_geometries_from_dataframe(df,
                                      scalar_keys=(),
                                      array_keys=(),
-                                     atoms_key='geometry'):
+                                     atoms_key='geometry',
+                                     inplace=True):
     """Intermediate function for object-dataframe consistency"""
     geometries = df[atoms_key]
+    if not inplace:
+        geometries = [geometry.copy() for geometry in geometries]
     scalar_idxs = [df.columns.get_loc(scalar) for scalar in scalar_keys]
     array_idxs = [df.columns.get_loc(array) for array in array_keys]
     for idx, geometry in enumerate(geometries):
@@ -448,6 +457,7 @@ def update_geometries_from_dataframe(df,
                 continue
             except RuntimeError:  # array already exists
                 continue
+    return geometries
 
 
 def df_from_tsv_text(text):

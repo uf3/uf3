@@ -1,4 +1,6 @@
-# Ultra-Fast Potentials[![Build Status](https://travis-ci.com/sxie22/fast-linear-qmml.svg?token=NmMEHony9sZpDJbtGzkE&branch=master)](https://travis-ci.com/sxie22/fast-linear-qmml)
+# Ultra-Fast Potentials
+
+[![Tests](https://github.com/sxie22/fast-linear-qmml/workflows/Tests/badge.svg)](https://github.com/sxie22/fast-linear-qmml/actions)
 
 ## Setup
 ```bash
