@@ -45,8 +45,8 @@ class TestIO:
         check_dataframe(df)
 
     def test_parse_xyz(self):
-        data_directory = os.path.join(os.path.dirname(ufpotential.__file__),
-                                      "tests/data")
+        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
         fname = os.path.join(data_directory, "extended_xyz", "test.xyz")
         df = parse_trajectory(fname,
                               scalar_keys=['config_type'],
@@ -59,8 +59,8 @@ class TestIO:
         assert 'config_type' in geometry.info.keys()
 
     def test_parse_vasp(self):
-        data_directory = os.path.join(os.path.dirname(ufpotential.__file__),
-                                      "tests/data")
+        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
         # test static cell (ISIF < 3)
         fname = os.path.join(data_directory, "vasp_md", "vasprun.xml")
         df = parse_trajectory(fname, prefix='md')
@@ -82,8 +82,9 @@ class TestIO:
                                geometries[-1].cell.array)
 
     def test_parse_lammps(self):
-        run_directory = os.path.join(os.path.dirname(ufpotential.__file__),
-                                     "tests/data/lammps")
+        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
+        run_directory = os.path.join(data_directory, "lammps")
         df_run = parse_lammps_outputs(run_directory,
                                       prefix='lmp',
                                       dump_fname="test.lammpstrj",
@@ -100,17 +101,16 @@ class TestIO:
 class TestDataCoordinator:
     def test_consolidate(self):
         data_handler = DataCoordinator()
-        run_directory = os.path.join(os.path.dirname(ufpotential.__file__),
-                                     "tests/data/lammps")
+        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
+        run_directory = os.path.join(data_directory, "lammps")
         # LAMMPS has duplicate timesteps
         data_handler.dataframe_from_lammps_run(run_directory,
                                                prefix='lmp',
                                                dump_fname='test.lammpstrj',
                                                element_aliases={1: 2, 2: 10})
-        relax_path = os.path.join(os.path.dirname(ufpotential.__file__),
-                                  "tests/data/vasp_relax/", "vasprun.xml")
-        md_path = os.path.join(os.path.dirname(ufpotential.__file__),
-                               "tests/data/vasp_md/", "vasprun.xml")
+        relax_path = os.path.join(data_directory, "vasp_relax/vasprun.xml")
+        md_path = os.path.join(data_directory, "vasp_md/vasprun.xml")
         data_handler.dataframe_from_vasprun(relax_path, prefix='vasp')
         # prefix conflict = reject
         data_handler.dataframe_from_vasprun(md_path, prefix='vasp')
