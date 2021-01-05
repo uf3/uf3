@@ -192,7 +192,7 @@ def prepare_dataframe_from_lists(geometries,
            [atoms_key, energy_key, fx, fy, fz]
     """
     if copy:
-        geometries = [geometry.copy() for geometry in geometries]
+        geometries = [geom.copy() for geom in geometries]
     geometries = update_geometries_from_calc(geometries)
     # generate dataframe
     default_columns = [atoms_key, energy_key, 'fx', 'fy', 'fz']
@@ -212,11 +212,11 @@ def prepare_dataframe_from_lists(geometries,
         df['fy'] = [np.array(array)[:, 1] for array in forces]
         df['fz'] = [np.array(array)[:, 2] for array in forces]
         array_keys = ('fx', 'fy', 'fz')  # add forces to ase.Atoms objects
-    # object-dataframe consistency
+    # If values are provided, overwrite attributes for consistency.
     update_geometries_from_dataframe(df,
                                      scalar_keys=scalar_keys,
                                      array_keys=array_keys)
-    # object-dataframe consistency
+    # Otherwise, pull energies and forces from objects.
     scalar_keys = ()
     array_keys = ()
     if energies is None:
@@ -341,19 +341,19 @@ def parse_lammps_outputs(path,
                                   timesteps=log_timesteps)
     log_idxs = np.arange(len(df))
     intersection_idxs = []
-    for timestep, geometry in snapshots.items():
+    for timestep, geom in snapshots.items():
         # match log timesteps with snapshot timesteps
         i = np.flatnonzero(log_timesteps == timestep)[0]
         idx = log_idxs[i]
         log_timesteps = np.delete(log_timesteps, i)
         log_idxs = np.delete(log_idxs, i)
         intersection_idxs.append(idx)
-    for i, (timestep, geometry) in enumerate(snapshots.items()):
+    for i, (timestep, geom) in enumerate(snapshots.items()):
         log_idx = intersection_idxs[i]  # index of matching log row
         timestep_info = df.iloc[log_idx].to_dict()  # log row
-        df.iat[log_idx, col_idx] = geometry
+        df.iat[log_idx, col_idx] = geom
         for key, value in timestep_info.items():
-            geometry.info[key] = value
+            geom.info[key] = value
     # Add geometries to DataFrame and remove timesteps with no geometry.
     df = df.dropna()
     if prefix is not None:
@@ -392,16 +392,16 @@ def update_dataframe_from_geometries(df,
         if array not in df.columns:
             df[array] = pd.Series(dtype=object)
         array_idxs.append(df.columns.get_loc(array))
-    for idx, geometry in enumerate(geometries):
-        df.iat[idx, size_idx] = len(geometry)
+    for idx, geom in enumerate(geometries):
+        df.iat[idx, size_idx] = len(geom)
         for scalar, scalar_idx in zip(scalar_keys, scalar_idxs):
             try:
-                df.iat[idx, scalar_idx] = geometry.info[scalar]
+                df.iat[idx, scalar_idx] = geom.info[scalar]
             except KeyError:
                 continue
         for array, array_idx in zip(array_keys, array_idxs):
             try:
-                df.iat[idx, array_idx] = geometry.arrays[array]
+                df.iat[idx, array_idx] = geom.arrays[array]
             except KeyError:
                 continue
     return df
@@ -410,25 +410,25 @@ def update_dataframe_from_geometries(df,
 def update_geometries_from_calc(geometries,
                                 energy_key='energy',
                                 force_key='force'):
-    """Intermediate function for object-dataframe consistency"""
-    for idx, geometry in enumerate(geometries):
+    """Query attached calculators for energy and forces."""
+    for idx, geom in enumerate(geometries):
         try:
-            geometry.info[energy_key] = geometry.calc.get_potential_energy()
+            geom.info[energy_key] = geom.calc.get_potential_energy()
         except (ase.calculators.calculator.PropertyNotImplementedError,
                 AttributeError):
             pass  # no energy
         try:
-            forces = geometry.calc.get_forces()
+            forces = geom.calc.get_forces()
         except (ase.calculators.calculator.PropertyNotImplementedError,
                 AttributeError):
-            if force_key in geometry.arrays:
-                forces = geometry.arrays[force_key]
+            if force_key in geom.arrays:
+                forces = geom.arrays[force_key]
             else:
                 continue  # no forces
         try:
-            geometry.new_array('fx', forces[:, 0])
-            geometry.new_array('fy', forces[:, 1])
-            geometry.new_array('fz', forces[:, 2])
+            geom.new_array('fx', forces[:, 0])
+            geom.new_array('fy', forces[:, 1])
+            geom.new_array('fz', forces[:, 2])
         except ValueError:  # shape mismatch
             continue
         except RuntimeError:  # array already exists
@@ -444,15 +444,15 @@ def update_geometries_from_dataframe(df,
     """Intermediate function for object-dataframe consistency"""
     geometries = df[atoms_key]
     if not inplace:
-        geometries = [geometry.copy() for geometry in geometries]
+        geometries = [geom.copy() for geom in geometries]
     scalar_idxs = [df.columns.get_loc(scalar) for scalar in scalar_keys]
     array_idxs = [df.columns.get_loc(array) for array in array_keys]
-    for idx, geometry in enumerate(geometries):
+    for idx, geom in enumerate(geometries):
         for scalar, scalar_idx in zip(scalar_keys, scalar_idxs):
-            geometry.info[scalar] = df.iat[idx, scalar_idx]
+            geom.info[scalar] = df.iat[idx, scalar_idx]
         for array, array_idx in zip(array_keys, array_idxs):
             try:
-                geometry.new_array(array, df.iat[idx, array_idx])
+                geom.new_array(array, df.iat[idx, array_idx])
             except ValueError:  # shape mismatch
                 continue
             except RuntimeError:  # array already exists

@@ -15,11 +15,11 @@ def distances_by_interaction(geometry,
 
     Args:
         geometry: ase.Atoms of interest.
-        pair_tuples (list): list of interactions per degree
+        pair_tuples (list): list of pair interactions
             e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
-        r_min_map (dict): map of minimum pair distance per interaction.
+        r_min_map (dict): map of minimum pair distance per interaction
             e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
-        r_max_map (dict): map of maximum pair distance per interaction.
+        r_max_map (dict): map of maximum pair distance per interaction
         supercell (optional): ase.Atoms output of get_supercell
             used to account for atoms in periodic images.
         atomic (bool): whether to split array into lists of vectors
@@ -68,7 +68,7 @@ def derivatives_by_interaction(geometry, supercell, pair_tuples,
 
     Args:
         geometry: unit cell ase.Atoms.
-        pair_tuples (list): list of interactions per degree
+        pair_tuples (list): list of pair interactions.
             e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
         r_min_map (dict): map of minimum pair distance per interaction.
             e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
