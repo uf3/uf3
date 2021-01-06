@@ -5,27 +5,78 @@ import itertools
 
 
 @pytest.fixture()
+def simple_molecule():
+    geom = ase.Atoms('Ar3',
+                     positions=[[0, 0, 0], [3, 0.0, 0.0], [0, 4.0, 0]],
+                     pbc=False,
+                     cell=None)
+    yield geom
+
+
+@pytest.fixture()
 def simple_unary():
-    geometry = ase.Atoms('Au2',
-                         positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
-                         pbc=True,
-                         cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
-    yield geometry
+    geom = ase.Atoms('Au2',
+                     positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
+                     pbc=True,
+                     cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
+    yield geom
 
 
 @pytest.fixture()
 def simple_binary():
-    geometry = ase.Atoms('NeXe',
-                         positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
-                         pbc=True,
-                         cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
-    yield geometry
+    geom = ase.Atoms('NeXe',
+                     positions=[[0, 0, 0], [0.5, 0.3, 0.2]],
+                     pbc=True,
+                     cell=[[2, 0, 0], [3, 1.5, 0], [0.5, 0, 2.5]])
+    yield geom
+
+
+class TestMolecule:
+    def test_distances(self, simple_molecule):
+        geom = simple_molecule
+        # parameters
+        element_list = ['Ar']
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        pair_tuples = sorted(cwr)
+        print(pair_tuples)
+        r_min_map = {('Ar', 'Ar'): 0.5}
+        r_max_map = {('Ar', 'Ar'): 6.0}
+        # compute
+        distances = distances_by_interaction(geom,
+                                             pair_tuples,
+                                             r_min_map,
+                                             r_max_map,
+                                             atomic=False)
+        d_aa = distances[('Ar', 'Ar')]
+        assert len(d_aa) == 6
+        assert np.allclose(np.sort(d_aa), [3, 3, 4, 4, 5, 5])
+
+    def test_distance_derivatives(self, simple_molecule):
+        geom = simple_molecule
+        supercell = simple_molecule
+        # parameters
+        element_list = ['Ar']
+        cwr = itertools.combinations_with_replacement(element_list, 2)
+        pair_tuples = sorted(cwr)
+        r_min_map = {('Ar', 'Ar'): 0.5, }
+        r_max_map = {('Ar', 'Ar'): 6.0, }
+        # compute
+        distances, derivatives = derivatives_by_interaction(geom,
+                                                            supercell,
+                                                            pair_tuples,
+                                                            r_min_map,
+                                                            r_max_map)
+        d_aa = distances[('Ar', 'Ar')]
+        assert len(d_aa) == 6
+        dr_aa = derivatives[('Ar', 'Ar')]
+        assert dr_aa.shape == (3, 3, 6)
+
 
 
 class TestUnary:
     def test_distances(self, simple_unary):
-        geometry = simple_unary
-        supercell = get_supercell(geometry, r_cut=4)
+        geom = simple_unary
+        supercell = get_supercell(geom, r_cut=4)
         # parameters
         element_list = ['Au']
         cwr = itertools.combinations_with_replacement(element_list, 2)
@@ -34,7 +85,7 @@ class TestUnary:
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
-        distances = distances_by_interaction(geometry,
+        distances = distances_by_interaction(geom,
                                              pair_tuples,
                                              r_min_map,
                                              r_max_map,
@@ -46,8 +97,8 @@ class TestUnary:
         assert np.max(d_aa) <= r_max_map[('Au', 'Au')]
 
     def test_distance_derivatives(self, simple_unary):
-        geometry = simple_unary
-        supercell = get_supercell(geometry, r_cut=4)
+        geom = simple_unary
+        supercell = get_supercell(geom, r_cut=4)
         # parameters
         element_list = ['Au']
         cwr = itertools.combinations_with_replacement(element_list, 2)
@@ -55,7 +106,7 @@ class TestUnary:
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
-        distances, derivatives = derivatives_by_interaction(geometry,
+        distances, derivatives = derivatives_by_interaction(geom,
                                                             supercell,
                                                             pair_tuples,
                                                             r_min_map,
@@ -68,8 +119,8 @@ class TestUnary:
 
 class TestBinary:
     def test_distances(self, simple_binary):
-        geometry = simple_binary
-        supercell = get_supercell(geometry, r_cut=4)
+        geom = simple_binary
+        supercell = get_supercell(geom, r_cut=4)
         # parameters
         element_list = ['Ne', 'Xe']
         cwr = itertools.combinations_with_replacement(element_list, 2)
@@ -81,7 +132,7 @@ class TestBinary:
                      ('Ne', 'Xe'): 4.0,
                      ('Xe', 'Xe'): 5.0, }
         # compute
-        distances = distances_by_interaction(geometry,
+        distances = distances_by_interaction(geom,
                                              pair_tuples,
                                              r_min_map,
                                              r_max_map,
@@ -101,8 +152,8 @@ class TestBinary:
         assert np.max(d_bb) <= r_max_map[('Xe', 'Xe')]
 
     def test_distance_derivatives(self, simple_binary):
-        geometry = simple_binary
-        supercell = get_supercell(geometry, r_cut=4)
+        geom = simple_binary
+        supercell = get_supercell(geom, r_cut=4)
         # parameters
         element_list = ['Ne', 'Xe']
         cwr = itertools.combinations_with_replacement(element_list, 2)
@@ -114,7 +165,7 @@ class TestBinary:
                      ('Ne', 'Xe'): 4.0,
                      ('Xe', 'Xe'): 5.0, }
         # compute
-        distances, derivatives = derivatives_by_interaction(geometry,
+        distances, derivatives = derivatives_by_interaction(geom,
                                                             supercell,
                                                             pair_tuples,
                                                             r_min_map,
