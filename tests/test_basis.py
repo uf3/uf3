@@ -105,13 +105,13 @@ class TestBasis:
         df.at[0, 'geometry'] = simple_molecule
         data_coordinator = io.DataCoordinator()
         df_feats = bspline_handler.evaluate(df, data_coordinator, xy_out=False)
-        print(df_feats)
         assert len(df_feats) == 1 + 3 * 3  # energy and 3 forces per atom
         assert len(df_feats.columns) == 1 + 18 + 1
         # energy, 18 features, one 1-body terms
-        x, y = bspline_handler.evaluate(df, data_coordinator)
-        assert x.shape == (1 + 3 * 3, 18 + 1)
-        assert np.allclose(y, [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
+        x, y, u, v = bspline_handler.evaluate(df, data_coordinator)
+        assert x.shape == (1, 18 + 1)
+        assert u.shape == (3 * 3, 18 + 1)
+        assert np.allclose(v, [4, 3, 0, 0, 1, 2, 2, 1, 0])
 
     def test_evaluate_binary(self, water_chemistry, simple_water):
         bspline_handler = Bspline1DBasis(water_chemistry)
@@ -127,9 +127,10 @@ class TestBasis:
         assert len(df_feats) == 1 + 3 * 3  # energy and 3 forces per atom
         assert len(df_feats.columns) == 1 + 23 * 3 + 2
         # energy, 23 features per interaction, two 1-body terms
-        x, y = bspline_handler.evaluate(df, data_coordinator)
-        assert x.shape == (1 + 3 * 3, 23 * 3 + 2)
-        assert np.allclose(y, [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
+        x, y, u, v = bspline_handler.evaluate(df, data_coordinator)
+        assert x.shape == (1, 23 * 3 + 2)
+        assert u.shape == (3 * 3, 23 * 3 + 2)
+        assert np.allclose(v, [4, 3, 0, 0, 1, 2, 2, 1, 0])
 
 
 def test_fit_spline_1d():

@@ -85,9 +85,17 @@ class Bspline1DBasis:
                                     orient='index',
                                     columns=self.columns)
         if xy_out:
-            x = df.to_numpy()[:, 1:]
-            y = df['y'].values
-            return x, y
+            n_onebody = len(self.chemistry_config.element_list)
+            onebody_columns = self.columns[-n_onebody:]
+            onebody_sums = np.sum(df[onebody_columns].values, axis=1)
+            force_mask = (onebody_sums == 0)
+            df_energy = df.iloc[~force_mask]
+            df_forces = df.iloc[force_mask]
+            x = df_energy.to_numpy()[:, 1:]
+            y = df_energy['y'].values
+            u = df_forces.to_numpy()[:, 1:]
+            v = df_forces['y'].values
+            return x, y, u, v
         else:
             return df
 
