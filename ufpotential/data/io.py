@@ -523,7 +523,8 @@ def parse_lammps_log(fname, log_regex=None):
             buffer = io.StringIO(text_block)
             df = pd.read_csv(buffer, delim_whitespace=True)
             log_blocks.append(df)
-    df_log = pd.concat(log_blocks)
+    df_log = pd.concat(log_blocks, ignore_index=True)
+    df_log = df_log[~df_log.duplicated()]
     return df_log
 
 
