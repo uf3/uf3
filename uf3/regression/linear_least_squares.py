@@ -1,5 +1,5 @@
 import numpy as np
-from ufpotential.regression import regularize
+from uf3.regression import regularize
 
 
 class WeightedLinearModel:
@@ -8,10 +8,14 @@ class WeightedLinearModel:
                  regularizer_sizes=None,
                  ridge=1e-6,
                  curvature=1e-5,
-                 onebody=1e-4):
+                 onebody=1e-4,
+                 fixed_head=(),
+                 fixed_tail=()):
         if isinstance(weights, (list, np.ndarray)):
             self.weights = weights
         self.coefficients = None
+        self.fixed_head = fixed_head
+        self.fixed_tail = fixed_tail
         self.regularizer = regularize.Regularizer(
             regularizer_sizes=regularizer_sizes,
             ridge=ridge,
@@ -22,7 +26,9 @@ class WeightedLinearModel:
         solution, predictions = weighted_least_squares(x,
                                                        y,
                                                        self.weights,
-                                                       self.regularizer)
+                                                       self.regularizer,
+                                                       fixed_head=fixed_head,
+                                                       fixed_tail=fixed_tail)
         self.coefficients = solution
 
     def predict(self, x):
@@ -44,7 +50,7 @@ def linear_least_squares(A, y, regularizer_matrix=None):
         A (np.ndarray): input matrix of shape (n_samples, n_features).
         y (np.ndarray): output vector of length n_samples.
         regularizer_matrix (np.ndarray): e.g. matrix generated using
-            ufpotentials.regression.regularize.get_curvature_penalty_matrix
+            uf3.regression.regularize.get_curvature_penalty_matrix
 
 
     Returns:
@@ -60,7 +66,12 @@ def linear_least_squares(A, y, regularizer_matrix=None):
     return solution, predictions
 
 
-def weighted_least_squares(A, y, weights=None, regularizers=None):
+def weighted_least_squares(A,
+                           y,
+                           weights=None,
+                           regularizers=None,
+                           fixed_head=(),
+                           fixed_tail=()):
     """
     Solves the linear least-squares problem [A,B,...]x = [a,b,...]
         with optional square regularizer matrix and relative weighting.
@@ -75,8 +86,7 @@ def weighted_least_squares(A, y, weights=None, regularizers=None):
             e.g. [energy outputs (100), force outputs (3200)]
         weights (list): relative weights (optional).
             e.g. [0.3, 0.7], weighing forces more than energies.
-        regularizers (np.ndarray, list): matrix or list of matrices, e.g. from
-            ufpotentials.regression.regularize.get_curvature_penalty_matrix
+        regularizers (np.ndarray, list): matrix or list of matrices.
 
     Returns:
         solution (np.ndarray): coefficients.
@@ -100,6 +110,22 @@ def weighted_least_squares(A, y, weights=None, regularizers=None):
         if not np.all(np.positive(weights)) or np.sum(weights) <= 0:
             raise ValueError('Negative or zero weights provided.')
         weights = weights / np.sum(weights)  # normalize
+    for column_idx, coefficient in enumerate(fixed_head):
+        for i, array in enumerate(A):
+            column = np.array(array[:, 0])
+            A[i] = np.array(array[:, 1:])
+            y[i] = np.subtract(y[i], coefficient * column)
+        for i, array in enumerate(regularizers):
+            regularizers[i] = array[1:, 1:]
+
+    for column_idx, coefficient in enumerate(fixed_tail[::-1]):
+        for i, array in enumerate(A):
+            column = np.array(array[:, -(1 + column_idx)])
+            A[i] = np.array(array[:, :-1])
+            y[i] = np.subtract(y[i], coefficient * column)
+        for i, array in enumerate(regularizers):
+            regularizers[i] = array[:-1, :-1]
+
     xTx_list = [weight / np.std(target) / len(target) * np.dot(x.T, x)
            for weight, x, target in zip(weights, A, y)]
     xTx = np.sum(xTx_list, axis=0) + np.sum(regularizers, axis=0)
@@ -108,55 +134,9 @@ def weighted_least_squares(A, y, weights=None, regularizers=None):
                for weight, x, target in zip(weights, A, y)]
     xTy = np.sum(xTy_list, axis=0) + 0
     solution = np.dot(inverted_xTx, xTy)
+    solution = np.concatenate([fixed_head, solution, fixed_tail])
     predictions = [np.dot(x, solution) for x in A]
     return solution, predictions
-
-
-def weight_regression_gridsearch(x, fx, y, fy, kappa, n_folds=5,
-                                 logmin=-3, logmax=3, resolution=11):
-    """
-    Convenience function for grid search and fit with energies and forces.
-        Samples "resolution" times from 10**logmin to 10**logmax
-        for both ridge penalty and curvature penalty magnitudes.
-
-    Args:
-        x (np.ndarray): energy descriptor.
-        fx (np.ndarray): force descriptor.
-        y (np.ndarray): energy reference values.
-        fy (np.ndarray): force reference values.
-        kappa (float): weighting parameter between 0 and 1 e.g. 1 ignores forces.
-        n_folds (int): number of folds for cross validation.
-        logmin (float): power of 10 of lower bound for grid search.
-        logmax (float): power of 10 of upper bound for grid search.
-        resolution: grid search samples per axis.
-
-    Returns:
-        coefficients (np.ndarray): fit coefficients from linear least-squares.
-        score (float): weighted RMSE.
-    """
-    n_features = x.shape[1]
-    if x.shape[1] != fx.shape[1]:
-        raise ValueError('Mismatch in basis between energy and force inputs.')
-    res = {}
-    for lambda1 in np.logspace(logmin, logmax, resolution):
-        for lambda2 in np.logspace(logmin, logmax, resolution):
-            train_rmse, cv_rmse = weighted_cross_validation(x, fx, y, fy,
-                                                       kappa,
-                                                       n_folds=n_folds,
-                                                       lambda1=lambda1,
-                                                       lambda2=lambda2)
-            res[(lambda1, lambda2)] = cv_rmse
-    lambda_tuples = list(res.keys())
-    lambda1, lambda2 = sorted(lambda_tuples, key=lambda k: res[k])[0]
-    reg = regularize.get_regularizer_matrix(n_features,
-                                            ridge=lambda1,
-                                            curvature=lambda2)
-    coefficients = weighted_least_squares([x, fx], [y, fy], [kappa, 1 - kappa],
-                                          regularizers=reg)
-    pt = np.dot(x, coefficients)
-    gt = np.dot(fx, coefficients)
-    score = two_class_weighted_score(y, fy, pt, gt, kappa)
-    return coefficients, score
 
 
 def two_class_weighted_score(a, b, predicted_a, predicted_b, kappa):

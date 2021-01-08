@@ -1,5 +1,5 @@
-import ufpotential
-from ufpotential.data.io import *
+import uf3
+from uf3.data.io import *
 
 
 def check_dataframe(dataframe):
@@ -45,7 +45,7 @@ class TestIO:
         check_dataframe(df)
 
     def test_parse_xyz(self):
-        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         fname = os.path.join(data_directory, "extended_xyz", "test.xyz")
         df = parse_trajectory(fname,
@@ -59,7 +59,7 @@ class TestIO:
         assert 'config_type' in geometry.info.keys()
 
     def test_parse_vasp(self):
-        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         # test static cell (ISIF < 3)
         fname = os.path.join(data_directory, "vasp_md", "vasprun.xml")
@@ -82,7 +82,7 @@ class TestIO:
                                geometries[-1].cell.array)
 
     def test_parse_lammps(self):
-        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         run_directory = os.path.join(data_directory, "lammps")
         df_run = parse_lammps_outputs(run_directory,
@@ -101,7 +101,7 @@ class TestIO:
 class TestDataCoordinator:
     def test_consolidate(self):
         data_handler = DataCoordinator()
-        pkg_directory = os.path.dirname(os.path.dirname(ufpotential.__file__))
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         run_directory = os.path.join(data_directory, "lammps")
         # LAMMPS has duplicate timesteps

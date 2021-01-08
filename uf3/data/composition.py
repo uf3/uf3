@@ -3,7 +3,7 @@ import ase
 import numpy as np
 
 
-class ChemistryConfig:
+class ChemicalSystem:
     def __init__(self,
                  element_list,
                  degree=2,
@@ -65,7 +65,7 @@ class ChemistryConfig:
                 'r_max_map',
                 'resolution_map']
         config = {k: v for k, v in config.items() if k in keys}
-        return ChemistryConfig(**config)
+        return ChemicalSystem(**config)
 
     def get_composition_tuple(self, geometry):
         """

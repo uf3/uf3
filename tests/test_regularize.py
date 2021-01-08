@@ -1,4 +1,4 @@
-from ufpotential.regression.regularize import *
+from uf3.regression.regularize import *
 
 
 class TestRegularizers:

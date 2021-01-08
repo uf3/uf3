@@ -1,4 +1,4 @@
-from ufpotential.bspline.knots import *
+from uf3.representation.knots import *
 
 
 class TestKnots:

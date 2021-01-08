@@ -1,5 +1,5 @@
 import pytest
-from ufpotential.data.geometry import *
+from uf3.data.geometry import *
 
 
 @pytest.fixture()
