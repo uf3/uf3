@@ -27,7 +27,7 @@ class Regularizer:
                                                 curvature=curv_magnitudes[i])
                 matrices.append(matrix)
             matrices = []
-            self.regularizer = combine_penalty_matrices(matrices)
+            self.matrix = combine_penalty_matrices(matrices)
 
 
 def get_regularizer_matrix(n_features, ridge=0, curvature=1, n_pad=0):
