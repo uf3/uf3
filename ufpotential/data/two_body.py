@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import spatial
 
+import ase
 
 def distances_by_interaction(geom,
                              pair_tuples,
@@ -33,8 +34,8 @@ def distances_by_interaction(geom,
     distance_matrix = get_distance_matrix(geom, supercell)
     if supercell is None:
         supercell = geom
-    geo_composition = np.array(geom.get_chemical_symbols())
-    sup_composition = np.array(supercell.get_chemical_symbols())
+    geo_composition = np.array(geom.get_atomic_numbers())
+    sup_composition = np.array(supercell.get_atomic_numbers())
     s_geo = len(geom)
     # loop through interactions
     if atomic:
@@ -44,7 +45,8 @@ def distances_by_interaction(geom,
     for pair in pair_tuples:
         r_min = r_min_map[pair]
         r_max = r_max_map[pair]
-        comp_mask = mask_matrix_by_pair_interaction(pair,
+        pair_numbers = ase.symbols.symbols2numbers(pair)
+        comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                     geo_composition,
                                                     sup_composition)
         cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
@@ -79,27 +81,28 @@ def derivatives_by_interaction(geom, supercell, pair_tuples,
     Returns:
         distances: flattened np.ndarray of pair distances across supercell
             within range.
-        drij_dR: np.ndarray of shape (n_geo, 3, n_distances)
+        drij_dR: np.ndarray of shape (n_atoms, 3, n_distances)
             and the second dimension corresponds to x, y, and z directions.
             Used to evaluate forces.
     """
     if supercell is None:
         supercell = geom
-    n_geo = len(geom)
+    n_atoms = len(geom)
     # extract atoms from supercell that are within the maximum
     # cutoff distance of atoms in the unit cell.
     r_max = np.max(list(r_max_map.values()))
     supercell = mask_supercell_with_radius(geom, supercell, r_max)
     distance_matrix = get_distance_matrix(supercell, supercell)
     sup_positions = supercell.get_positions()
-    sup_composition = np.array(supercell.get_chemical_symbols())
+    sup_composition = np.array(supercell.get_atomic_numbers())
     # loop through interactions
     distance_map = {}
     derivative_map = {}
     for pair in pair_tuples:
+        pair_numbers = ase.symbols.symbols2numbers(pair)
         r_min = r_min_map[pair]
         r_max = r_max_map[pair]
-        comp_mask = mask_matrix_by_pair_interaction(pair,
+        comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                     sup_composition,
                                                     sup_composition)
         cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
@@ -108,10 +111,9 @@ def derivatives_by_interaction(geom, supercell, pair_tuples,
         distance_map[pair] = distance_matrix[interaction_mask]
         # corresponding derivatives, flattened
         x_where, y_where = np.where(interaction_mask)
-        n_distances = len(x_where)
-        drij_dR = compute_drij_dR(sup_positions, distance_matrix,
-                                  x_where, y_where, n_geo, n_distances)
-        derivative_map[pair] = drij_dR
+        drij_dr = compute_drij_dR(sup_positions, distance_matrix,
+                                  x_where, y_where, n_atoms)
+        derivative_map[pair] = drij_dr
     return distance_map, derivative_map
 
 
@@ -143,7 +145,7 @@ def mask_matrix_by_pair_interaction(pair,
                                     sup_composition=None):
     """
     Generates boolean mask for the distance matrix based on composition
-        vectors i.e. from ase.Atoms.get_chemical_symbols()
+        vectors i.e. from ase.Atoms.get_atomic_numbers()
 
         e.g. identifying A-B interactions:
                               supercell
@@ -173,7 +175,7 @@ def mask_matrix_by_pair_interaction(pair,
     for i, j in (pair, pair[::-1]):
         geo_match = np.where(geo_composition == j)[0]
         sup_match = np.where(sup_composition == i)[0]
-        comp_mask[geo_match[None, :], sup_match[:, None]] = 1
+        comp_mask[geo_match[None, :], sup_match[:, None]] = True
     return comp_mask
 
 
@@ -217,7 +219,7 @@ def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
     Returns:
         distances: flattened np.ndarray of pair distances across supercell
             within range.
-        drij_dR: np.ndarray of shape (n_geo, 3, n_distances)
+        drij_dR: np.ndarray of shape (n_atoms, 3, n_distances)
             and the second dimension corresponds to x, y, and z directions.
             Used to evaluate forces.
     """
@@ -229,17 +231,16 @@ def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
     sup_positions = sup_positions[valids_mask, :]
 
     distance_matrix = spatial.distance.cdist(sup_positions, sup_positions)
-    n_geo = len(geo_positions)
+    n_atoms = len(geo_positions)
 
     cut_mask = (distance_matrix >= r_min) & (distance_matrix <= r_max)
 
-    x_where, y_where = np.where(cut_mask)
-    n_distances = len(x_where)
+    i_where, j_where = np.where(cut_mask)
 
-    drij_dR = compute_drij_dR(sup_positions, distance_matrix,
-                              x_where, y_where, n_geo, n_distances)
+    drij_dr = compute_drij_dR(sup_positions, distance_matrix,
+                              i_where, j_where, n_atoms)
     distances = distance_matrix[cut_mask]
-    return distances, drij_dR
+    return distances, drij_dr
 
 
 def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
@@ -264,13 +265,13 @@ def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
     return distances
 
 
-def compute_drij_dR(sup_positions, distance_matrix,
-                    i_where, j_where,
-                    n_geo, n_distances):
+def compute_drij_dR(sup_positions,
+                    distance_matrix,
+                    i_where,
+                    j_where,
+                    n_atoms):
     """
-    Pure-python port of intermediate function for computing derivatives
-    for forces. Cython implementation available upon request.
-    TODO: acceleration with Numba.
+    Intermediate function for computing derivatives for forces.
 
     Args:
         sup_positions: atom positions in supercell.
@@ -278,31 +279,23 @@ def compute_drij_dR(sup_positions, distance_matrix,
             sup_positions).
         i_where: indices of i-th atom based on distance mask.
         j_where: indices of j-th atom based on distance mask.
-        n_geo: number of atoms in original entry.
-        n_distances: number of pair distances of interest.
+        n_atoms: number of atoms in original unit cell.
 
     Returns:
-        drij_dR: np.ndarray of shape (n_geo, 3, n_distances)
+        drij_dR: np.ndarray of shape (n_atoms, 3, n_distances)
             and the second dimension corresponds to x, y, and z directions.
             Used to evaluate forces.
     """
-    drij_dR = np.zeros((n_geo, 3, n_distances))
+    m_range = np.arange(n_atoms)
+    im = m_range[:, None] == i_where[None, :]
+    jm = m_range[:, None] == j_where[None, :]
+    kronecker = jm.astype(int) - im.astype(int)  # n_atoms x n_distances
 
-    for idx in range(n_distances):
-        i = i_where[idx]  # loop over only i and j within distance constraints
-        j = j_where[idx]
+    delta_r = sup_positions[j_where, :] - sup_positions[i_where, :]
+    # n_distances x 3
+    rij = distance_matrix[i_where, j_where]  # n_distances
 
-        for c_idx in range(3):
-            Rij = sup_positions[j, c_idx] - sup_positions[i, c_idx]
-            for m in range(n_geo):  # loop over m index
-                if j == m:
-                    jm = 1
-                else:
-                    jm = 0
-                if i == m:
-                    im = 1
-                else:
-                    im = 0
-                delta = jm - im
-                drij_dR[m, c_idx, idx] = delta * Rij / distance_matrix[i, j]
-    return drij_dR
+    drij_dr = (kronecker[:, None, :]
+               * delta_r.T[None, :, :]
+               / rij[None, None, :])
+    return drij_dr
