@@ -2,6 +2,39 @@ import numpy as np
 from ufpotential.regression import regularize
 
 
+class WeightedLinearModel:
+    def __init__(self,
+                 weights=None,
+                 regularizer_sizes=None,
+                 ridge=1e-6,
+                 curvature=1e-5,
+                 onebody=1e-4):
+        if isinstance(weights, (list, np.ndarray)):
+            self.weights = weights
+        self.coefficients = None
+        self.regularizer = regularize.Regularizer(
+            regularizer_sizes=regularizer_sizes,
+            ridge=ridge,
+            curvature=curvature,
+            onebody=onebody)
+
+    def fit(self, x, y):
+        solution, predictions = weighted_least_squares(x,
+                                                       y,
+                                                       self.weights,
+                                                       self.regularizer)
+        self.coefficients = solution
+
+    def predict(self, x):
+        predictions = np.dot(x, self.coefficients)
+        return predictions
+
+    def score(self, x, y):
+        predictions = self.predict(x)
+        rms = np.sqrt(np.mean(np.subtract(y, predictions)**2))
+        return rms
+
+
 def linear_least_squares(A, y, regularizer_matrix=None):
     """
     Solves the linear least-squares problem Ax=y with L2 (ridge)

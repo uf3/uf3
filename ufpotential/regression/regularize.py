@@ -26,7 +26,6 @@ class Regularizer:
                                                 ridge=ridge_magnitudes[i],
                                                 curvature=curv_magnitudes[i])
                 matrices.append(matrix)
-            matrices = []
             self.matrix = combine_penalty_matrices(matrices)
 
 
