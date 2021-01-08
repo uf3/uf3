@@ -5,3 +5,5 @@ ase
 pandas
 scikit_learn
 pytest
+elastic
+phonopy
