@@ -29,6 +29,7 @@ class Regularizer:
             matrices = []
             self.regularizer = combine_penalty_matrices(matrices)
 
+
 def get_regularizer_matrix(n_features, ridge=0, curvature=1, n_pad=0):
     """
     Generates additive regularization matrix for linear regression

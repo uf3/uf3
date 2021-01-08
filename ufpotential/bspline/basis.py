@@ -49,10 +49,11 @@ class Bspline1DBasis:
         return Bspline1DBasis(chemistry_handler,
                               **config)
 
-    def get_feature_subdivisions(self):
-        """Get number of features per type of interaction."""
+    def get_regularizer_sizes(self):
+        """Get sizes of regularizers: two-body and one-body terms"""
         subdivisions = [n_intervals + 3 for n_intervals
                         in self.chemistry_config.resolution_map.values()]
+        subdivisions.append(len(self.chemistry_config.element_list))
         return subdivisions
 
     def evaluate(self, df, data_coordinator, xy_out=True):
@@ -85,16 +86,8 @@ class Bspline1DBasis:
                                     orient='index',
                                     columns=self.columns)
         if xy_out:
-            n_onebody = len(self.chemistry_config.element_list)
-            onebody_columns = self.columns[-n_onebody:]
-            onebody_sums = np.sum(df[onebody_columns].values, axis=1)
-            force_mask = (onebody_sums == 0)
-            df_energy = df.iloc[~force_mask]
-            df_forces = df.iloc[force_mask]
-            x = df_energy.to_numpy()[:, 1:]
-            y = df_energy['y'].values
-            u = df_forces.to_numpy()[:, 1:]
-            v = df_forces['y'].values
+            element_list = self.chemistry_config.element_list
+            x, y, u, v = dataframe_to_training_pairs(df, element_list)
             return x, y, u, v
         else:
             return df
@@ -221,6 +214,20 @@ class Bspline1DBasis:
                               len(self.chemistry_config.element_list)))
         feature_array = np.concatenate([feature_array, comp_array], axis=2)
         return feature_array
+
+
+def dataframe_to_training_pairs(df, element_list):
+    n_onebody = len(element_list)
+    onebody_columns = df.columns[-n_onebody:]
+    onebody_sums = np.sum(df[onebody_columns].values, axis=1)
+    force_mask = (onebody_sums == 0)
+    df_energy = df[~force_mask]
+    df_forces = df[force_mask]
+    x = df_energy.to_numpy()[:, 1:]
+    y = df_energy['y'].values
+    u = df_forces.to_numpy()[:, 1:]
+    v = df_forces['y'].values
+    return x, y, u, v
 
 
 def flatten_by_interactions(vector_map, pair_tuples):
