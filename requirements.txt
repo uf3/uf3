@@ -5,5 +5,6 @@ ase
 pandas
 scikit_learn
 pytest
+setuptools_scm
 elastic
 phonopy
