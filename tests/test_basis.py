@@ -61,9 +61,9 @@ class TestBasis:
 
     def test_regularizer_subdivision(self, binary_chemistry):
         bspline_handler = Bspline1DBasis(binary_chemistry)
-        subdivisions = bspline_handler.get_feature_subdivisions()
+        subdivisions = bspline_handler.get_regularizer_sizes()
         # default 20 intervals yields 23 basis functions
-        assert np.allclose(subdivisions, [23, 23, 23])
+        assert np.allclose(subdivisions, [23, 23, 23, 2])
 
     def test_energy_features(self, unary_chemistry, simple_molecule):
         bspline_handler = Bspline1DBasis(unary_chemistry)

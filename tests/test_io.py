@@ -94,8 +94,8 @@ class TestIO:
         assert np.allclose(df_run['Step'],
                            [0, 1000, 2000, 3000, 0, 1000, 2000, 3000])
         assert df_run.index[0] == 'lmp_0'
-        assert np.allclose(df_run.loc['lmp_0', 'energy'],
-                           (-477.73490, -418.58648))
+        print(df_run)
+        assert df_run.loc['lmp_0', 'energy'] == -477.73490
 
 
 class TestDataCoordinator:
@@ -115,9 +115,6 @@ class TestDataCoordinator:
         # prefix conflict = reject
         data_handler.dataframe_from_vasprun(md_path, prefix='vasp')
         assert len(data_handler.data) == 2
-        # remove duplicates, keeping last
+        # consolidate
         df = data_handler.consolidate(remove_duplicates=True, keep='last')
-        assert len(df) == 7
-        # keep duplicates
-        df = data_handler.consolidate(remove_duplicates=False)
         assert len(df) == 11
