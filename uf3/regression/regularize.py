@@ -2,34 +2,69 @@ import numpy as np
 
 
 class Regularizer:
+    """
+    Manage regularization parameters.
+    Generate L2 (ridge) penalty matrices for regression.
+    Generate curvature penalty matrices for regression.
+    Arrange matrices by chemical interaction.
+    """
     def __init__(self,
                  regularizer_sizes=None,
                  ridge=1e-6,
                  curvature=1e-5,
                  onebody=1e-4):
-        self.regularizer_sizes = regularizer_sizes
+        """
+        Args:
+            regularizer_sizes (list): List of integers corresponding to
+                the size of feature groups to regularize separately.
+                e.g. regularizer_size for a unary system:
+                    [10, 1], corresponding to A-A features alongside the
+                    elemental one-body term.
+                e.g. regularizer_size for a binary system:
+                    [10, 10, 10, 2], corresponding to A-A, A-B, and B-B
+                    features alongside the elemental one-body terms.
+            curvature (float): curvature regularization strength.
+                Rule-of-thumb may be similar to ridge regression,
+                e.g. optimized through cross-validation between 1e-3 to 1e3
+            ridge (float): L2 regularization strength (multiplicative)
+                for ridge regression.
+            onebody (bool, float): If False or None, process all
+                entries in regularizer_sizes with ridge and curvature.
+                Otherwise, treat the last entry as the one-body term,
+                ignoring curvature penalty. If a float is provided,
+                apply as a separate L2 regularization strength. Providing a
+                larger value discourages larger values in onebody coefficients.
+        """
+        self.regularizer_sizes = np.array(regularizer_sizes, dtype=int)
         self.onebody = onebody
         self.ridge = ridge
         self.curvature = curvature
 
+    @property
+    def matrix(self):
         if self.regularizer_sizes is not None:
             n_segments = len(self.regularizer_sizes)
-            ridge_magnitudes = np.ones(n_segments) * ridge
-            curv_magnitudes = np.ones(n_segments) * curvature
-            if onebody is not None:
-                ridge_magnitudes[-1] = onebody
-                curv_magnitudes[-1] = 0
+            ridge_strengths = np.ones(n_segments) * self.ridge
+            curv_strengths = np.ones(n_segments) * self.curvature
+            if self.onebody is not False and self.onebody is not None:
+                curv_strengths[-1] = 0
+            if isinstance(self.onebody, (int, float, np.floating)):
+                ridge_strengths[-1] = self.onebody  # composition segment
             matrices = []
             for i in range(n_segments):
                 n_features = self.regularizer_sizes[i]
-                matrix = get_regularizer_matrix(n_features,
-                                                ridge=ridge_magnitudes[i],
-                                                curvature=curv_magnitudes[i])
-                matrices.append(matrix)
-            self.matrix = combine_penalty_matrices(matrices)
+                curv_strength = curv_strengths[i]
+                r_matrix = get_regularizer_matrix(n_features,
+                                                  ridge=ridge_strengths[i],
+                                                  curvature=curv_strength)
+                matrices.append(r_matrix)
+            combined_matrix = combine_regularizer_matrices(matrices)
+            return combined_matrix
+        else:
+            raise ValueError("regularizer_sizes not specified.")
 
 
-def get_regularizer_matrix(n_features, ridge=0, curvature=1, n_pad=0):
+def get_regularizer_matrix(n_features, ridge=0, curvature=1):
     """
     Generates additive regularization matrix for linear regression
         using curvature penalty and/or L2 (ridge) penalty.
@@ -43,7 +78,6 @@ def get_regularizer_matrix(n_features, ridge=0, curvature=1, n_pad=0):
             e.g. optimized through cross-validation between 1e-3 to 1e3
         ridge (float): L2 regularization strength (multiplicative)
             for ridge regression.
-        n_pad (int): number of rows/columns to pad with zeros.
 
     Returns:
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
@@ -57,14 +91,10 @@ def get_regularizer_matrix(n_features, ridge=0, curvature=1, n_pad=0):
     matrix[n_features - 1, n_features - 1] /= 2
     if ridge > 0:
         matrix = matrix + np.eye(n_features) * ridge
-    if n_pad > 0:
-        padded_matrix = np.zeros((n_features + n_pad, n_features + n_pad))
-        padded_matrix[:n_features, :n_features] = matrix
-        return padded_matrix
     return matrix
 
 
-def combine_penalty_matrices(matrices):
+def combine_regularizer_matrices(matrices):
     """
     Combine square penalty matrices.
         Example:

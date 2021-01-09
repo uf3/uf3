@@ -3,222 +3,198 @@ from uf3.regression import regularize
 
 
 class WeightedLinearModel:
+    """
+    Scikit-learn compatible class for weighted linear regression.
+    Fit model given x, y, optional weights, and optional regularizer.
+    """
     def __init__(self,
                  weights=None,
-                 regularizer_sizes=None,
-                 ridge=1e-6,
-                 curvature=1e-5,
-                 onebody=1e-4,
-                 fixed_head=(),
-                 fixed_tail=()):
+                 fixed=None,
+                 regularizer=None,
+                 **regularizer_params):
+        """
+        Args:
+            weights (np.ndarray): sample weights (optional).
+            fixed (list): list of tuples of indices and coefficients to fix
+                before fitting. Useful for ensuring smooth cutoffs or
+                fixing multiplicative coefficients.
+                e.g. fix=[(0, 10), (15, 0)] fixes the first coefficient (idx=0)
+                to 10 and the sixteenth coefficient (idx=15) to 0.
+            regularizer (uf3.regularize.Regularizer): regularization
+                handler to query for regularization matrix.
+            regularizer_params: arguments to generate regularizer matrix
+                if regularizer is not provided.
+        """
         if isinstance(weights, (list, np.ndarray)):
             self.weights = weights
         self.coefficients = None
-        self.fixed_head = fixed_head
-        self.fixed_tail = fixed_tail
-        self.regularizer = regularize.Regularizer(
-            regularizer_sizes=regularizer_sizes,
-            ridge=ridge,
-            curvature=curvature,
-            onebody=onebody)
+        self.fixed = fixed
+        if regularizer is not None:
+            self.regularizer = regularizer.matrix
+        else:
+            if regularizer_params is None:
+                raise ValueError(
+                    "Neither regularizer nor regularizer parameters provided.")
+            regularizer = regularize.Regularizer(**regularizer_params)
+            self.regularizer = regularizer.matrix
 
     def fit(self, x, y):
-        solution, predictions = weighted_least_squares(x,
-                                                       y,
-                                                       self.weights,
-                                                       self.regularizer,
-                                                       fixed_head=fixed_head,
-                                                       fixed_tail=fixed_tail)
+        """
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+            y (np.ndarray): output vector of length n_samples.
+        """
+        solution, _ = weighted_least_squares(x,
+                                             y,
+                                             self.weights,
+                                             self.regularizer,
+                                             fixed=self.fixed)
         self.coefficients = solution
 
     def predict(self, x):
+        """
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+
+        Returns:
+            predictions (np.ndarray): vector of predictions.
+        """
         predictions = np.dot(x, self.coefficients)
         return predictions
 
-    def score(self, x, y):
+    def score(self, x, y, weights=None):
+        """
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+            y (np.ndarray): output vector of length n_samples.
+            weights (np.ndarray): sample weights (optional).
+
+        Returns:
+            score (float): weighted root-mean-square-error of prediction.
+        """
+        n_features = len(x[0])
+        if weights is not None:
+            w_matrix = np.eye(n_features) * np.sqrt(weights)
+            x = np.dot(w_matrix, x)
+            y = np.dot(w_matrix, y)
         predictions = self.predict(x)
-        rms = np.sqrt(np.mean(np.subtract(y, predictions)**2))
-        return rms
+        score = np.sqrt(np.mean(np.subtract(y, predictions) ** 2))
+        return score
 
 
-def linear_least_squares(A, y, regularizer_matrix=None):
+def linear_least_squares(x, y):
     """
-    Solves the linear least-squares problem Ax=y with L2 (ridge)
-        and/or curvature penalty.
+    Solves the linear least-squares problem Ax=y. Regularizer matrix
+        should be concatenated to x and zero-values padded to y.
 
     Args:
-        A (np.ndarray): input matrix of shape (n_samples, n_features).
+        x (np.ndarray): input matrix of shape (n_samples, n_features).
         y (np.ndarray): output vector of length n_samples.
-        regularizer_matrix (np.ndarray): e.g. matrix generated using
-            uf3.regression.regularize.get_curvature_penalty_matrix
-
 
     Returns:
         solution (np.ndarray): coefficients.
-        predictions (np.ndarray): predictions.
     """
-    if regularizer_matrix is None:
-        regularizer_matrix = 0
-    kernel = np.dot(A.T, A) + regularizer_matrix
-    inverted_kernel = np.linalg.inv(kernel)
-    solution = np.dot(np.dot(inverted_kernel, A.T), y)
-    predictions = np.dot(A, solution)
-    return solution, predictions
+    xTx = np.dot(x.T, x)
+    xTx_inv = np.linalg.inv(xTx)
+    solution = np.dot(np.dot(xTx_inv, x.T), y)
+    return solution
 
 
-def weighted_least_squares(A,
+def weighted_least_squares(x,
                            y,
                            weights=None,
                            regularizers=None,
-                           fixed_head=(),
-                           fixed_tail=()):
+                           fixed=None):
     """
-    Solves the linear least-squares problem [A,B,...]x = [a,b,...]
-        with optional square regularizer matrix and relative weighting.
-        Regardless of weighting, error contributions are additionally
-        normalized by the respective sample standard deviations,
-        becoming unitless errors.
+    Solves the linear least-squares problem with optional square regularizer
+        matrix and optional weighting.
 
     Args:
-        A (list of np.ndarray): input matrices.
-            e.g. [energy inputs (100 x 20), force inputs (3200 x 20)]
-        y (list of np.ndarray): output vectors.
-            e.g. [energy outputs (100), force outputs (3200)]
-        weights (list): relative weights (optional).
-            e.g. [0.3, 0.7], weighing forces more than energies.
+        x (np.ndarray): input matrix.
+        y (np.ndarray): output vector.
+        weights (np.ndarray): sample weights (optional).
         regularizers (np.ndarray, list): matrix or list of matrices.
+        fixed (list): list of tuples of indices and coefficients to fix
+            before fitting. Useful for ensuring smooth cutoffs or
+            fixing multiplicative coefficients.
+            e.g. fix=[(0, 10), (15, 0)] fixes the first coefficient (idx=0)
+            to 10 and the sixteenth coefficient (idx=15) to 0.
 
     Returns:
         solution (np.ndarray): coefficients.
         predictions (list of np.ndarray): predictions.
     """
+    n_feats = len(x[0])
     if regularizers is None:
         regularizers = ()
     elif isinstance(regularizers, np.ndarray):
-        n_feats = len(A[0][0])
         if regularizers.shape == (n_feats, n_feats):
             regularizers = [regularizers]
         else:
             raise ValueError(
                 "Expected regularizer shape: {} x {}".format(n_feats, n_feats))
-    if weights is None:
-        weights = np.ones(len(A)) / len(A)
-    else:
-        if len(weights) != len(A):
+
+    if weights is not None:
+        if len(weights) != len(x):
             raise ValueError(
-                'Number of weights does not match number of arrays.')
-        if not np.all(np.positive(weights)) or np.sum(weights) <= 0:
-            raise ValueError('Negative or zero weights provided.')
-        weights = weights / np.sum(weights)  # normalize
-    for column_idx, coefficient in enumerate(fixed_head):
-        for i, array in enumerate(A):
-            column = np.array(array[:, 0])
-            A[i] = np.array(array[:, 1:])
-            y[i] = np.subtract(y[i], coefficient * column)
-        for i, array in enumerate(regularizers):
-            regularizers[i] = array[1:, 1:]
+                'Number of weights does not match number of samples.')
+        if not np.all(np.positive(weights)):
+            raise ValueError('Negative weights provided.')
+        w_matrix = np.eye(len(x)) * np.sqrt(weights)
+        x_fit = np.dot(w_matrix, x.copy())
+        y_fit = np.dot(w_matrix, y.copy())
+    else:
+        x_fit = x.copy()
+        y_fit = y.copy()
 
-    for column_idx, coefficient in enumerate(fixed_tail[::-1]):
-        for i, array in enumerate(A):
-            column = np.array(array[:, -(1 + column_idx)])
-            A[i] = np.array(array[:, :-1])
-            y[i] = np.subtract(y[i], coefficient * column)
-        for i, array in enumerate(regularizers):
-            regularizers[i] = array[:-1, :-1]
+    if fixed is not None:
+        fixed = np.array(fixed)
+        fixed_colidx = fixed[:, 0]
+        fixed_coefficients = fixed[:, 1]
+        x_fit, y_fit, mask = preprocess_fixed_coefficients(x_fit,
+                                                           y_fit,
+                                                           regularizers,
+                                                           fixed_coefficients,
+                                                           fixed_colidx)
 
-    xTx_list = [weight / np.std(target) / len(target) * np.dot(x.T, x)
-           for weight, x, target in zip(weights, A, y)]
-    xTx = np.sum(xTx_list, axis=0) + np.sum(regularizers, axis=0)
-    inverted_xTx = np.linalg.inv(xTx)
-    xTy_list = [weight / np.std(target) / len(target) * np.dot(x.T, target)
-               for weight, x, target in zip(weights, A, y)]
-    xTy = np.sum(xTy_list, axis=0) + 0
-    solution = np.dot(inverted_xTx, xTy)
-    solution = np.concatenate([fixed_head, solution, fixed_tail])
-    predictions = [np.dot(x, solution) for x in A]
-    return solution, predictions
+    reg_zeros = [np.zeros(len(array)) for array in regularizers]
+    x_fit = np.concatenate([x_fit, *regularizers])
+    y_fit = np.concatenate([y_fit, *reg_zeros])
+    solution = linear_least_squares(x_fit, y_fit)
+
+    if fixed is None:
+        return solution
+    else:
+        coefficients = np.zeros(n_feats)
+        np.put_along_axis(coefficients, mask, solution)
+        np.put_along_axis(coefficients, fixed_coefficients, fixed_colidx)
+        return coefficients
 
 
-def two_class_weighted_score(a, b, predicted_a, predicted_b, kappa):
+def preprocess_fixed_coefficients(x,
+                                  y,
+                                  regularizers,
+                                  fixed_coefficients,
+                                  fixed_colidx):
     """
-    Convenience function for computing weighted RMSE in
-        energy and force predictions.
-
+    
     Args:
-        a (np.ndarray): energy reference values.
-        b (np.ndarray): force reference values.
-        predicted_a (np.ndarray): energy predictions.
-        predicted_b (np.ndarray): force predictions.
-        kappa: weighting parameter between 0 and 1, e.g. 1 ignores forces.
+        x (np.ndarray): feature array.
+        y (np.ndarray): target vector.
+        regularizers (list): list of regularization matrices.
+        fixed_coefficients (np.ndarray): coefficient values to fix.
+        fixed_colidx (np.ndarray): column indices of fixed coefficients.
 
     Returns:
-        score (float).
+        x (np.ndarray): feature array with fixed_colidx removed.
+        y (np.ndarray): target vector with fixed column contributes subtracted.
+        mask (np.ndarray): indices of remaining columns in x.
     """
-    a_std = np.std(a)
-    b_std = np.std(b)
-    a_rmse = np.sqrt(np.mean(np.subtract(predicted_a, a) ** 2)) / a_std
-    b_rmse = np.sqrt(np.mean(np.subtract(predicted_b, b) ** 2)) / b_std
-    score = a_rmse * kappa + (1 - kappa) * b_rmse
-    return score
-
-
-def weighted_cross_validation(x, fx, y, fy, kappa, n_folds=5,
-                              lambda1=0, lambda2=0):
-    """
-    Args:
-        x (np.ndarray): Inputs matrix (energy).
-        y (list): Outputs vector (energy).
-        fx (np.ndarray): Inputs matrix (forces).
-        fy (list): Outputs vector (forces).
-        kappa (float): weight parameter e.g. 1 to ignore force contribution.
-        n_folds: number of folds (k) for k-fold cross validation.
-        lambda1 (float): L2 regularization strength (multiplicative)
-            for ridge regression.
-        lambda2 (float): curvature regularization strength (multiplicative).
-
-    Returns:
-        rmse (float): Root-mean-square error from direct evaluation of func.
-        cv_rmse (float): Root-mean-square error from k-fold cross validation.
-    """
-    n_features = x.shape[1]
-
-    reg = regularize.get_regularizer_matrix(n_features,
-                                            ridge=lambda1,
-                                            curvature=lambda2)
-
-    e_indices = np.arange(len(x))
-    f_indices = np.arange(len(fx))
-    np.random.shuffle(e_indices)
-    np.random.shuffle(f_indices)
-    e_folds = np.array_split(e_indices, n_folds)
-    f_folds = np.array_split(f_indices, n_folds)
-
-    pt_cv = []
-    gt_cv = []
-    y_cv = []
-    fy_cv = []
-    for k in range(n_folds):
-        x_holdout = np.take(x, e_folds[k], axis=0)
-        y_holdout = np.take(y, e_folds[k], axis=0)
-        fx_holdout = np.take(fx, f_folds[k], axis=0)
-        fy_holdout = np.take(fy, f_folds[k], axis=0)
-
-        e_fold = np.concatenate(np.delete(e_folds, k, axis=0), axis=0)
-        f_fold = np.concatenate(np.delete(f_folds, k, axis=0), axis=0)
-        x_fold = np.take(x, e_fold, axis=0)
-        y_fold = np.take(y, e_fold, axis=0)
-        fx_fold = np.take(fx, f_fold, axis=0)
-        fy_fold = np.take(fy, f_fold, axis=0)
-
-        coefficients = weighted_least_squares([x_fold, fx_fold],
-                                              [y_fold, fy_fold],
-                                              [kappa, 1-kappa],
-                                              regularizers=reg)
-        pt = np.dot(x_holdout, coefficients)
-        gt = np.dot(fx_holdout, coefficients)
-        pt_cv.extend(pt)
-        gt_cv.extend(gt)
-        y_cv.extend(y_holdout)
-        fy_cv.extend(fy_holdout)
-    cv_score = two_class_weighted_score(y_cv, fy_cv, pt_cv, gt_cv, kappa)
-    return cv_score
+    n_feats = len(x[0])
+    mask = np.setdiff(np.arange(n_feats), fixed_colidx)
+    x = x[:, mask]
+    A_fixed = x[:, fixed_colidx]
+    y = np.subtract(y, np.dot(A_fixed, fixed_coefficients))
+    for i, array in enumerate(regularizers):
+        regularizers[i] = array[mask, mask]
+    return x, y, mask
