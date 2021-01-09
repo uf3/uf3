@@ -8,13 +8,11 @@ class WeightedLinearModel:
     Fit model given x, y, optional weights, and optional regularizer.
     """
     def __init__(self,
-                 weights=None,
                  fixed=None,
                  regularizer=None,
                  **regularizer_params):
         """
         Args:
-            weights (np.ndarray): sample weights (optional).
             fixed (list): list of tuples of indices and coefficients to fix
                 before fitting. Useful for ensuring smooth cutoffs or
                 fixing multiplicative coefficients.
@@ -25,8 +23,6 @@ class WeightedLinearModel:
             regularizer_params: arguments to generate regularizer matrix
                 if regularizer is not provided.
         """
-        if isinstance(weights, (list, np.ndarray)):
-            self.weights = weights
         self.coefficients = None
         self.fixed = fixed
         if regularizer is not None:
@@ -38,17 +34,18 @@ class WeightedLinearModel:
             regularizer = regularize.Regularizer(**regularizer_params)
             self.regularizer = regularizer.matrix
 
-    def fit(self, x, y):
+    def fit(self, x, y, weights=None):
         """
         Args:
             x (np.ndarray): input matrix of shape (n_samples, n_features).
             y (np.ndarray): output vector of length n_samples.
+            weights (np.ndarray): sample weights (optional).
         """
-        solution, _ = weighted_least_squares(x,
-                                             y,
-                                             self.weights,
-                                             self.regularizer,
-                                             fixed=self.fixed)
+        solution = weighted_least_squares(x,
+                                          y,
+                                          weights=weights,
+                                          regularizers=self.regularizer,
+                                          fixed=self.fixed)
         self.coefficients = solution
 
     def predict(self, x):
@@ -138,7 +135,7 @@ def weighted_least_squares(x,
         if len(weights) != len(x):
             raise ValueError(
                 'Number of weights does not match number of samples.')
-        if not np.all(np.positive(weights)):
+        if not np.all(weights >= 0):
             raise ValueError('Negative weights provided.')
         w_matrix = np.eye(len(x)) * np.sqrt(weights)
         x_fit = np.dot(w_matrix, x.copy())
@@ -166,8 +163,8 @@ def weighted_least_squares(x,
         return solution
     else:
         coefficients = np.zeros(n_feats)
-        np.put_along_axis(coefficients, mask, solution)
-        np.put_along_axis(coefficients, fixed_coefficients, fixed_colidx)
+        np.put_along_axis(coefficients, mask, solution, 0)
+        np.put_along_axis(coefficients, fixed_colidx, fixed_coefficients, 0)
         return coefficients
 
 
@@ -191,7 +188,7 @@ def preprocess_fixed_coefficients(x,
         mask (np.ndarray): indices of remaining columns in x.
     """
     n_feats = len(x[0])
-    mask = np.setdiff(np.arange(n_feats), fixed_colidx)
+    mask = np.setdiff1d(np.arange(n_feats), fixed_colidx)
     x = x[:, mask]
     A_fixed = x[:, fixed_colidx]
     y = np.subtract(y, np.dot(A_fixed, fixed_coefficients))
