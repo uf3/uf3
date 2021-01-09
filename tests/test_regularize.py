@@ -3,7 +3,7 @@ from uf3.regression.regularize import *
 
 class TestRegularizers:
     def test_handler(self):
-        regularizer = Regularizer(regularizer_sizes=(5, 6, 2),
+        regularizer = Regularizer(regularizer_sizes=[5, 6, 2],
                                   ridge=0.5,
                                   curvature=1,
                                   onebody=2)
