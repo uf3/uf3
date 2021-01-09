@@ -5,8 +5,6 @@ ase
 pandas
 scikit_learn
 pytest
-atomman>=1.3.4
-iprPy>=0.10.3
+pyyaml
 phonopy>=2.6.0
-spglib>=1.15.0
-seekpath>=2.0.0
+elastic>=5.1.0.17
