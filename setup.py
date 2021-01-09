@@ -14,23 +14,18 @@ install_requires = ['numpy',
                     'ase>=3.20.1']
 test_requires = ['pytest']
 
-# extra_requires = {"progress_bar": ["tqdm"],
-#                   "parallel_execution": ["dask", "distributed"],
-#                   "properties": ['pymatgen>=2020.1.10',
-#                                  'elastic',
-#                                  'phonopy']}
 
 if __name__ == "__main__":
     setuptools.setup(
-        name='ufpotential',
+        name='uf3',
         version='0.1',
-        description='Ultra-Fast potentials for molecular dynamics',
+        description='Ultra-Fast Force Fields for molecular dynamics',
         long_description=long_description,
-        url='https://github.com/sxie22/fast-linear-qmml',
+        url='https://github.com/sxie22/uf3',
         author='Stephen R. Xie, Matthias Rupp',
         author_email='sxiexie@ufl.edu',
         license='Apache 2.0',
-        packages=['ufpotential'],
+        packages=['uf3'],
         install_requires=install_requires,
         classifiers=["Programming Language :: Python :: 3.7",
                      'Development Status :: 3 - Alpha',

@@ -9,11 +9,25 @@ from ase.io import lammpsrun as ase_lammpsrun
 
 
 class DataCoordinator:
+    """
+    Load data from files, e.g. LAMMPS and VASP outputs.
+    Prepare standardized DataFrames for representation.
+    """
     def __init__(self,
                  atoms_key='geometry',
                  energy_key='energy',
                  size_key='size',
                  overwrite=False):
+        """
+        Args:
+            atoms_key (str): column name for geometries, default "geometry".
+                Modify when parsed geometries are part of a larger pipeline.
+            energy_key (str): column name for energies, default "energy".
+            size_key (str):  column name for number of atoms per geometry,
+                default "size".
+            overwrite (bool): Allow overwriting of existing DataFrame
+                with matching key when loading.
+        """
         self.atoms_key = atoms_key
         self.energy_key = energy_key
         self.size_key = size_key
