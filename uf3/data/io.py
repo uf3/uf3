@@ -296,6 +296,8 @@ def parse_trajectory(fname,
     df = pd.DataFrame(columns=columns)
     df[atoms_key] = geometries
     # object-dataframe consistency
+    scalar_keys = scalar_keys + [energy_key]
+    array_keys = array_keys + ["fx", "fy", "fz"]
     df = update_dataframe_from_geometries(df,
                                           atoms_key=atoms_key,
                                           size_key=size_key,
