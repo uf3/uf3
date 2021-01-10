@@ -10,7 +10,10 @@ def test_fit_spline_1d():
     coefficients = np.round(coefficients, 2)
     assert np.allclose(coefficients,
                        [-0.06, 1.59, 2.37, 1.16, 1.23, 1.77, 2.43, 2.71])
-    bspline = BSpline(t=knot_sequence, c=coefficients, k=3, extrapolate=False)
+    bspline = interpolate.BSpline(t=knot_sequence,
+                                  c=coefficients,
+                                  k=3,
+                                  extrapolate=False)
     yp = bspline(x[(x > 0) & (x < 6)])
     rmse = np.sqrt(np.mean(np.subtract(y[(x > 0) & (x < 6)], yp) ** 2))
     assert rmse < 0.017
