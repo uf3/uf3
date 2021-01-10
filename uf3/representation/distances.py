@@ -1,7 +1,10 @@
 import numpy as np
 from scipy import spatial
+from scipy import signal
 
 import ase
+from uf3.data import geometry
+
 
 def distances_by_interaction(geom,
                              pair_tuples,
@@ -299,3 +302,73 @@ def compute_drij_dR(sup_positions,
                * delta_r.T[None, :, :]
                / rij[None, None, :])
     return drij_dr
+
+
+def summarize_distances(geometries,
+                        chemical_system,
+                        r_cut=12,
+                        n_bins=100,
+                        print_stats=True,
+                        min_peak_width=0.5):
+    """
+    Construct histogram of distances per pair interaction across
+        list of geometries. Useful for optimizing the lower- and upper-
+        bounds of knot sequences.
+
+    Args:
+        geometries (list): list of ase.Atoms configuration.
+        chemical_system (uf3.composition.ChemicalSystem)
+        r_cut (float): cutoff distance in angstroms.
+        n_bins (int): number of bins in histogram.
+        print_stats (bool): print minimum distance and identified peaks.
+        min_peak_width (float): minimum peak with in angstroms for
+            peak-finding algorithm.
+
+    Returns:
+        histogram_map (dict): for each interaction key (A-A, A-B, ...),
+            vector of histogram frequencies of length n_bins. Frequency
+            values are divided by r^2, evaluated at the middle of each bin.
+        bin_edges (np.ndarray): bin edges of histogram.
+    """
+    pair_tuples = chemical_system.interactions_map[2]
+    bin_edges = np.linspace(0, r_cut, n_bins + 1)
+    histogram_values = {pair: np.zeros(n_bins) for pair in pair_tuples}
+    n_entries = len(geometries)
+    for geom in geometries:
+        if any(geom.pbc):
+            supercell = geometry.get_supercell(geom, r_cut=r_cut)
+            density = len(geom) / geom.get_volume()
+        else:
+            supercell = geom
+            density = 1
+        distance_matrix = get_distance_matrix(geom, supercell)
+        geo_composition = np.array(geom.get_atomic_numbers())
+        sup_composition = np.array(supercell.get_atomic_numbers())
+        # loop through interactions
+        for pair in pair_tuples:
+            pair_numbers = ase.symbols.symbols2numbers(pair)
+            comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
+                                                        geo_composition,
+                                                        sup_composition)
+            cut_mask = (distance_matrix > 0) & (distance_matrix < r_cut)
+            interaction_mask = comp_mask & cut_mask
+            distances_vector = distance_matrix[interaction_mask]
+            frequencies, _ = np.histogram(distances_vector, bin_edges)
+            frequencies = frequencies / density / n_entries / 2
+            if pair[0] != pair[1]:
+                frequencies /= 2
+            histogram_values[pair] += frequencies
+    bin_centers = 0.5 * np.add(bin_edges[:-1], bin_edges[1:])
+    bin_span = int(np.ceil(min_peak_width
+                           / (bin_edges[1] - bin_edges[0])))
+    for pair in pair_tuples:
+        histogram_values[pair] /= bin_centers ** 2 * 4 * np.pi
+        if print_stats:
+            lower_bound = bin_edges[np.nonzero(histogram_values[pair])[0][0]]
+            peaks = bin_centers[signal.find_peaks(histogram_values[pair],
+                                                  width=bin_span)[0]]
+            print(pair, 'Lower bound: {0:.3f} angstroms'.format(lower_bound))
+            print(pair,
+                  'Peaks (min width {} angstroms):'.format(min_peak_width),
+                  peaks)
+    return histogram_values, bin_edges
