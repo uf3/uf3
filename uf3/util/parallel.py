@@ -76,8 +76,9 @@ def wait_progress(future_list, timeout=None):
                                return_when='FIRST_COMPLETED')
         done = len(done)
         remain = len(remaining)
-        future_progress.update(done - last)
-        last = int(done)
+        if done > last:
+            future_progress.update(done - last)
+            last = int(done)
         if remain < 1:
             break
     future_progress.close()

@@ -153,7 +153,8 @@ class BasisProcessor2B:
         future_list = parallel.batch_submit(self.evaluate,
                                             batches,
                                             client,
-                                            data_coordinator=data_coordinator)
+                                            data_coordinator=data_coordinator,
+                                            progress_bar=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
                                                 cancel=True)
