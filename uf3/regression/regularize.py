@@ -3,10 +3,11 @@ import numpy as np
 
 class Regularizer:
     """
-    Manage regularization parameters.
-    Generate L2 (ridge) penalty matrices for regression.
-    Generate curvature penalty matrices for regression.
-    Arrange matrices by chemical interaction.
+    -Manage regularization parameters
+    -Generate L2 (ridge) penalty matrices for regression
+    -Generate curvature penalty matrices for regression
+    -Arrange matrices by chemical interaction
+    -Manage feature indices for fixed coefficients
     """
     def __init__(self,
                  regularizer_sizes=None,
@@ -62,6 +63,31 @@ class Regularizer:
             return combined_matrix
         else:
             raise ValueError("regularizer_sizes not specified.")
+
+    def get_fixed(self,
+                  value=0,
+                  upper_bounds=True,
+                  lower_bounds=False):
+        feature_chunksizes = self.regularizer_sizes
+        n_features = np.sum(feature_chunksizes)
+        indices = []
+        if self.onebody is not False and self.onebody is not None:
+            # trailing coefficients (element-specific one-body terms)
+            for i in range(feature_chunksizes[-1]):
+                indices.append(n_features - 1 - i)
+            feature_chunksizes = feature_chunksizes[:-1]
+        bounds = np.insert(np.cumsum(feature_chunksizes) - 1, 0, 0)
+        lower_idxs = bounds[:-1]
+        upper_idxs = bounds[1:]
+        if lower_bounds:  #
+            for idx in lower_idxs:
+                indices.append(idx)
+        if upper_bounds:
+            for idx in upper_idxs:
+                indices.append(idx)
+        values = np.ones(len(indices)) * value
+        fixed = np.vstack([indices, values]).T
+        return fixed.astype(int)
 
 
 def get_regularizer_matrix(n_features, ridge=0, curvature=1):
