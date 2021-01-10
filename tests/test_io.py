@@ -88,7 +88,7 @@ class TestIO:
         df_run = parse_lammps_outputs(run_directory,
                                       prefix='lmp',
                                       dump_fname="test.lammpstrj",
-                                      element_aliases={1: 2, 2: 10},
+                                      lammps_aliases={1: 2, 2: 10},
                                       column_subs={"PotEng": "energy"})
         check_dataframe(df_run)
         assert np.allclose(df_run['Step'],
@@ -108,7 +108,7 @@ class TestDataCoordinator:
         data_handler.dataframe_from_lammps_run(run_directory,
                                                prefix='lmp',
                                                dump_fname='test.lammpstrj',
-                                               element_aliases={1: 2, 2: 10})
+                                               lammps_aliases={1: 2, 2: 10})
         relax_path = os.path.join(data_directory, "vasp_relax/vasprun.xml")
         md_path = os.path.join(data_directory, "vasp_md/vasprun.xml")
         data_handler.dataframe_from_vasprun(relax_path, prefix='vasp')
