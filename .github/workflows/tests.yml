@@ -33,10 +33,8 @@ jobs:
         apt update && apt-get install gcc -y
         gcc -v
         python --version
-        pip install -U pip
-        pip install -U pytest
-        pip install wheel
-        pip install setuptools_scm
+        pip install -U pip pytest
+        pip install setuptools_scm wheel
         pip install -r requirements.txt
         pip install .
     - name: Test with pytest
