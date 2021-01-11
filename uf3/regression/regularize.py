@@ -66,16 +66,17 @@ class Regularizer:
 
     def get_fixed(self,
                   value=0,
+                  onebody=False,
                   upper_bounds=True,
                   lower_bounds=False):
         feature_chunksizes = self.regularizer_sizes
         n_features = np.sum(feature_chunksizes)
         indices = []
-        if self.onebody is not False and self.onebody is not None:
+        if onebody:
             # trailing coefficients (element-specific one-body terms)
             for i in range(feature_chunksizes[-1]):
                 indices.append(n_features - 1 - i)
-            feature_chunksizes = feature_chunksizes[:-1]
+        feature_chunksizes = feature_chunksizes[:-1]
         bounds = np.insert(np.cumsum(feature_chunksizes) - 1, 0, 0)
         lower_idxs = bounds[:-1]
         upper_idxs = bounds[1:]
