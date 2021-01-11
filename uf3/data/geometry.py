@@ -68,7 +68,7 @@ def get_supercell_factors(cell, r_cut):
         supercell_factors: minimum number of images per direction (radius).
     """
     a, b, c = cell
-    if np.min(np.sum(cell, axis=1)) <= 0:
+    if np.min(np.sum(cell, axis=1)) == 0:
         raise ValueError("Unit cell has 0-length lattice vector(s).")
     normal_vectors = [np.cross(b, c),
                       np.cross(a, c),

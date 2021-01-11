@@ -4,8 +4,8 @@ from uf3.regression import regularize
 
 class WeightedLinearModel:
     """
-    Scikit-learn compatible class for weighted linear regression.
-    Fit model given x, y, optional weights, and optional regularizer.
+    -Perform weighted linear regression with scikit-learn compatible functions
+    -Fit model given x, y, optional weights, and optional regularizer
     """
     def __init__(self,
                  fixed=None,
@@ -44,7 +44,7 @@ class WeightedLinearModel:
         solution = weighted_least_squares(x,
                                           y,
                                           weights=weights,
-                                          regularizers=self.regularizer,
+                                          regularizer=self.regularizer,
                                           fixed=self.fixed)
         self.coefficients = solution
 
@@ -100,7 +100,7 @@ def linear_least_squares(x, y):
 def weighted_least_squares(x,
                            y,
                            weights=None,
-                           regularizers=None,
+                           regularizer=None,
                            fixed=None):
     """
     Solves the linear least-squares problem with optional square regularizer
@@ -110,7 +110,7 @@ def weighted_least_squares(x,
         x (np.ndarray): input matrix.
         y (np.ndarray): output vector.
         weights (np.ndarray): sample weights (optional).
-        regularizers (np.ndarray, list): matrix or list of matrices.
+        regularizer (np.ndarray)
         fixed (list): list of tuples of indices and coefficients to fix
             before fitting. Useful for ensuring smooth cutoffs or
             fixing multiplicative coefficients.
@@ -122,12 +122,8 @@ def weighted_least_squares(x,
         predictions (list of np.ndarray): predictions.
     """
     n_feats = len(x[0])
-    if regularizers is None:
-        regularizers = ()
-    elif isinstance(regularizers, np.ndarray):
-        if regularizers.shape == (n_feats, n_feats):
-            regularizers = [regularizers]
-        else:
+    if regularizer is not None:
+        if regularizer.shape != (n_feats, n_feats):
             raise ValueError(
                 "Expected regularizer shape: {} x {}".format(n_feats, n_feats))
 
@@ -137,11 +133,11 @@ def weighted_least_squares(x,
                 'Number of weights does not match number of samples.')
         if not np.all(weights >= 0):
             raise ValueError('Negative weights provided.')
-        w_matrix = np.eye(len(x)) * np.sqrt(weights)
-        x_fit = np.dot(w_matrix, x.copy())
-        y_fit = np.dot(w_matrix, y.copy())
+        w = np.sqrt(weights)
+        x_fit = np.multiply(x.copy().T, w).T
+        y_fit = np.multiply(y.copy(), w)
     else:
-        x_fit = x.copy()
+        x_fit = x.copy()  # copy in preparation for modifying with fixed coeff.
         y_fit = y.copy()
 
     if fixed is not None:
@@ -150,13 +146,14 @@ def weighted_least_squares(x,
         fixed_coefficients = fixed[:, 1]
         x_fit, y_fit, mask = preprocess_fixed_coefficients(x_fit,
                                                            y_fit,
-                                                           regularizers,
                                                            fixed_coefficients,
                                                            fixed_colidx)
+        regularizer = regularizer[mask, :][:, mask]
 
-    reg_zeros = [np.zeros(len(array)) for array in regularizers]
-    x_fit = np.concatenate([x_fit, *regularizers])
-    y_fit = np.concatenate([y_fit, *reg_zeros])
+    if regularizer is not None:
+        reg_zeros = np.zeros(len(regularizer))
+        x_fit = np.concatenate([x_fit, regularizer])
+        y_fit = np.concatenate([y_fit, reg_zeros])
     solution = linear_least_squares(x_fit, y_fit)
 
     if fixed is None:
@@ -170,7 +167,6 @@ def weighted_least_squares(x,
 
 def preprocess_fixed_coefficients(x,
                                   y,
-                                  regularizers,
                                   fixed_coefficients,
                                   fixed_colidx):
     """
@@ -178,7 +174,6 @@ def preprocess_fixed_coefficients(x,
     Args:
         x (np.ndarray): feature array.
         y (np.ndarray): target vector.
-        regularizers (list): list of regularization matrices.
         fixed_coefficients (np.ndarray): coefficient values to fix.
         fixed_colidx (np.ndarray): column indices of fixed coefficients.
 
@@ -189,9 +184,7 @@ def preprocess_fixed_coefficients(x,
     """
     n_feats = len(x[0])
     mask = np.setdiff1d(np.arange(n_feats), fixed_colidx)
+    x_fixed = x[:, fixed_colidx]
     x = x[:, mask]
-    A_fixed = x[:, fixed_colidx]
-    y = np.subtract(y, np.dot(A_fixed, fixed_coefficients))
-    for i, array in enumerate(regularizers):
-        regularizers[i] = array[mask, mask]
+    y = np.subtract(y, np.dot(x_fixed, fixed_coefficients))
     return x, y, mask

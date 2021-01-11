@@ -10,8 +10,8 @@ from ase.io import lammpsrun as ase_lammpsrun
 
 class DataCoordinator:
     """
-    Load data from files, e.g. LAMMPS and VASP outputs.
-    Prepare standardized DataFrames for representation.
+    -Load data from files, e.g. LAMMPS and VASP outputs
+    -Prepare standardized DataFrames for representation
     """
     def __init__(self,
                  atoms_key='geometry',
@@ -65,7 +65,8 @@ class DataCoordinator:
             pattern = '{}_{{}}'.format(prefix)
             dataframe = dataframe.rename(pattern.format)
         if prefix in self.data:
-            print('Data already exists with prefix "{}".', end=' ')
+            print('Data already exists with prefix "{}".',format(prefix),
+                  end=' ')
             if self.overwrite is True:
                 print('Overwriting...')
                 self.data[prefix] = dataframe
@@ -123,7 +124,7 @@ class DataCoordinator:
 
     def dataframe_from_lammps_run(self,
                                   path,
-                                  element_aliases,
+                                  lammps_aliases,
                                   prefix=None,
                                   column_subs={"PotEng": "energy"},
                                   log_fname="log.lammps",
@@ -134,7 +135,7 @@ class DataCoordinator:
         if prefix is None:
             prefix = len(self.data)
         df = parse_lammps_outputs(path,
-                                  element_aliases,
+                                  lammps_aliases,
                                   prefix=prefix,
                                   column_subs=column_subs,
                                   log_fname=log_fname,
@@ -295,6 +296,8 @@ def parse_trajectory(fname,
     df = pd.DataFrame(columns=columns)
     df[atoms_key] = geometries
     # object-dataframe consistency
+    scalar_keys = scalar_keys + [energy_key]
+    array_keys = array_keys + ["fx", "fy", "fz"]
     df = update_dataframe_from_geometries(df,
                                           atoms_key=atoms_key,
                                           size_key=size_key,
@@ -308,7 +311,7 @@ def parse_trajectory(fname,
 
 
 def parse_lammps_outputs(path,
-                         element_aliases,
+                         lammps_aliases,
                          prefix=None,
                          column_subs={"PotEng": "energy"},
                          log_fname="log.lammps",
@@ -322,7 +325,7 @@ def parse_lammps_outputs(path,
 
     Args:
         path (str): path to run directory.
-        element_aliases (dict): optional map of LAMMPS atom types to species.
+        lammps_aliases (dict): optional map of LAMMPS atom types to species.
         prefix (str): prefix for DataFrame index.
             e.g. "bulk" -> [bulk_0, bulk_1, bulk_2, ...]
         column_subs (dict): column name substitutions for DataFrame.
@@ -351,7 +354,7 @@ def parse_lammps_outputs(path,
     log_timesteps = df['Step'].values
     # Parse dump file, querying only timesteps appearing in the log
     snapshots = parse_lammps_dump(dump_path,
-                                  element_aliases,
+                                  lammps_aliases,
                                   timesteps=log_timesteps)
     log_idxs = np.arange(len(df))
     intersection_idxs = []
@@ -485,7 +488,7 @@ def df_from_tsv_text(text):
 
 def atoms_from_df(df,
                   element_key='element',
-                  element_aliases=None,
+                  lammps_aliases=None,
                   info=None,
                   **atom_kwargs):
     """
@@ -495,7 +498,7 @@ def atoms_from_df(df,
     Args:
         df (pandas.DataFrame): DataFrame of interest.
         element_key (str): column name corresponding to species.
-        element_aliases (dict): optional map of aliases to species
+        lammps_aliases (dict): optional map of aliases to species
             e.g. for LAMMPS atom types.
         info (dict): optional dictionary of scalars.
         **atom_kwargs: arguments to pass to ase.Atoms, e.g. cell and pbc.
@@ -505,10 +508,10 @@ def atoms_from_df(df,
     """
     req_keys = ['x', 'y', 'z', element_key]
     info = info or {}
-    element_aliases = element_aliases or {}
+    lammps_aliases = lammps_aliases or {}
     positions = df[['x', 'y', 'z']].to_numpy()
     species = df[element_key]
-    species = [element_aliases.get(el, el)
+    species = [lammps_aliases.get(el, el)
                for el in species]  # substitute aliases
     atoms = ase.Atoms(species, positions=positions, **atom_kwargs)
     # Add extra columns, e.g. fx or per-atom quantities, as array entries.
@@ -542,7 +545,7 @@ def parse_lammps_log(fname, log_regex=None):
     return df_log
 
 
-def parse_lammps_dump(fname, element_aliases, timesteps=None):
+def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
     """
     Read LAMMPS text dump file. Expects the following items in the
     thermo_style: id type x y z
@@ -555,7 +558,7 @@ def parse_lammps_dump(fname, element_aliases, timesteps=None):
 
     Args:
         fname (str): filename of dump file.
-        element_aliases (dict): map of LAMMSP type to species.
+        lammps_aliases (dict): map of LAMMSP type to species.
         timesteps (list, np.ndarray): Optional subset of timesteps to parse.
             Note: function expects timesteps to match dump chronologically.
             This behavior is intended to accommodate LAMMPS runs with
@@ -586,7 +589,7 @@ def parse_lammps_dump(fname, element_aliases, timesteps=None):
                                           pbc=pbc,
                                           celldisp=cell_displacement,
                                           element_key='type',
-                                          element_aliases=element_aliases)
+                                          lammps_aliases=lammps_aliases)
                     if not parse_subset:
                         snapshot_index.append(timestep)
                         snapshot_contents.append(atoms)

@@ -4,6 +4,10 @@ import numpy as np
 
 
 class ChemicalSystem:
+    """
+    -Manage parameters related to composition
+    -e.g. pair combinations of a binary/ternary system
+    """
     def __init__(self,
                  element_list,
                  degree=2,

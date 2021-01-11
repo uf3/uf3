@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.interpolate import BSpline
-from scipy.interpolate import LSQUnivariateSpline
+from scipy import interpolate
 
 
 def evaluate_bspline(points, knot_subintervals, flatten=True):
@@ -25,7 +24,7 @@ def evaluate_bspline(points, knot_subintervals, flatten=True):
     for idx in range(n_splines):
         # loop over number of basis functions
         b_knots = knot_subintervals[idx]
-        bs_l = BSpline.basis_element(b_knots, extrapolate=False)
+        bs_l = interpolate.BSpline.basis_element(b_knots, extrapolate=False)
         mask = np.logical_and(points >= b_knots[0],
                               points <= b_knots[4])
         bspline_values = bs_l(points[mask])
@@ -61,7 +60,7 @@ def compute_force_bsplines(drij_dR, distances, knot_intervals):
         # loop over number of basis functions
         x_splines = np.zeros((n_atoms, 3))
         b_knots = knot_intervals[idx]
-        bs_l = BSpline.basis_element(b_knots, extrapolate=False)
+        bs_l = interpolate.BSpline.basis_element(b_knots, extrapolate=False)
         mask = np.logical_and(distances > b_knots[0],
                               distances < b_knots[4])
         bspline_values = bs_l(distances[mask], nu=1)  # first derivative
@@ -122,6 +121,9 @@ def fit_spline_1d(x, y, knot_sequence):
         knot_sequence = knot_sequence[4:-4]
     else:
         knot_sequence = knot_sequence[1:-1]
-    lsq = LSQUnivariateSpline(x, y, knot_sequence, bbox=(b_min, b_max))
+    lsq = interpolate.LSQUnivariateSpline(x,
+                                          y,
+                                          knot_sequence,
+                                          bbox=(b_min, b_max))
     coefficients = lsq.get_coeffs()
     return coefficients

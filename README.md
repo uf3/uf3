@@ -6,10 +6,10 @@
 ```bash
 conda create --name uf3_env python=3.7
 conda activate uf3_env
-pip install numpy scipy tqdm ase pandas scikit-learn
 git clone https://github.com/sxie22/uf3
 cd uf3
-python setup.py sdist
+pip install setuptools_scm wheel
+pip install -r requirements.txt
 pip install -e .
 ```
 ## Basic Usage

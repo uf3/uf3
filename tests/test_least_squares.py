@@ -44,6 +44,7 @@ def test_weighted_least_squares():
     x2, y2, c2 = simple_problem(30, 200, seed=1)
     x = np.concatenate([x1, x2])
     y = np.concatenate([y1, y2])
+    r = np.eye(30) * 1e-6
 
     weights = np.concatenate([np.ones(100), np.zeros(200)])
     solution = least_squares.weighted_least_squares(x, y, weights)
@@ -56,6 +57,7 @@ def test_weighted_least_squares():
     assert not np.allclose(solution, c1) and not np.allclose(solution, c2)
     weights = np.concatenate([np.ones(100) * 0.5, np.ones(200) * 0.5])
     solution = least_squares.weighted_least_squares(x, y, weights,
+                                                    regularizer=r,
                                                     fixed=[(0, 10),
                                                            (3, 4),
                                                            (5, 0)])
@@ -67,12 +69,10 @@ def test_weighted_least_squares():
 def test_fixed_coefficients():
     x = np.random.rand(100, 30)
     y = np.random.rand(100)
-    regularizers = [np.random.rand(30, 30)]
     coefficients = [3, 4, 5]
     colidx = [10, 15, 20]
     xf, yf, mask = least_squares.preprocess_fixed_coefficients(x,
                                                                y,
-                                                               regularizers,
                                                                coefficients,
                                                                colidx)
     assert xf.shape == (100, 27)

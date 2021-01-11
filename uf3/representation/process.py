@@ -1,14 +1,22 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 
-from uf3.representation import knots, distances
-from uf3.representation.bspline import evaluate_bspline, compute_force_bsplines
+from uf3.representation import knots
+from uf3.representation import distances
+from uf3.representation.bspline import evaluate_bspline
+from uf3.representation.bspline import compute_force_bsplines
 from uf3.data import geometry
+from uf3.util import parallel
 
 
 class BasisProcessor2B:
     """
-
+    -Manage knot-related logic for pair interactions
+    -Generate energy/force features
+    -Arrange features into DataFrame
+    -Process DataFrame into tuples of (x, y, weight)
     """
     def __init__(self,
                  chemical_system,
@@ -67,15 +75,16 @@ class BasisProcessor2B:
         subdivisions.append(len(self.chemical_system.element_list))
         return subdivisions
 
-    def evaluate(self, df, data_coordinator):
+    def evaluate(self, df_data, data_coordinator, progress_bar=True):
         """
         Process standard dataframe to generate representation features
-        and arrange into processed dataframe.
+        and arrange into processed dataframe. Operates in serial by default.
 
         Args:
-            df (pd.DataFrame): standard dataframe with columns
+            df_data (pd.DataFrame): standard dataframe with columns
                 [atoms_key, energy_key, fx, fy, fz]
             data_coordinator (uf3.data.io.DataCoordinator)
+            progress_bar (bool)
 
         Returns:
             df_features (pd.DataFrame): processed dataframe with columns
@@ -86,12 +95,19 @@ class BasisProcessor2B:
         atoms_key = data_coordinator.atoms_key
         energy_key = data_coordinator.energy_key
         eval_map = {}
-        header = df.columns
+        header = df_data.columns
         column_positions = {}
         for key in [atoms_key, energy_key, 'fx', 'fy', 'fz']:
             if key in header:
                 column_positions[key] = header.get_loc(key) + 1
-        for row in df.itertuples(name=None):
+
+        if progress_bar:
+            row_generator = parallel.progress_iter(df_data.itertuples(name=None),
+                                                   total=len(df_data))
+        else:
+            row_generator = df_data.itertuples(name=None)
+
+        for row in row_generator:
             # iterate over rows without modification.
             name = row[0]
             geom = row[column_positions[atoms_key]]
@@ -108,6 +124,55 @@ class BasisProcessor2B:
                                                         forces,
                                                         energy_key)
             eval_map.update(geom_features)
+        df_features = self.arrange_features_dataframe(eval_map)
+        return df_features
+
+    def evaluate_parallel(self, df_data, data_coordinator, client, n_jobs=2):
+        """
+        Process standard dataframe to generate representation features
+        and arrange into processed dataframe. Operates in serial by default.
+
+        Args:
+            df_data (pd.DataFrame): standard dataframe with columns
+                [atoms_key, energy_key, fx, fy, fz]
+            data_coordinator (uf3.data.io.DataCoordinator)
+            n_jobs (int): number of parallel jobs to submit.
+            client (concurrent.futures.Executor, dask.distributed.Client)
+
+        Returns:
+            df_features (pd.DataFrame): processed dataframe with columns
+                [y, {name}_0, ..., {name}_x, n_A, ..., n_Z]
+                corresponding to target vector, pair-distance representation
+                features, and composition (one-body) features.
+        """
+        if n_jobs < 1:
+            warnings.warn("Processing in serial.", RuntimeWarning)
+            df_features = self.evaluate(df_data, data_coordinator)
+            return df_features
+        batches = parallel.split_dataframe(df_data, n_jobs)
+        future_list = parallel.batch_submit(self.evaluate,
+                                            batches,
+                                            client,
+                                            data_coordinator=data_coordinator,
+                                            progress_bar=False)
+        df_features = parallel.gather_and_merge(future_list,
+                                                client=client,
+                                                cancel=True)
+        return df_features
+
+    def arrange_features_dataframe(self, eval_map):
+        """
+        Args:
+            eval_map (dict): map of energy/force keys to fixed-length
+                feature vectors. If forces and the energy are both provided,
+                the dictionary will contain 3N + 1 entries.
+
+        Returns:
+            df_features (pd.DataFrame): processed dataframe with columns
+                [y, {name}_0, ..., {name}_x, n_A, ..., n_Z]
+                corresponding to target vector, pair-distance representation
+                features, and composition (one-body) features.
+        """
         df_features = pd.DataFrame.from_dict(eval_map,
                                              orient='index',
                                              columns=self.columns)
@@ -297,9 +362,11 @@ def dataframe_to_training_tuples(df_features,
     n_energy = len(energy_values)
     n_forces = len(force_values)
     # generate weights based on sample standard deviation and frequency.
-    energy_weights = np.ones(n_energy) / energy_std * n_forces * kappa
-    force_weights = np.ones(n_forces) / force_std * n_energy * (1 - kappa)
-    w = np.concatenate([energy_weights, force_weights])
+    energy_weights = np.ones(n_energy) / energy_std / n_energy * kappa
+    force_weights = np.ones(n_forces) / force_std / n_forces * (1 - kappa)
+    w = np.zeros(n_energy + n_forces)
+    w[energy_mask] = energy_weights
+    w[force_mask] = force_weights
     return x, y, w
 
 
