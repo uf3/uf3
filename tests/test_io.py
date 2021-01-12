@@ -94,7 +94,6 @@ class TestIO:
         assert np.allclose(df_run['Step'],
                            [0, 1000, 2000, 3000, 0, 1000, 2000, 3000])
         assert df_run.index[0] == 'lmp_0'
-        print(df_run)
         assert df_run.loc['lmp_0', 'energy'] == -477.73490
 
 

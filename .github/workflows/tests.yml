@@ -34,9 +34,13 @@ jobs:
         gcc -v
         python --version
         pip install -U pip pytest
-        pip install setuptools_scm wheel
+        pip install wheel
         pip install -r requirements.txt
         pip install .
+        pip install setuptools_scm
+        pip install "elastic>=5.1.0.17"
+        pip install seekpath
+        pip install "phonopy>=2.6.0"
     - name: Test with pytest
       run: |
         pytest

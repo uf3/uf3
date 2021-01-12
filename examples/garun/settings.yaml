@@ -1,0 +1,33 @@
+element_list: 
+    - W
+
+degree: 2
+
+experiment_path: "./data/"
+
+filename_pattern: "vasprun*"
+
+r_min_map:
+    W-W: 1.5
+    
+r_max_map:
+    W-W: 5.5
+    
+resolution_map:
+    W-W: 25
+    
+n_jobs: 4
+       
+frac_train: 0.5
+
+kappa: 0.99
+
+regularization_params:
+    ridge_1b: 1e-4
+    ridge_2b: 1e-4
+    curve_2b: 1e-5
+    curve_3b: 1e-4
+
+output_directory: "./output"
+
+

@@ -1,0 +1,14 @@
+IBRION=2
+ISIF=3
+
+NSW=3
+
+ENCUT = 250
+ISYM = 0
+
+LREAL = Auto
+ALGO = F
+PREC = Normal
+
+SIGMA = 0.1
+ISMEAR = 0

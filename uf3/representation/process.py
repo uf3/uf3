@@ -20,16 +20,19 @@ class BasisProcessor2B:
     """
     def __init__(self,
                  chemical_system,
+                 bspline_config,
                  knot_spacing='lammps',
                  name='ij'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
+            bspline_config (uf3.representation.bspline.BsplineConfig)
             knot_spacing (str): "lammps" for knot spacing by r^2
                 or "linear" for uniform spacing.
             name (str): prefix for feature columns.
         """
         self.chemical_system = chemical_system
+        self.bspline_config = bspline_config
         self.knot_spacing = knot_spacing
         if knot_spacing == 'lammps':
             knot_function = knots.generate_lammps_knots
@@ -37,28 +40,25 @@ class BasisProcessor2B:
             knot_function = knots.generate_uniform_knots
         else:
             raise ValueError('Invalid value of knot_spacing:', knot_spacing)
-        interactions_map = chemical_system.interactions_map
-        r_min_map = chemical_system.r_min_map
-        r_max_map = chemical_system.r_max_map
-        resolution_map = chemical_system.resolution_map
-        self.r_cut = max(list(r_max_map.values()))  # supercell cutoff
+        # supercell cutoff
+        self.r_cut = max(list(bspline_config.r_max_map.values()))
         # compute knots
         self.knots_map = {}
-        for pair in interactions_map[2]:
-            r_min = r_min_map[pair]
-            r_max = r_max_map[pair]
-            n_intervals = resolution_map[pair]
+        for pair in chemical_system.interactions_map[2]:
+            r_min = bspline_config.r_min_map[pair]
+            r_max = bspline_config.r_max_map[pair]
+            n_intervals = bspline_config.resolution_map[pair]
             self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
         self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
                                   for pair, knot_seq in self.knots_map.items()}
         # generate column labels
         self.n_features = sum([n_intervals + 3 for n_intervals
-                               in resolution_map.values()])
-        self.columns = ['{}_{}'.format(name, i)
-                        for i in range(self.n_features)]
-        self.columns.insert(0, 'y')
-        self.columns.extend(['n_{}'.format(el) for el
-                             in self.chemical_system.element_list])
+                               in bspline_config.resolution_map.values()])
+        feature_columns = ['{}_{}'.format(name, i)
+                           for i in range(self.n_features)]
+        composition_columns = ['n_{}'.format(el) for el
+                               in self.chemical_system.element_list]
+        self.columns = ["y"] + composition_columns + feature_columns
 
     @staticmethod
     def from_config(chemical_system, config):
@@ -67,13 +67,6 @@ class BasisProcessor2B:
         config = {k: v for k, v in config.items() if k in keys}
         return BasisProcessor2B(chemical_system,
                                 **config)
-
-    def get_regularizer_sizes(self):
-        """Get sizes of regularizers: two-body and one-body terms"""
-        subdivisions = [n_intervals + 3 for n_intervals
-                        in self.chemical_system.resolution_map.values()]
-        subdivisions.append(len(self.chemical_system.element_list))
-        return subdivisions
 
     def evaluate(self, df_data, data_coordinator, progress_bar=True):
         """
@@ -272,8 +265,8 @@ class BasisProcessor2B:
         if supercell is None:
             supercell = geom
         pair_tuples = self.chemical_system.interactions_map[2]
-        r_min_map = self.chemical_system.r_min_map
-        r_max_map = self.chemical_system.r_max_map
+        r_min_map = self.bspline_config.r_min_map
+        r_max_map = self.bspline_config.r_max_map
         distances_map = distances.distances_by_interaction(geom,
                                                            pair_tuples,
                                                            r_min_map,
@@ -288,7 +281,7 @@ class BasisProcessor2B:
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
         comp = self.chemical_system.get_composition_tuple(geom)
-        vector = np.concatenate([feature_vector, comp])
+        vector = np.concatenate([comp, feature_vector])
         return vector
 
     def get_force_features(self, geom, supercell=None):
@@ -306,8 +299,8 @@ class BasisProcessor2B:
         if supercell is None:
             supercell = geom
         pair_tuples = self.chemical_system.interactions_map[2]
-        r_min_map = self.chemical_system.r_min_map
-        r_max_map = self.chemical_system.r_max_map
+        r_min_map = self.bspline_config.r_min_map
+        r_max_map = self.bspline_config.r_max_map
         deriv_results = distances.derivatives_by_interaction(geom,
                                                              supercell,
                                                              pair_tuples,
@@ -326,7 +319,7 @@ class BasisProcessor2B:
         comp_array = np.zeros((len(feature_array),
                               3,
                               len(self.chemical_system.element_list)))
-        feature_array = np.concatenate([feature_array, comp_array], axis=2)
+        feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
 
 

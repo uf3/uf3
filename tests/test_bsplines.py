@@ -1,6 +1,52 @@
+import pytest
 from uf3.representation.bspline import *
 from uf3.representation import knots
+from uf3.data import composition
 
+@pytest.fixture()
+def binary_chemistry():
+    element_list = ['Ne', 'Xe']
+    chemistry_config = composition.ChemicalSystem(element_list)
+    yield chemistry_config
+
+
+class TestBSplineConfig:
+    def test_regularizer_subdivision(self, binary_chemistry):
+        bspline_handler = BSplineConfig(binary_chemistry)
+        partitions = bspline_handler.get_feature_partition_sizes()
+        # default 20 intervals yields 23 basis functions
+        assert np.allclose(partitions, [2, 23, 23, 23])
+
+    def test_unary(self):
+        element_list = ['Au']
+        chemistry = composition.ChemicalSystem(element_list)
+        bspline_handler = BSplineConfig(chemistry,
+                                        r_min_map={('Au', 'Au'): 1.1})
+        assert bspline_handler.r_min_map[('Au', 'Au')] == 1.1
+        assert bspline_handler.r_max_map[('Au', 'Au')] == 6.0
+        assert bspline_handler.resolution_map[('Au', 'Au')] == 20
+
+    def test_binary(self):
+        element_list = ['Ne', 'Xe']
+        chemistry = composition.ChemicalSystem(element_list)
+        bspline_handler = BSplineConfig(chemistry,
+                                        resolution_map={('Ne', 'Xe'): 10})
+        assert bspline_handler.r_min_map[('Ne', 'Ne')] == 1.0
+        assert bspline_handler.r_max_map[('Xe', 'Xe')] == 6.0
+        assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
+
+    def test_regularizer(self):
+        reg_params = dict(ridge_1b=2,
+                          ridge_2b=0.5,
+                          curve_2b=1)
+        element_list = ['Ne', 'Xe']
+        chemistry = composition.ChemicalSystem(element_list)
+        bspline_handler = BSplineConfig(chemistry)
+        matrix = bspline_handler.get_regularization_matrix(**reg_params)
+        ridge_sum = (2 * 2) + (0.5 * (23 + 23 + 23))
+        curv_sum = (0 * 2) + (1 + (2 * 21) + 1) * 3
+        assert np.sum(matrix) == ridge_sum
+        assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
 def test_fit_spline_1d():
     x = np.linspace(-1, 7, 1000)

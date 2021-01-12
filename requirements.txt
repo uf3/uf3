@@ -7,5 +7,3 @@ scikit_learn
 pytest
 pyyaml
 matplotlib
-phonopy>=2.6.0
-elastic>=5.1.0.17

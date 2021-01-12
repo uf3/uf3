@@ -2,18 +2,6 @@ from uf3.regression.regularize import *
 
 
 class TestRegularizers:
-    def test_handler(self):
-        regularizer = Regularizer(regularizer_sizes=[5, 6, 2],
-                                  ridge=0.5,
-                                  curvature=1,
-                                  onebody=2)
-        matrix = regularizer.matrix
-        ridge_sum = 0.5 * 11
-        onebody_sum = 2 * 2
-        curv_sum = (4 * 1) + (7 * 2)
-        assert np.sum(matrix) == ridge_sum + onebody_sum
-        assert np.sum(np.diag(matrix)) == ridge_sum + onebody_sum + curv_sum
-
     def test_get_regularizer_matrix(self):
         m1 = get_regularizer_matrix(5, curvature=1, ridge=0)
         assert np.sum(m1) == 0
