@@ -8,31 +8,31 @@ class WeightedLinearModel:
     -Fit model given x, y, optional weights, and optional regularizer
     """
     def __init__(self,
-                 fixed=None,
                  regularizer=None,
-                 **regularizer_params):
+                 fixed_tuples=None,
+                 bspline_config=None,
+                 **regularize_params):
         """
         Args:
-            fixed (list): list of tuples of indices and coefficients to fix
-                before fitting. Useful for ensuring smooth cutoffs or
-                fixing multiplicative coefficients.
-                e.g. fix=[(0, 10), (15, 0)] fixes the first coefficient (idx=0)
-                to 10 and the sixteenth coefficient (idx=15) to 0.
-            regularizer (uf3.regularize.Regularizer): regularization
-                handler to query for regularization matrix.
-            regularizer_params: arguments to generate regularizer matrix
+            bspline_config (uf3.representation.bspline.BsplineConfig)
+            regularizer (np.ndarray): regularization matrix.
+            regularize_params: arguments to generate regularizer matrix
                 if regularizer is not provided.
         """
         self.coefficients = None
-        self.fixed = fixed
+        self.fixed_tuples = fixed_tuples
+
         if regularizer is not None:
-            self.regularizer = regularizer.matrix
+            self.regularizer = regularizer
         else:
-            if regularizer_params is None:
+            if regularize_params is None:
                 raise ValueError(
                     "Neither regularizer nor regularizer parameters provided.")
-            regularizer = regularize.Regularizer(**regularizer_params)
-            self.regularizer = regularizer.matrix
+            if bspline_config is None:
+                raise ValueError(
+                    "BSplineConfig not provided to generate regularizer.")
+            reg = bspline_config.get_regularization_matrix(**regularize_params)
+            self.regularizer = reg
 
     def fit(self, x, y, weights=None):
         """
@@ -45,7 +45,7 @@ class WeightedLinearModel:
                                           y,
                                           weights=weights,
                                           regularizer=self.regularizer,
-                                          fixed=self.fixed)
+                                          fixed=self.fixed_tuples)
         self.coefficients = solution
 
     def predict(self, x):

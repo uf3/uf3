@@ -13,18 +13,14 @@ def simple_problem(n_features, n_samples, seed=0):
 
 class TestLinearModel:
     def test_init(self):
-        regularizer = regularize.Regularizer(regularizer_sizes=[9, 9, 2],
-                                             ridge=0.5,
-                                             curvature=1,
-                                             onebody=2)
+        regularizer = np.eye(20)
         model = least_squares.WeightedLinearModel(regularizer=regularizer)
-        assert model.regularizer.shape == (20, 20)
-        model = least_squares.WeightedLinearModel(regularizer_sizes=[9, 9, 2])
         assert model.regularizer.shape == (20, 20)
 
     def test_fit_predict_score(self):
         x, y, c = simple_problem(20, 500, seed=0)
-        model = least_squares.WeightedLinearModel(regularizer_sizes=[9, 9, 2],
+        regularizer = np.eye(20) * 1e-6
+        model = least_squares.WeightedLinearModel(regularizer=regularizer,
                                                   curvature=0,
                                                   ridge=1e-4)
         model.fit(x, y)
