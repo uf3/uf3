@@ -7,7 +7,7 @@
 conda create --name uf3_env python=3.7
 conda activate uf3_env
 conda install -c anaconda -c conda-forge mpi4py lammps
-pip install 
+pip install pylammpsmpi
 git clone https://github.com/sxie22/uf3
 cd uf3
 pip install wheel
