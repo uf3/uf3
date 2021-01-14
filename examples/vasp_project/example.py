@@ -40,10 +40,10 @@ if __name__ == "__main__":
     frac_train = settings.get("frac_train", 0.8)
     kappa = settings.get("kappa", 0.5)
     regularization_params = settings.get("regularization_params", None)
-    plot_fit=settings.get("plot_fit", True)
-    cache_representations=settings.get("cache_representations", True)
-    max_samples=settings.get("max_samples_per_file", 50)
-    min_diff=settings.get("cache_representations", 1e-3)
+    plot_fit = settings.get("plot_fit", True)
+    cache_representations = settings.get("cache_representations", True)
+    max_samples = settings.get("max_samples_per_file", None)
+    min_diff = float(settings.get("min_diff", None))
 
     if element_list is None or not isinstance(element_list, list):
         raise ValueError("No elements specified")
