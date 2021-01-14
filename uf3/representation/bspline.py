@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import interpolate
 
+from uf3.representation import knots
 from uf3.regression import regularize
 
 class BSplineConfig:
@@ -16,7 +17,8 @@ class BSplineConfig:
                  r_max_map=None,
                  t_min_map=None,
                  t_max_map=None,
-                 resolution_map=None):
+                 resolution_map=None,
+                 knot_spacing='lammps'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
@@ -35,6 +37,8 @@ class BSplineConfig:
             resolution_map (dict): map of resolution (number of knot intervals)
                 per interaction. If unspecified, defaults to 20 for all two-
                 body interactions and (2, 2) for three-body interactions.
+            knot_spacing (str): "lammps" for knot spacing by r^2
+                or "linear" for uniform spacing.
         """
         self.chemical_system = chemical_system
         # Minimum pair distance per interaction.
@@ -67,8 +71,34 @@ class BSplineConfig:
             self.t_min_map[trio] = self.t_max_map.get(trio, (6.0, 1))
             self.resolution_map[trio] = self.resolution_map.get(trio,
                                                                 (2, 2))
+        self.knot_spacing = knot_spacing
+        if knot_spacing == 'lammps':
+            knot_function = knots.generate_lammps_knots
+        elif knot_spacing == 'linear':
+            knot_function = knots.generate_uniform_knots
+        else:
+            raise ValueError('Invalid value of knot_spacing:', knot_spacing)
+        # supercell cutoff
+        self.r_cut = max(list(self.r_max_map.values()))
+        # compute knots
+        self.knots_map = {}
+        for pair in chemical_system.interactions_map[2]:
+            r_min = self.r_min_map[pair]
+            r_max = self.r_max_map[pair]
+            n_intervals = self.resolution_map[pair]
+            self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
+        self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
+                                  for pair, knot_seq in self.knots_map.items()}
+
         self.partition_sizes = self.get_feature_partition_sizes()
 
+    @property
+    def element_list(self):
+        return self.chemical_system.element_list
+
+    @property
+    def interactions_map(self):
+        return self.chemical_system.interactions_map
 
     def get_regularization_matrix(self,
                                   ridge_1b=1e-4,

@@ -14,7 +14,7 @@ class WeightedLinearModel:
                  **regularize_params):
         """
         Args:
-            bspline_config (uf3.representation.bspline.BsplineConfig)
+            bspline_config (bspline.BsplineConfig)
             regularizer (np.ndarray): regularization matrix.
             regularize_params: arguments to generate regularizer matrix
                 if regularizer is not provided.
@@ -67,7 +67,7 @@ class WeightedLinearModel:
             weights (np.ndarray): sample weights (optional).
 
         Returns:
-            score (float): weighted root-mean-square-error of prediction.
+            score (float): negative weighted root-mean-square-error.
         """
         n_features = len(x[0])
         if weights is not None:
@@ -75,7 +75,7 @@ class WeightedLinearModel:
             x = np.dot(w_matrix, x)
             y = np.dot(w_matrix, y)
         predictions = self.predict(x)
-        score = np.sqrt(np.mean(np.subtract(y, predictions) ** 2))
+        score = -np.sqrt(np.mean(np.subtract(y, predictions) ** 2))
         return score
 
 

@@ -30,4 +30,10 @@ regularization_params:
 
 output_directory: "./output"
 
+cache_representations: False
 
+plot_fit: False
+
+max_samples_per_file: 50
+
+min_diff: 1e-3  # minimum 1 meV difference between selected samples

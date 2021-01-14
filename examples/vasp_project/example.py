@@ -17,6 +17,8 @@ from uf3.regression.least_squares import WeightedLinearModel
 
 from uf3.representation import distances
 from uf3.forcefield import lammps
+from uf3.util import plotting
+from uf3.util import subsample
 
 
 if __name__ == "__main__":
@@ -38,6 +40,10 @@ if __name__ == "__main__":
     frac_train = settings.get("frac_train", 0.8)
     kappa = settings.get("kappa", 0.5)
     regularization_params = settings.get("regularization_params", None)
+    plot_fit=settings.get("plot_fit", True)
+    cache_representations=settings.get("cache_representations", True)
+    max_samples=settings.get("max_samples_per_file", 50)
+    min_diff=settings.get("cache_representations", 1e-3)
 
     if element_list is None or not isinstance(element_list, list):
         raise ValueError("No elements specified")
@@ -80,14 +86,30 @@ if __name__ == "__main__":
     # Initialize data coordinator and chemical system
     data_coordinator = DataCoordinator()
     chemical_system = ChemicalSystem(element_list=element_list,
-                                     degree=degree)    
+                                     degree=degree)
+    path_prefix = os.path.commonprefix(data_paths)
     for data_path in data_paths:
-        prefix = os.path.split(data_path)[0].replace("/", "-")
-        data_coordinator.dataframe_from_trajectory(data_path,
-                                                   prefix=prefix)
+        prefix = data_path.replace(path_prefix, "")
+        prefix = os.path.dirname(prefix).replace("/", "-")
+        df = data_coordinator.dataframe_from_trajectory(data_path,
+                                                        prefix=prefix,
+                                                        load=False)
+        energy_list = df['energy'].values
+        subsamples = subsample.farthest_point_sampling(energy_list,
+                                                       max_samples=max_samples,
+                                                       min_diff=min_diff)
+        print("{}/{} samples taken from {}.".format(len(subsamples), 
+                                                    len(energy_list),
+                                                    prefix))
+        df = df.iloc[np.sort(subsamples)]
+        data_coordinator.load_dataframe(df, prefix=prefix)
+        
+                                                   
     df_data = data_coordinator.consolidate()
-    print("Number of energies:", len(df_data))
-    print("Number of forces:", int(np.sum(df_data["size"]) * 3))
+    n_energies = len(df_data)
+    n_forces = int(np.sum(df_data["size"]) * 3)
+    print("Number of energies:", n_energies)
+    print("Number of forces:", n_forces)
     
     # Initialize representation, regularizer, and model
     bspline_config = BSplineConfig(chemical_system,
@@ -111,6 +133,19 @@ if __name__ == "__main__":
                                                    data_coordinator,
                                                    client,
                                                    n_jobs=n_jobs * n_batches)
+    if cache_representations:
+        resolution_str = "-".join([str(bspline_config.resolution_map[pair])
+                                   for pair 
+                                   in chemical_system.interactions_map[2]])
+        ranges_str = "-".join([str(bspline_config.r_min_map[pair]) + "-" +
+                               str(bspline_config.r_max_map[pair])
+                               for pair 
+                               in chemical_system.interactions_map[2]])
+        cache_name = "{}_{}_{}_{}.csv".format(n_energies,
+                                              n_forces,
+                                              resolution_str,
+                                              ranges_str)
+        df_features.to_csv(os.path.join(output_directory, cache_name))
                                                    
     # Split into training and testing sets
     n_train = min(int(len(df_data) * frac_train), len(df_data)-1)
@@ -175,3 +210,48 @@ if __name__ == "__main__":
     table_name = os.path.join(output_directory, table_name)
     with open(table_name, "w") as f:
         f.write(combined_text)
+
+    # Plot fitting results
+    if plot_fit:
+        y_min = -1
+        y_max = 2
+        ENERGY_UNITS = "eV/atom"
+        FORCE_UNITS = "eV/$\mathrm{\AA}$"
+
+        fig = plt.figure(figsize=(7.48, 4), dpi=160, facecolor='white')
+        gs = fig.add_gridspec(ncols=3, nrows=2,
+                              width_ratios=[1, 1, 1],
+                              height_ratios=[0.5, 1])
+
+        for i, pair in enumerate(chemical_system.interactions_map[2]):
+            ax = fig.add_subplot(gs[0, i])
+            r_min = r_min_map[pair]
+            r_max = r_max_map[pair]
+            knot_sequence = representation.knots_map[pair]
+            coefficients = solutions[pair]
+            plotting.visualize_splines(coefficients,
+                                       knot_sequence,
+                                       ax=ax,
+                                       s_min=y_min,
+                                       s_max=y_max,
+                                       linewidth=1)
+            ax.set_ylabel('B-Spline Value')
+            ax.set_xlabel('$\mathrm{r_{ij}~~(\AA)}$')
+            ax.set_title(pair)
+        ax2 = fig.add_subplot(gs[1, 0])
+        plotting.density_scatter(y_e, p_e, ax=ax2, units=ENERGY_UNITS, text_size=6, label_size=10)
+        ax2.set_xlabel('Reference ({})'.format(ENERGY_UNITS))
+        ax2.set_ylabel('Prediction ({})'.format(ENERGY_UNITS))
+
+        ax3 = fig.add_subplot(gs[1, 1])
+        plotting.density_scatter(y_f, p_f, ax=ax3, units=FORCE_UNITS,
+                                 text_size=6, label_size=10)
+        ax3.set_xlabel('Reference ({})'.format(FORCE_UNITS))
+        ax3.set_ylabel('Prediction ({})'.format(FORCE_UNITS))
+
+        ax2.set_title('Energy Predictions')
+        ax3.set_title('Force Predictions')
+        fig.subplots_adjust(left=0.1, right=0.99,
+                            bottom=0.15, top=0.94,
+                            wspace=0.6, hspace=0.6)
+        fig.savefig(os.path.join(output_directory, "fit_results.png"))
