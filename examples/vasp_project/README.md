@@ -1,4 +1,4 @@
-# Ultra-Fast Force Fields (UF<sup>3</sup>): Parsing GASP Example
+# Ultra-Fast Force Fields (UF<sup>3</sup>): Interfacing with a VASP Project
 
 ## Usage
 
