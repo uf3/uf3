@@ -184,7 +184,7 @@ def get_subsets(subset_threshold, *args):
 
 
 def visualize_splines(coefficients,
-                      knots,
+                      knot_sequence,
                       ax=None,
                       r_min=None,
                       r_max=None,
@@ -193,9 +193,9 @@ def visualize_splines(coefficients,
                       color='gray',
                       **kwargs):
     if r_min is None:
-        r_min = knots[0]
+        r_min = knot_sequence[0]
     if r_max is None:
-        r_max = knots[-1]
+        r_max = knot_sequence[-1]
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -203,7 +203,7 @@ def visualize_splines(coefficients,
     colors = cm.rainbow(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
     for i, c in enumerate(coefficients):
-        kn = knots[i:i + 5]
+        kn = knot_sequence[i:i + 5]
         kno = np.concatenate([np.repeat(kn[0], 3),
                               kn,
                               np.repeat(kn[-1], 3)])
@@ -214,7 +214,7 @@ def visualize_splines(coefficients,
         y_plot = bs(x_plot)
         ax.plot(x_plot, y_plot, color=colors[i], **kwargs)
         y_plot[np.isnan(y_plot)] = 0
-    bs_t = interpolate.BSpline(knots,
+    bs_t = interpolate.BSpline(knot_sequence,
                                coefficients,
                                3,
                                extrapolate=False)
