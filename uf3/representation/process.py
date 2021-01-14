@@ -21,44 +21,61 @@ class BasisProcessor2B:
     def __init__(self,
                  chemical_system,
                  bspline_config,
-                 knot_spacing='lammps',
-                 name='ij'):
+                 prefix='ij'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
             bspline_config (uf3.representation.bspline.BsplineConfig)
-            knot_spacing (str): "lammps" for knot spacing by r^2
-                or "linear" for uniform spacing.
-            name (str): prefix for feature columns.
+            prefix (str): prefix for feature columns.
         """
         self.chemical_system = chemical_system
         self.bspline_config = bspline_config
-        self.knot_spacing = knot_spacing
-        if knot_spacing == 'lammps':
-            knot_function = knots.generate_lammps_knots
-        elif knot_spacing == 'linear':
-            knot_function = knots.generate_uniform_knots
-        else:
-            raise ValueError('Invalid value of knot_spacing:', knot_spacing)
-        # supercell cutoff
-        self.r_cut = max(list(bspline_config.r_max_map.values()))
-        # compute knots
-        self.knots_map = {}
-        for pair in chemical_system.interactions_map[2]:
-            r_min = bspline_config.r_min_map[pair]
-            r_max = bspline_config.r_max_map[pair]
-            n_intervals = bspline_config.resolution_map[pair]
-            self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
-        self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
-                                  for pair, knot_seq in self.knots_map.items()}
+        self.prefix = prefix
+
         # generate column labels
         self.n_features = sum([n_intervals + 3 for n_intervals
-                               in bspline_config.resolution_map.values()])
-        feature_columns = ['{}_{}'.format(name, i)
+                               in self.resolution_map.values()])
+        feature_columns = ['{}_{}'.format(prefix, i)
                            for i in range(self.n_features)]
         composition_columns = ['n_{}'.format(el) for el
-                               in self.chemical_system.element_list]
+                               in self.element_list]
         self.columns = ["y"] + composition_columns + feature_columns
+
+    @property
+    def element_list(self):
+        return self.chemical_system.element_list
+
+    @property
+    def interactions_map(self):
+        return self.chemical_system.interactions_map
+
+    @property
+    def r_min_map(self):
+        return self.bspline_config.r_min_map
+
+    @property
+    def r_max_map(self):
+        return self.bspline_config.r_max_map
+
+    @property
+    def resolution_map(self):
+        return self.bspline_config.resolution_map
+
+    @property
+    def r_cut(self):
+        return self.bspline_config.r_cut
+
+    @property
+    def knots_map(self):
+        return self.bspline_config.knots_map
+
+    @property
+    def knot_subintervals(self):
+        return self.bspline_config.knot_subintervals
+
+    @property
+    def partition_sizes(self):
+        return self.bspline_config.partition_sizes
 
     @staticmethod
     def from_config(chemical_system, config):
@@ -95,12 +112,12 @@ class BasisProcessor2B:
                 column_positions[key] = header.get_loc(key) + 1
 
         if progress_bar:
-            row_generator = parallel.progress_iter(df_data.itertuples(name=None),
-                                                   total=len(df_data))
+            row_gener = parallel.progress_iter(df_data.itertuples(name=None),
+                                               total=len(df_data))
         else:
-            row_generator = df_data.itertuples(name=None)
+            row_gener = df_data.itertuples(name=None)
 
-        for row in row_generator:
+        for row in row_gener:
             # iterate over rows without modification.
             name = row[0]
             geom = row[column_positions[atoms_key]]
@@ -264,13 +281,11 @@ class BasisProcessor2B:
         """
         if supercell is None:
             supercell = geom
-        pair_tuples = self.chemical_system.interactions_map[2]
-        r_min_map = self.bspline_config.r_min_map
-        r_max_map = self.bspline_config.r_max_map
+        pair_tuples = self.interactions_map[2]
         distances_map = distances.distances_by_interaction(geom,
                                                            pair_tuples,
-                                                           r_min_map,
-                                                           r_max_map,
+                                                           self.r_min_map,
+                                                           self.r_max_map,
                                                            supercell=supercell)
         feature_map = {}
         for pair in pair_tuples:
@@ -298,14 +313,12 @@ class BasisProcessor2B:
         """
         if supercell is None:
             supercell = geom
-        pair_tuples = self.chemical_system.interactions_map[2]
-        r_min_map = self.bspline_config.r_min_map
-        r_max_map = self.bspline_config.r_max_map
+        pair_tuples = self.interactions_map[2]
         deriv_results = distances.derivatives_by_interaction(geom,
                                                              supercell,
                                                              pair_tuples,
-                                                             r_min_map,
-                                                             r_max_map)
+                                                             self.r_min_map,
+                                                             self.r_max_map)
         distance_map, derivative_map = deriv_results
         feature_map = {}
         for pair in pair_tuples:
@@ -318,7 +331,7 @@ class BasisProcessor2B:
                                                 pair_tuples)
         comp_array = np.zeros((len(feature_array),
                               3,
-                              len(self.chemical_system.element_list)))
+                              len(self.element_list)))
         feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
 
