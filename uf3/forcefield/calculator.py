@@ -5,7 +5,9 @@ import numpy as np
 from scipy import interpolate
 from uf3.data import geometry
 from uf3.representation import distances
+from uf3.representation import knots
 from uf3.representation import bspline
+from uf3.regression import regularize
 from uf3.regression import least_squares
 from ase.calculators import calculator as ase_calc
 from ase import optimize as ase_optim
@@ -141,9 +143,7 @@ class UFCalculator(ase_calc.Calculator):
                                              logfile=logfile,
                                              **kwargs)
         for _ in optimizer.irun(fmax=fmax):
-            print(geom.get_volume(), end=' ')
             optimizer.step()
-            print(geom.get_volume())
             i_force = np.max(geom.get_forces())
             if i_force < best_force:
                 best_force = i_force
@@ -208,3 +208,38 @@ def construct_pair_potentials(coefficient_sets, bspline_config):
                                             extrapolate=False)
         potentials[pair] = bspline_curve
     return potentials
+
+
+def regenerate_coefficients(x, y, knot_sequence, dy=None):
+    knot_subintervals = knots.get_knot_subintervals(knot_sequence)
+    n_splines = len(knot_subintervals)
+    y_features = []
+    dy_features = []
+    for r in x:
+        # loop over samples
+        points = np.array([r])
+        y_components = []
+        dy_components = []
+        for idx in range(n_splines):
+            # loop over number of basis functions
+            b_knots = knot_subintervals[idx]
+            bs_l = interpolate.BSpline.basis_element(b_knots,
+                                                     extrapolate=False)
+            mask = np.logical_and(points >= b_knots[0],
+                                  points <= b_knots[4])
+            y_components.append(bs_l(points[mask]))  # b-spline value
+            dy_components.append(bs_l(points[mask], nu=1))  # derivative value
+        y_features.append([np.sum(values) for values in y_components])
+        dy_features.append([np.sum(values) for values in dy_components])
+    matrix = regularize.get_regularizer_matrix(n_splines,
+                                               ridge=1e-6,
+                                               curvature=1e-5)
+    if dy is not None:
+        x = np.vstack([y_features, dy_features])
+        y = np.concatenate([y, dy])
+    else:
+        x = y_features
+    coefficients = least_squares.weighted_least_squares(x,
+                                                        y,
+                                                        regularizer=matrix)
+    return coefficients
