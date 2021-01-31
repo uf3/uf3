@@ -5,6 +5,7 @@ import pandas as pd
 
 from uf3.representation import knots
 from uf3.representation import distances
+from uf3.representation import angles
 from uf3.representation.bspline import evaluate_bspline
 from uf3.representation.bspline import compute_force_bsplines
 from uf3.data import geometry
@@ -21,25 +22,35 @@ class BasisProcessor2B:
     def __init__(self,
                  chemical_system,
                  bspline_config,
+                 fit_forces=True,
                  prefix='ij'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
             bspline_config (uf3.representation.bspline.BsplineConfig)
+            fit_forces (bool): whether to generate force features.
             prefix (str): prefix for feature columns.
         """
         self.chemical_system = chemical_system
         self.bspline_config = bspline_config
+        self.fit_forces = fit_forces
         self.prefix = prefix
 
+        # TODO: implement three-body forces
+        if self.fit_forces and self.degree > 2:
+            raise ValueError("Three-body force-training not yet implemented.")
+
         # generate column labels
-        self.n_features = sum([n_intervals + 3 for n_intervals
-                               in self.resolution_map.values()])
+        self.n_features = sum(self.partition_sizes[1:])
         feature_columns = ['{}_{}'.format(prefix, i)
                            for i in range(self.n_features)]
         composition_columns = ['n_{}'.format(el) for el
                                in self.element_list]
         self.columns = ["y"] + composition_columns + feature_columns
+
+    @property
+    def degree(self):
+        return self.chemical_system.degree
 
     @property
     def element_list(self):
@@ -80,7 +91,7 @@ class BasisProcessor2B:
     @staticmethod
     def from_config(chemical_system, config):
         """Instantiate from configuration dictionary"""
-        keys = ['knot_spacing', 'name']
+        keys = ['knot_spacing', 'prefix', 'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
         return BasisProcessor2B(chemical_system,
                                 **config)
@@ -125,7 +136,7 @@ class BasisProcessor2B:
             forces = None
             if energy_key in column_positions:
                 energy = row[column_positions[energy_key]]
-            if 'fx' in column_positions:
+            if 'fx' in column_positions and self.fit_forces:
                 forces = [row[column_positions[component]]
                           for component in ['fx', 'fy', 'fz']]
             geom_features = self.evaluate_configuration(geom,
@@ -248,6 +259,9 @@ class BasisProcessor2B:
             supercell = geom
         if energy is not None:  # compute energy features
             vector = self.get_energy_features(geom, supercell)
+            if self.degree > 2:
+                trio_vector = self.get_energy_3b(geom, supercell)
+                vector = np.concatenate([vector, trio_vector])
             if name is not None:
                 key = (name, energy_key)
             else:
@@ -334,6 +348,15 @@ class BasisProcessor2B:
                               len(self.element_list)))
         feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
+
+    def get_energy_3b(self, geom, supercell=None):
+        if supercell is None:
+            supercell = geom
+        trio = self.interactions_map[3][0]  # TODO: Multicomponent
+        l_knots = self.knots_map[trio]
+        value_grid = angles.evaluate_3b(geom, supercell, l_knots)
+        return value_grid.flatten()
+
 
 
 def dataframe_to_training_tuples(df_features,

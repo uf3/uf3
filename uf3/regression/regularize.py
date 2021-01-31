@@ -104,7 +104,12 @@ def get_penalty_matrix_2D(L, M, ridge=0, curvature=1):
     return matrix_2d
 
 
-def get_penalty_matrix_3D(L, M, N, ridge=0, curvature=1):
+def get_penalty_matrix_3D(L,
+                          M,
+                          N,
+                          ridge=0,
+                          curvature=1,
+                          periodic=(False, False, True)):
     """
     Generates additive regularization matrix for linear regression
         using curvature penalty and/or L2 (ridge) penalty.
@@ -117,6 +122,8 @@ def get_penalty_matrix_3D(L, M, N, ridge=0, curvature=1):
         M (int): width of coefficient matrix before flattening.
         N (int): depth of coefficient matrix before flattening.
         ridge (float): L2 (ridge) regularization strength.
+        periodic (list): periodicity in regularization for three dimensions.
+            Default (False, False, True) for periodicity in angular space.
 
     Returns:
         matrix_3d (numpy.ndarray): square penalty matrix for linear
@@ -124,27 +131,54 @@ def get_penalty_matrix_3D(L, M, N, ridge=0, curvature=1):
     """
     matrix_3d = np.zeros((L * M * N, L, M, N))
     idx = 0
+    i_pbc, j_pbc, k_pbc = periodic
+
     for i in range(L):
         for j in range(M):
             for k in range(N):
-                if any([i == 0, i == L - 1, j == 0, j == M - 1, k == 0,
-                        k == N - 1]):
-                    matrix_3d[idx, i, j, k] = 1
+                center_value = 2
+                # i dimension
+                if i_pbc:
+                    matrix_3d[idx, (i - 1) % L, j, k] = -1
+                    matrix_3d[idx, (i + 1) % L, j, k] = -1
                 else:
-                    matrix_3d[idx, i, j, k] = 2
+                    if i > 0:  # lower bound
+                        matrix_3d[idx, i - 1, j, k] = -1
+                    else:
+                        center_value = 1
+                    if i + 1 < L:  # upper bound
+                        matrix_3d[idx, i + 1, j, k] = -1
+                    else:
+                        center_value = 1
+                # j dimension
+                if j_pbc:
+                    matrix_3d[idx, i, (j - 1) % M, k] = -1
+                    matrix_3d[idx, i, (j + 1) % M, k] = -1
+                else:
+                    if j > 0:  # lower bound
+                        matrix_3d[idx, i, j - 1, k] = -1
+                    else:
+                        center_value = 1
+                    if j + 1 < M:
+                        matrix_3d[idx, i, j + 1, k] = -1
+                    else:
+                        center_value = 1
+                # k dimension
+                if k_pbc:
+                    matrix_3d[idx, i, j, (k - 1) % N] = -1
+                    matrix_3d[idx, i, j, (k + 1) % N] = -1
+                else:
+                    if k > 0:  # lower bound
+                        matrix_3d[idx, i, j, k - 1] = -1
+                    else:
+                        center_value = 1
+                    if k + 1 < N:  # upper bound
+                        matrix_3d[idx, i, j, k + 1] = -1
+                    else:
+                        center_value = 1
 
-                if i > 0:
-                    matrix_3d[idx, i - 1, j, k] = -1
-                if i + 1 < L:
-                    matrix_3d[idx, i + 1, j, k] = -1
-                if j > 0:
-                    matrix_3d[idx, i, j - 1, k] = -1
-                if j + 1 < M:
-                    matrix_3d[idx, i, j + 1, k] = -1
-                if k > 0:
-                    matrix_3d[idx, i, j, k - 1] = -1
-                if k + 1 < N:
-                    matrix_3d[idx, i, j, k + 1] = -1
+                matrix_3d[idx, i, j, k] = center_value
+
                 idx += 1
     matrix_3d = matrix_3d.reshape(L * M * N, L * M * N) * curvature
     if ridge > 0:

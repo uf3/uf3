@@ -23,20 +23,20 @@ class BSplineConfig:
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
             r_min_map (dict): map of minimum pair distance per interaction.
-                If unspecified, defaults to 0.0 for all interactions.
+                If unspecified, defaults to 1.0 for all interactions.
                 e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
             r_max_map (dict): map of maximum pair distance per interaction.
                 If unspecified, defaults to 6.0 angstroms for all interactions,
                 which probably encompasses 2nd-nearest neighbors.
             t_min_map (dict): map of interaction to tuples of
-                minimum pair distance ij/ik, theta jik.
-                Defaults to (1.0, -1.0) for all interactions.
+                minimum pair distance ij/ik/jk.
+                Defaults to 0.0 for all interactions.
             t_max_map (dict): map of interaction to tuples of
-                maximum pair distance ij/ik, theta jik.
-                Defaults to (6.0, 1.0) for all interactions.
+                maximum pair distance ij/ik/jk.
+                Defaults to 6.0 for all interactions.
             resolution_map (dict): map of resolution (number of knot intervals)
                 per interaction. If unspecified, defaults to 20 for all two-
-                body interactions and (2, 2) for three-body interactions.
+                body interactions and 3 for three-body interactions.
             knot_spacing (str): "lammps" for knot spacing by r^2
                 or "linear" for uniform spacing.
         """
@@ -62,15 +62,14 @@ class BSplineConfig:
             resolution_map = {}
         self.resolution_map = resolution_map
         # Default values
-        for pair in self.chemical_system.interactions_map.get(2, []):
+        for pair in self.interactions_map.get(2, []):
             self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
             self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
             self.resolution_map[pair] = self.resolution_map.get(pair, 20)
-        for trio in self.chemical_system.interactions_map.get(3, []):
-            self.t_min_map[trio] = self.t_min_map.get(trio, (1.0, -1))
-            self.t_min_map[trio] = self.t_max_map.get(trio, (6.0, 1))
-            self.resolution_map[trio] = self.resolution_map.get(trio,
-                                                                (2, 2))
+        for trio in self.interactions_map.get(3, []):
+            self.t_min_map[trio] = self.t_min_map.get(trio, 1.0)
+            self.t_max_map[trio] = self.t_max_map.get(trio, 6.0)
+            self.resolution_map[trio] = self.resolution_map.get(trio, 3)
         self.knot_spacing = knot_spacing
         if knot_spacing == 'lammps':
             knot_function = knots.generate_lammps_knots
@@ -89,7 +88,11 @@ class BSplineConfig:
             self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
         self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
                                   for pair, knot_seq in self.knots_map.items()}
-
+        for trio in self.interactions_map.get(3, []):
+            r_min = self.t_min_map[trio]
+            r_max = self.t_max_map[trio]
+            r_resolution = self.resolution_map[trio]
+            self.knots_map[trio] = knot_function(r_min, r_max, r_resolution)
         self.partition_sizes = self.get_feature_partition_sizes()
 
     @property
@@ -136,9 +139,9 @@ class BSplineConfig:
                                                                ridge=r,
                                                                curvature=c)
                 elif degree == 3:
-                    matrix = regularize.get_penalty_matrix_3D(size[0] + 3,
-                                                              size[0] + 3,
-                                                              size[1] + 3,
+                    matrix = regularize.get_penalty_matrix_3D(size + 3,
+                                                              size + 3,
+                                                              size + 3,
                                                               ridge=r,
                                                               curvature=c)
                 else:
@@ -158,8 +161,10 @@ class BSplineConfig:
                     size = self.resolution_map[interaction] + 3
                     partition_sizes.append(size)
                 elif degree == 3:
-                    size = np.product(np.add(self.resolution_map[interaction],
-                                             3))
+                    resolutions = self.resolution_map[interaction]
+                    size = np.product([resolutions + 3,
+                                       + resolutions + 3,
+                                       + resolutions + 3])
                     partition_sizes.append(size)
                 else:
                     raise ValueError(
