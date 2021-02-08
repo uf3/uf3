@@ -381,7 +381,5 @@ def find_spline_indices(points, knot_sequence):
     # tile to identify four non-zero basis functions per point
     offsets = np.tile([0, 1, 2, 3], len(points))
     idx = np.repeat(idx, 4) + offsets
-    # idx = np.concatenate([idx, idx + 1, idx + 2, idx + 3])
-    # idx = idx[np.argsort(np.tile(np.arange(len(points)), 4))]
     points = np.repeat(points, 4)
     return points, idx

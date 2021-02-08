@@ -22,12 +22,13 @@ def test_compute_force(simple_molecule):
     knot_sequence = [2.5, 2.5, 2.5,
                      2.5, 5.5,
                      5.5, 5.5, 5.5]
+    knot_sequence = np.array(knot_sequence)
     knot_subintervals = knots.get_knot_subintervals(knot_sequence)
     basis_functions = bspline.generate_basis_functions(knot_subintervals)
     grid_3b = compute_force_3b(simple_molecule,
-                                 simple_molecule,
-                                 knot_sequence,
-                                 basis_functions)
+                               simple_molecule,
+                               knot_sequence,
+                               basis_functions)
     assert len(grid_3b) == 3
     assert len(grid_3b[0]) == 3
     x = np.array([[c_grid.flatten() for c_grid in a_grid]
@@ -38,3 +39,4 @@ def test_compute_force(simple_molecule):
     assert np.any(np.ptp(x, axis=0) > 0)  # but should not be entirely zero
     assert np.ptp(np.sum(x, axis=2)) < 1e-10  # values cancel across b-splines
     assert np.any(np.ptp(x, axis=2) > 0)  # but should not be entirely zero
+

@@ -10,24 +10,24 @@ from scipy.spatial import distance
 from scipy import interpolate
 
 
-def mask_matrix_by_trio_interaction(tuples_idx,
-                                    interactions,
-                                    sup_composition):
-    comp_masks = {}
-    comp_tuples = np.zeros_like(tuples_idx, dtype=int)
-    comp_tuples[:, 0] = sup_composition[tuples_idx[:, 0]]
-    comp_tuples[:, 1] = sup_composition[tuples_idx[:, 1]]
-    comp_tuples[:, 2] = sup_composition[tuples_idx[:, 2]]
-    for interaction in interactions:
-        trio_numbers = ase.symbols.symbols2numbers(interaction)
-        mask = np.zeros(len(tuples_idx), dtype=bool)
-        for i, j, k in itertools.combinations(trio_numbers, 3):
-            i_match = (comp_tuples[:, 0] == i)
-            j_match = (comp_tuples[:, 1] == j)
-            k_match = (comp_tuples[:, 2] == k)
-            mask[i_match & j_match & k_match] = True
-        comp_masks[interaction] = mask
-    return comp_masks
+# def mask_matrix_by_trio_interaction(tuples_idx,
+#                                     interactions,
+#                                     sup_composition):
+#     comp_masks = {}
+#     comp_tuples = np.zeros_like(tuples_idx, dtype=int)
+#     comp_tuples[:, 0] = sup_composition[tuples_idx[:, 0]]
+#     comp_tuples[:, 1] = sup_composition[tuples_idx[:, 1]]
+#     comp_tuples[:, 2] = sup_composition[tuples_idx[:, 2]]
+#     for interaction in interactions:
+#         trio_numbers = ase.symbols.symbols2numbers(interaction)
+#         mask = np.zeros(len(tuples_idx), dtype=bool)
+#         for i, j, k in itertools.combinations(trio_numbers, 3):
+#             i_match = (comp_tuples[:, 0] == i)
+#             j_match = (comp_tuples[:, 1] == j)
+#             k_match = (comp_tuples[:, 2] == k)
+#             mask[i_match & j_match & k_match] = True
+#         comp_masks[interaction] = mask
+#     return comp_masks
 
 
 def featurize_energy_3B(geometry, ext_geometry, knot_sequence, basis_functions):
@@ -61,38 +61,33 @@ def featurize_energy_3B(geometry, ext_geometry, knot_sequence, basis_functions):
     return grid_3b
 
 
-@jit(nopython=True, cache=True)
-def spline_3b(tuples_3b, idx_rl, idx_rm, idx_rn, knot_sequence):
+@jit(nopython=True, cache=True, nogil=True)
+def spline_3b(triangle_values, idx_rl, idx_rm, idx_rn, knot_sequence):
     # multiply spline values and arrange in 3D grid
     L = len(knot_sequence) - 4
     M = len(knot_sequence) - 4
     N = len(knot_sequence) - 4
-    grid_3b = np.zeros((L, M, N))
-    n_tuples = len(tuples_3b)
-    # if n_tuples % 4 > 0:
-    #     print(n_tuples)
-    #     raise ValueError
-    n_chunks = int(n_tuples / 4)
-    # chunks = np.split(np.arange(n_tuples), n_chunks)  # slow
-    chunks = [slice(i * 4, (i + 1) * 4) for i in range(n_chunks)]
-    # warnings.warn(RuntimeWarning, "Zero-valued 3B features.")
-    for chunk_slice in chunks:
-        # 4 x 4 x 4 chunk to be added to v_grid
-        v_l = tuples_3b[:, 0][chunk_slice]
-        v_m = tuples_3b[:, 1][chunk_slice]
-        v_n = tuples_3b[:, 2][chunk_slice]
-        d_l = idx_rl[chunk_slice]
-        d_m = idx_rm[chunk_slice]
-        d_n = idx_rn[chunk_slice]
-        for l, i in zip(v_l, d_l):
-            for m, j in zip(v_m, d_m):
-                for n, k in zip(v_n, d_n):
-                    grid_3b[i, j, k] += l * m * n
-    return grid_3b
+
+    grid = np.zeros((L, M, N))
+    n_values = len(triangle_values)
+    n_triangles = int(n_values / 4)
+    for triangle_idx in range(n_triangles):
+        idx_l = idx_rl[triangle_idx * 4]
+        idx_m = idx_rm[triangle_idx * 4]
+        idx_n = idx_rn[triangle_idx * 4]
+        values = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+        # each triangle influences 4 x 4 x 4 = 64 basis functions
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    # idx_flat = i * 16 + j * 4 + k
+                    value = values[i, 0] * values[j, 1] * values[k, 2]
+                    grid[idx_l + i, idx_m + j, idx_n + k] += value
+    return grid
 
 
 @jit(nopython=True, cache=True)
-def spline_deriv_3b(tuples_3b,
+def spline_deriv_3b(triangle_values,
                     idx_rl,
                     idx_rm,
                     idx_rn,
@@ -104,40 +99,33 @@ def spline_deriv_3b(tuples_3b,
     L = len(knot_sequence) - 4
     M = len(knot_sequence) - 4
     N = len(knot_sequence) - 4
-
-    n_tuples = len(tuples_3b)
-    n_chunks = int(n_tuples / 4)
-    chunks = [slice(i * 4, (i + 1) * 4) for i in range(n_chunks)]
+    # one grid per
     n_atoms = len(drij_dr)
     force_grids = [(np.zeros((L, M, N)),
                     np.zeros((L, M, N)),
                     np.zeros((L, M, N)))
                    for _ in range(n_atoms)]
 
-    for d_idx, chunk_slice in enumerate(chunks):
-        # 4 x 4 x 4 chunk to be added to v_grid
-        v_l = tuples_3b[:, 0][chunk_slice]
-        v_m = tuples_3b[:, 1][chunk_slice]
-        v_n = tuples_3b[:, 2][chunk_slice]
-        dv_l = tuples_3b[:, 3][chunk_slice]
-        dv_m = tuples_3b[:, 4][chunk_slice]
-        dv_n = tuples_3b[:, 5][chunk_slice]
-        d_l = idx_rl[chunk_slice]
-        d_m = idx_rm[chunk_slice]
-        d_n = idx_rn[chunk_slice]
-
-        for atom_idx in range(n_atoms):
-            for cartesian_idx in range(3):
-                dij = drij_dr[atom_idx, cartesian_idx, d_idx]
-                dik = drik_dr[atom_idx, cartesian_idx, d_idx]
-                djk = drjk_dr[atom_idx, cartesian_idx, d_idx]
-                for i, l, dl in zip(d_l, v_l, dv_l):
-                    for j, m, dm in zip(d_m, v_m, dv_m):
-                        for k, n, dn in zip(d_n, v_n, dv_n):
-                            v = (dl * m * n *  dij +
-                                 l * dm * n * dik +
-                                 l * m * dn * djk)
-                            force_grids[atom_idx][cartesian_idx][i, j, k] += v
+    n_values = len(triangle_values)
+    n_triangles = int(n_values / 4)
+    for triangle_idx in range(n_triangles):
+        idx_l = idx_rl[triangle_idx * 4]
+        idx_m = idx_rm[triangle_idx * 4]
+        idx_n = idx_rn[triangle_idx * 4]
+        v = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+        # each triangle influences 4 x 4 x 4 = 64 basis functions
+        for a in range(n_atoms):  # atom index
+            for c in range(3):  # cartesian directions
+                dij = drij_dr[a, c, triangle_idx]
+                dik = drik_dr[a, c, triangle_idx]
+                djk = drjk_dr[a, c, triangle_idx]
+                for i in range(4):
+                    for j in range(4):
+                        for k in range(4):
+                            val = (v[i, 3] * v[j, 1] * v[k, 2] * dij +
+                                   v[i, 0] * v[j, 4] * v[k, 2] * dik +
+                                   v[i, 0] * v[j, 1] * v[k, 5] * djk)
+                            force_grids[a][c][idx_l+i, idx_m+j, idx_n+k] += val
     return force_grids
 
 
