@@ -36,6 +36,7 @@ jobs:
         pip install -U pip pytest
         pip install wheel
         pip install -r requirements.txt
+        pip install numba
         pip install .
         pip install setuptools_scm
         pip install "elastic>=5.1.0.17"

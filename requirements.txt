@@ -7,4 +7,3 @@ scikit_learn
 pytest
 pyyaml
 matplotlib
-numba
