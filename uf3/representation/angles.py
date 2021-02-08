@@ -10,66 +10,6 @@ from scipy.spatial import distance
 from scipy import interpolate
 
 
-def find_spline_indices(points, knot_sequence):
-    """
-    Identify basis functions indices that are non-zero at each point.
-
-    Args:
-        points (np.ndarray): list of points.
-        knot_sequence (np.ndarray): knot sequence vector.
-
-    Returns:
-        points (np.ndarray): array of points repeated four times
-        idx (np.ndarray): corresponding basis function index for each
-            point (four each).
-    """
-    # identify basis function "center" per point
-    idx = np.searchsorted(np.unique(knot_sequence), points, side='left') - 1
-    # tile to identify four non-zero basis functions per point
-    offsets = np.tile([0, 1, 2, 3], len(points))
-    idx = np.repeat(idx, 4) + offsets
-    # idx = np.concatenate([idx, idx + 1, idx + 2, idx + 3])
-    # idx = idx[np.argsort(np.tile(np.arange(len(points)), 4))]
-    points = np.repeat(points, 4)
-    return points, idx
-
-
-# def evaluate_spline(positions, idx, knot_sequence):
-#     interval = knot_sequence[idx: idx + 5]
-#     b_knots = knots.knot_sequence_from_points(interval)
-#     bs_l = interpolate.BSpline(b_knots,
-#                                [0, 0, 0, 1, 0, 0, 0],
-#                                3,
-#                                extrapolate=False)
-#     return bs_l(positions)
-
-
-# def mask_matrix_by_trio_interaction(trio,
-#                                     sup_composition):
-#     """
-#     Generates boolean mask for the distance matrix based on composition
-#         vectors i.e. from ase.Atoms.get_atomic_numbers()
-#
-#     Args:
-#         trio (tuple): trio interaction of interest e.g. (A-B-B)
-#         sup_composition (list, np.ndarray): list of elements for each atom in
-#             supercell.
-#
-#     Returns:
-#         comp_mask (np.ndarray): Boolean mask of dimension (n x n x n)
-#             corresponding to pair interactions of the specified type.
-#     """
-#     s_sup = len(sup_composition)
-#     comp_mask = np.zeros((s_sup, s_sup, s_sup), dtype=bool)
-#     for i, j, k in itertools.combinations(trio):
-#         i_match = np.where(sup_composition == i)[0]
-#         j_match = np.where(sup_composition == j)[0]
-#         k_match = np.where(sup_composition == k)[0]
-#         comp_mask[i_match[:, None, None],
-#                   j_match[None, :, None],
-#                   k_match[None, None, :]] = True
-#     return comp_mask
-
 def mask_matrix_by_trio_interaction(tuples_idx,
                                     interactions,
                                     sup_composition):
@@ -81,7 +21,7 @@ def mask_matrix_by_trio_interaction(tuples_idx,
     for interaction in interactions:
         trio_numbers = ase.symbols.symbols2numbers(interaction)
         mask = np.zeros(len(tuples_idx), dtype=bool)
-        for i, j, k in itertools.combinations(trio_numbers):
+        for i, j, k in itertools.combinations(trio_numbers, 3):
             i_match = (comp_tuples[:, 0] == i)
             j_match = (comp_tuples[:, 1] == j)
             k_match = (comp_tuples[:, 2] == k)
@@ -90,7 +30,7 @@ def mask_matrix_by_trio_interaction(tuples_idx,
     return comp_masks
 
 
-def evaluate_3b(geometry, ext_geometry, knot_sequence, basis_functions):
+def featurize_energy_3B(geometry, ext_geometry, knot_sequence, basis_functions):
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
     ext_positions = ext_geometry.get_positions()
@@ -268,9 +208,9 @@ def evaluate_triplet_distances(r_l, r_m, r_n, basis_functions, knot_sequence):
     m_knots = knot_sequence
     n_knots = knot_sequence
     # identify non-zero splines (tiling each distance x 4)
-    r_l, idx_rl = find_spline_indices(r_l, l_knots)
-    r_m, idx_rm = find_spline_indices(r_m, m_knots)
-    r_n, idx_rn = find_spline_indices(r_n, n_knots)
+    r_l, idx_rl = bspline.find_spline_indices(r_l, l_knots)
+    r_m, idx_rm = bspline.find_spline_indices(r_m, m_knots)
+    r_n, idx_rn = bspline.find_spline_indices(r_n, n_knots)
     # evaluate splines per dimension
     L = len(l_knots) - 4
     M = len(m_knots) - 4
@@ -310,9 +250,9 @@ def evaluate_triplet_derivs(r_l, r_m, r_n, basis_functions, knot_sequence):
     m_knots = knot_sequence
     n_knots = knot_sequence
     # identify non-zero splines (tiling each distance x 4)
-    r_l, idx_rl = find_spline_indices(r_l, l_knots)
-    r_m, idx_rm = find_spline_indices(r_m, m_knots)
-    r_n, idx_rn = find_spline_indices(r_n, n_knots)
+    r_l, idx_rl = bspline.find_spline_indices(r_l, l_knots)
+    r_m, idx_rm = bspline.find_spline_indices(r_m, m_knots)
+    r_n, idx_rn = bspline.find_spline_indices(r_n, n_knots)
     # evaluate splines per dimension
     L = len(l_knots) - 4
     M = len(m_knots) - 4

@@ -72,16 +72,16 @@ def test_distance_bspline():
     sequence = knots.knot_sequence_from_points([0, 1])
     subintervals = knots.get_knot_subintervals(sequence)
     basis_functions = generate_basis_functions(subintervals)
-    values_per_spline = evaluate_bspline(points,
-                                         basis_functions,
-                                         flatten=False)
+    values_per_spline = evaluate_basis_functions(points,
+                                                 basis_functions,
+                                                 flatten=False)
     assert len(values_per_spline) == 4
     assert len(values_per_spline[0]) == 3
     assert np.allclose(values_per_spline[0], [1, 0.125, 0])
     assert np.allclose(values_per_spline[1], [0, 0.375, 0])
     assert np.allclose(values_per_spline[2], [0, 0.375, 0])
     assert np.allclose(values_per_spline[3], [0, 0.125, 1])
-    value_per_spline = evaluate_bspline(points, basis_functions)
+    value_per_spline = evaluate_basis_functions(points, basis_functions)
     assert len(value_per_spline) == 4
     assert np.allclose(value_per_spline, [1.125, 0.375, 0.375, 1.125])
 
@@ -101,7 +101,7 @@ def test_force_bspline():
     sequence = knots.knot_sequence_from_points([2, 6])
     subintervals = knots.get_knot_subintervals(sequence)
     basis_functions = generate_basis_functions(subintervals)
-    x = compute_force_bsplines(basis_functions, distances, drij_dR, sequence)
+    x = featurize_force_2B(basis_functions, distances, drij_dR, sequence)
     assert x.shape == (3, 3, 4)
     assert np.ptp(x[:, 2, :]) == 0  # no z-direction component
     assert np.ptp(np.sum(x, axis=0)) < 1e-10  # forces cancel along atom axis

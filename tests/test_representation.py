@@ -50,7 +50,7 @@ def binary_chemistry():
 class TestBasis:
     def test_setup(self, unary_chemistry):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor2B(unary_chemistry, bspline_config)
+        bspline_handler = BasisProcessor(unary_chemistry, bspline_config)
         assert bspline_handler.r_cut == 6.0
         assert len(bspline_handler.knots_map[('Ar', 'Ar')]) == 27
         assert len(bspline_handler.basis_functions[('Ar', 'Ar')]) == 23
@@ -59,24 +59,24 @@ class TestBasis:
 
     def test_energy_features(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor2B(unary_chemistry,
-                                           bspline_config)
-        vector = bspline_handler.get_energy_features(simple_molecule,
+        bspline_handler = BasisProcessor(unary_chemistry,
+                                         bspline_config)
+        vector = bspline_handler.featurize_energy_2B(simple_molecule,
                                                      simple_molecule)
         assert len(vector) == 23 + 1  # 23 features and one 1-body term
 
     def test_force_features(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor2B(unary_chemistry,
-                                           bspline_config)
-        vector = bspline_handler.get_force_features(simple_molecule,
+        bspline_handler = BasisProcessor(unary_chemistry,
+                                         bspline_config)
+        vector = bspline_handler.featurize_force_2B(simple_molecule,
                                                     simple_molecule)
         assert vector.shape == (3, 3, 24)  # 3 forces per atom
 
     def test_evaluate_single(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor2B(unary_chemistry,
-                                           bspline_config)
+        bspline_handler = BasisProcessor(unary_chemistry,
+                                         bspline_config)
         eval_map = bspline_handler.evaluate_configuration(simple_molecule,
                                                           energy=1.5)
         assert len(eval_map['energy']) == 1 + 23 + 1  # number of columns
@@ -94,8 +94,8 @@ class TestBasis:
 
     def test_evaluate_unary(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor2B(unary_chemistry,
-                                           bspline_config)
+        bspline_handler = BasisProcessor(unary_chemistry,
+                                         bspline_config)
         df = pd.DataFrame(columns=['geometry', 'energy', 'fx', 'fy', 'fz'])
         df.loc[0] = [None,
                      1.5,
@@ -115,8 +115,8 @@ class TestBasis:
 
     def test_evaluate_binary(self, water_chemistry, simple_water):
         bspline_config = bspline.BSplineConfig(water_chemistry)
-        bspline_handler = BasisProcessor2B(water_chemistry,
-                                           bspline_config)
+        bspline_handler = BasisProcessor(water_chemistry,
+                                         bspline_config)
         df = pd.DataFrame(columns=['geometry', 'energy', 'fx', 'fy', 'fz'])
         df.loc[0] = [None,
                      1.5,

@@ -239,7 +239,7 @@ def generate_basis_functions(knot_subintervals):
     return basis_functions
 
 
-def evaluate_bspline(points, basis_functions, nu=0, flatten=True):
+def evaluate_basis_functions(points, basis_functions, nu=0, flatten=True):
     """
     Evaluate basis functions.
 
@@ -273,7 +273,7 @@ def evaluate_bspline(points, basis_functions, nu=0, flatten=True):
     return value_per_spline
 
 
-def compute_force_bsplines(basis_functions, distances, drij_dR, knot_sequence):
+def featurize_force_2B(basis_functions, distances, drij_dR, knot_sequence):
     """
     Args:
         drij_dR (np.ndarray): distance-derivatives, e.g. from
@@ -361,3 +361,27 @@ def fit_spline_1d(x, y, knot_sequence):
                                           bbox=(b_min, b_max))
     coefficients = lsq.get_coeffs()
     return coefficients
+
+
+def find_spline_indices(points, knot_sequence):
+    """
+    Identify basis functions indices that are non-zero at each point.
+
+    Args:
+        points (np.ndarray): list of points.
+        knot_sequence (np.ndarray): knot sequence vector.
+
+    Returns:
+        points (np.ndarray): array of points repeated four times
+        idx (np.ndarray): corresponding basis function index for each
+            point (four each).
+    """
+    # identify basis function "center" per point
+    idx = np.searchsorted(np.unique(knot_sequence), points, side='left') - 1
+    # tile to identify four non-zero basis functions per point
+    offsets = np.tile([0, 1, 2, 3], len(points))
+    idx = np.repeat(idx, 4) + offsets
+    # idx = np.concatenate([idx, idx + 1, idx + 2, idx + 3])
+    # idx = idx[np.argsort(np.tile(np.arange(len(points)), 4))]
+    points = np.repeat(points, 4)
+    return points, idx

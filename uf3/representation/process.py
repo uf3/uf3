@@ -6,13 +6,13 @@ import pandas as pd
 from uf3.representation import knots
 from uf3.representation import distances
 from uf3.representation import angles
-from uf3.representation.bspline import evaluate_bspline
-from uf3.representation.bspline import compute_force_bsplines
+from uf3.representation.bspline import evaluate_basis_functions
+from uf3.representation.bspline import featurize_force_2B
 from uf3.data import geometry
 from uf3.util import parallel
 
 
-class BasisProcessor2B:
+class BasisProcessor:
     """
     -Manage knot-related logic for pair interactions
     -Generate energy/force features
@@ -97,8 +97,8 @@ class BasisProcessor2B:
         """Instantiate from configuration dictionary"""
         keys = ['knot_spacing', 'prefix', 'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
-        return BasisProcessor2B(chemical_system,
-                                **config)
+        return BasisProcessor(chemical_system,
+                              **config)
 
     def evaluate(self, df_data, data_coordinator, progress_bar=True):
         """
@@ -262,9 +262,9 @@ class BasisProcessor2B:
         else:
             supercell = geom
         if energy is not None:  # compute energy features
-            vector = self.get_energy_features(geom, supercell)
+            vector = self.featurize_energy_2B(geom, supercell)
             if self.degree > 2:
-                trio_vector = self.get_energy_3b(geom, supercell)
+                trio_vector = self.featurize_energy_3B(geom, supercell)
                 vector = np.concatenate([vector, trio_vector])
             if name is not None:
                 key = (name, energy_key)
@@ -272,7 +272,7 @@ class BasisProcessor2B:
                 key = energy_key
             eval_map[key] = np.insert(vector, 0, energy)
         if forces is not None:  # compute force features
-            vectors = self.get_force_features(geom, supercell)
+            vectors = self.featurize_force_2B(geom, supercell)
             for j, component in enumerate(['fx', 'fy', 'fz']):
                 for i in range(n_atoms):
                     vector = vectors[i, j, :]
@@ -285,7 +285,7 @@ class BasisProcessor2B:
                     eval_map[key] = vector
         return eval_map
 
-    def get_energy_features(self, geom, supercell=None):
+    def featurize_energy_2B(self, geom, supercell=None):
         """
         Generate feature vector for learning energy of one configuration.
 
@@ -308,8 +308,8 @@ class BasisProcessor2B:
         feature_map = {}
         for pair in pair_tuples:
             basis_function = self.basis_functions[pair]
-            features = evaluate_bspline(distances_map[pair],
-                                        basis_function)
+            features = evaluate_basis_functions(distances_map[pair],
+                                                basis_function)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -317,7 +317,7 @@ class BasisProcessor2B:
         vector = np.concatenate([comp, feature_vector])
         return vector
 
-    def get_force_features(self, geom, supercell=None):
+    def featurize_force_2B(self, geom, supercell=None):
         """
         Generate feature vectors for learning forces of one configuration.
         Args:
@@ -342,10 +342,10 @@ class BasisProcessor2B:
         for pair in pair_tuples:
             basis_functions = self.basis_functions[pair]
             knot_sequence = self.knots_map[pair]
-            features = compute_force_bsplines(basis_functions,
-                                              distance_map[pair],
-                                              derivative_map[pair],
-                                              knot_sequence)
+            features = featurize_force_2B(basis_functions,
+                                          distance_map[pair],
+                                          derivative_map[pair],
+                                          knot_sequence)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -355,16 +355,16 @@ class BasisProcessor2B:
         feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
 
-    def get_energy_3b(self, geom, supercell=None):
+    def featurize_energy_3B(self, geom, supercell=None):
         if supercell is None:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent
         l_knots = self.knots_map[trio]
         basis_functions = self.basis_functions[trio]
-        value_grid = angles.evaluate_3b(geom,
-                                        supercell,
-                                        l_knots,
-                                        basis_functions)
+        value_grid = angles.featurize_energy_3B(geom,
+                                                supercell,
+                                                l_knots,
+                                                basis_functions)
         return value_grid.flatten()
 
 
