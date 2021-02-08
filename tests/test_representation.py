@@ -53,7 +53,7 @@ class TestBasis:
         bspline_handler = BasisProcessor2B(unary_chemistry, bspline_config)
         assert bspline_handler.r_cut == 6.0
         assert len(bspline_handler.knots_map[('Ar', 'Ar')]) == 27
-        assert len(bspline_handler.knot_subintervals[('Ar', 'Ar')]) == 23
+        assert len(bspline_handler.basis_functions[('Ar', 'Ar')]) == 23
         assert bspline_handler.n_features == 23  # 20 + 3
         assert len(bspline_handler.columns) == 25  # 1 + 23 + 1
 

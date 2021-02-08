@@ -85,6 +85,10 @@ class BasisProcessor2B:
         return self.bspline_config.knot_subintervals
 
     @property
+    def basis_functions(self):
+        return self.bspline_config.basis_functions
+
+    @property
     def partition_sizes(self):
         return self.bspline_config.partition_sizes
 
@@ -166,7 +170,7 @@ class BasisProcessor2B:
                 corresponding to target vector, pair-distance representation
                 features, and composition (one-body) features.
         """
-        if n_jobs < 1:
+        if n_jobs < 2:
             warnings.warn("Processing in serial.", RuntimeWarning)
             df_features = self.evaluate(df_data, data_coordinator)
             return df_features
@@ -303,9 +307,9 @@ class BasisProcessor2B:
                                                            supercell=supercell)
         feature_map = {}
         for pair in pair_tuples:
-            knot_subintervals = self.knot_subintervals[pair]
+            basis_function = self.basis_functions[pair]
             features = evaluate_bspline(distances_map[pair],
-                                        knot_subintervals)
+                                        basis_function)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -336,10 +340,12 @@ class BasisProcessor2B:
         distance_map, derivative_map = deriv_results
         feature_map = {}
         for pair in pair_tuples:
-            knot_subintervals = self.knot_subintervals[pair]
-            features = compute_force_bsplines(derivative_map[pair],
+            basis_functions = self.basis_functions[pair]
+            knot_sequence = self.knots_map[pair]
+            features = compute_force_bsplines(basis_functions,
                                               distance_map[pair],
-                                              knot_subintervals)
+                                              derivative_map[pair],
+                                              knot_sequence)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -354,7 +360,11 @@ class BasisProcessor2B:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent
         l_knots = self.knots_map[trio]
-        value_grid = angles.evaluate_3b(geom, supercell, l_knots)
+        basis_functions = self.basis_functions[trio]
+        value_grid = angles.evaluate_3b(geom,
+                                        supercell,
+                                        l_knots,
+                                        basis_functions)
         return value_grid.flatten()
 
 

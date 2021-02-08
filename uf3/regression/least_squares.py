@@ -37,7 +37,7 @@ class WeightedLinearModel:
         self.bspline_config = bspline_config
         self.mask_zeros = mask_zeros
         if self.regularizer is None:
-            # intialize regularizer matrix if unspecified.
+            # initialize regularizer matrix if unspecified.
             self.set_params(**params)
 
     def set_params(self, **params):
@@ -251,7 +251,7 @@ def weighted_least_squares(x,
 
     if fixed is not None:
         fixed = np.array(fixed)
-        fixed_colidx = fixed[:, 0]
+        fixed_colidx = fixed[:, 0].astype(int)
         fixed_coefficients = fixed[:, 1]
         x_fit, y_fit, mask = preprocess_fixed_coefficients(x_fit,
                                                            y_fit,
@@ -297,5 +297,4 @@ def preprocess_fixed_coefficients(x,
     x = x[:, mask]
     y = np.subtract(y, np.dot(x_fixed, fixed_coefficients))
     return x, y, mask
-
 
