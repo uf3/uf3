@@ -25,10 +25,10 @@ def test_compute_force(simple_molecule):
     knot_sequence = np.array(knot_sequence)
     knot_subintervals = knots.get_knot_subintervals(knot_sequence)
     basis_functions = bspline.generate_basis_functions(knot_subintervals)
-    grid_3b = compute_force_3b(simple_molecule,
-                               simple_molecule,
-                               knot_sequence,
-                               basis_functions)
+    grid_3b = featurize_force_3B(simple_molecule,
+                                 simple_molecule,
+                                 knot_sequence,
+                                 basis_functions)
     assert len(grid_3b) == 3
     assert len(grid_3b[0]) == 3
     x = np.array([[c_grid.flatten() for c_grid in a_grid]

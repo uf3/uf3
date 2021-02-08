@@ -293,16 +293,17 @@ def symmetrize_3d_grid(grid_3b):
 #     grid_3b[d_l, d_m, d_n] += v_l * v_m * v_n
 
 
-def compute_force_3b(geometry, ext_geometry, knot_sequence, basis_functions):
+def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
+    n_atoms = len(geom)
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
-    ext_positions = ext_geometry.get_positions()
-    geo_positions = geometry.get_positions()
+    sup_positions = sup_geometry.get_positions()
+    geo_positions = geom.get_positions()
     # mask atoms that aren't close to any unit-cell atom
-    matrix = distance.cdist(geo_positions, ext_positions)
+    matrix = distance.cdist(geo_positions, sup_positions)
     weight_mask = matrix < r_max
     valids_mask = np.any(weight_mask, axis=0)
-    coords = ext_positions[valids_mask, :]
+    coords = sup_positions[valids_mask, :]
     # reduced distance matrix
     matrix = distance.cdist(coords, coords)
     cut_mask = (matrix > r_min) & (matrix < r_max)
@@ -320,10 +321,9 @@ def compute_force_3b(geometry, ext_geometry, knot_sequence, basis_functions):
     tri_i = tuples[:, 0]
     tri_j = tuples[:, 1]
     tri_k = tuples[:, 2]
-    n_sup = len(coords)
-    drij_dr = distances.compute_drij_dR(coords, matrix, tri_i, tri_j, n_sup)
-    drik_dr = distances.compute_drij_dR(coords, matrix, tri_i, tri_k, n_sup)
-    drjk_dr = distances.compute_drij_dR(coords, matrix, tri_j, tri_k, n_sup)
+    drij_dr = distances.compute_direction_cosines(coords, matrix, tri_i, tri_j, n_atoms)
+    drik_dr = distances.compute_direction_cosines(coords, matrix, tri_i, tri_k, n_atoms)
+    drjk_dr = distances.compute_direction_cosines(coords, matrix, tri_j, tri_k, n_atoms)
     grids = spline_deriv_3b(tuples_3b,
                             idx_rl,
                             idx_rm,

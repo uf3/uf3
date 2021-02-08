@@ -36,10 +36,6 @@ class BasisProcessor:
         self.fit_forces = fit_forces
         self.prefix = prefix
 
-        # TODO: implement three-body forces
-        if self.fit_forces and self.degree > 2:
-            raise ValueError("Three-body force-training not yet implemented.")
-
         # generate column labels
         self.n_features = sum(self.partition_sizes[1:])
         feature_columns = ['{}_{}'.format(prefix, i)
@@ -273,6 +269,9 @@ class BasisProcessor:
             eval_map[key] = np.insert(vector, 0, energy)
         if forces is not None:  # compute force features
             vectors = self.featurize_force_2B(geom, supercell)
+            if self.degree > 2:
+                trio_vectors = self.featurize_force_3B(geom, supercell)
+                vectors = np.concatenate([vectors, trio_vectors], axis=2)
             for j, component in enumerate(['fx', 'fy', 'fz']):
                 for i in range(n_atoms):
                     vector = vectors[i, j, :]
@@ -367,6 +366,20 @@ class BasisProcessor:
                                                 basis_functions)
         return value_grid.flatten()
 
+
+    def featurize_force_3B(self, geom, supercell=None):
+        if supercell is None:
+            supercell = geom
+        trio = self.interactions_map[3][0]  # TODO: Multicomponent
+        l_knots = self.knots_map[trio]
+        basis_functions = self.basis_functions[trio]
+        values = angles.featurize_force_3B(geom,
+                                           supercell,
+                                           l_knots,
+                                           basis_functions)
+        values = np.array([[grid.flatten() for grid in atom_set]
+                           for atom_set in values])
+        return values
 
 
 def dataframe_to_training_tuples(df_features,

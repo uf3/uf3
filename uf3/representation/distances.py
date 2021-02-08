@@ -217,8 +217,8 @@ def derivatives_by_interaction(geom, supercell, pair_tuples,
         distance_map[pair] = distance_matrix[interaction_mask]
         # corresponding derivatives, flattened
         x_where, y_where = np.where(interaction_mask)
-        drij_dr = compute_drij_dR(sup_positions, distance_matrix,
-                                  x_where, y_where, n_atoms)
+        drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
+                                            x_where, y_where, n_atoms)
         derivative_map[pair] = drij_dr
     return distance_map, derivative_map
 
@@ -343,8 +343,8 @@ def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
 
     i_where, j_where = np.where(cut_mask)
 
-    drij_dr = compute_drij_dR(sup_positions, distance_matrix,
-                              i_where, j_where, n_atoms)
+    drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
+                                        i_where, j_where, n_atoms)
     distances = distance_matrix[cut_mask]
     return distances, drij_dr
 
@@ -420,11 +420,11 @@ def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
 #     return drij_dr
 
 
-def compute_drij_dR(sup_positions,
-                    distance_matrix,
-                    i_where,
-                    j_where,
-                    n_atoms):
+def compute_direction_cosines(sup_positions,
+                              distance_matrix,
+                              i_where,
+                              j_where,
+                              n_atoms):
     """
     Intermediate function for computing derivatives for forces.
 
