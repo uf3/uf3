@@ -321,9 +321,21 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
     tri_i = tuples[:, 0]
     tri_j = tuples[:, 1]
     tri_k = tuples[:, 2]
-    drij_dr = distances.compute_direction_cosines(coords, matrix, tri_i, tri_j, n_atoms)
-    drik_dr = distances.compute_direction_cosines(coords, matrix, tri_i, tri_k, n_atoms)
-    drjk_dr = distances.compute_direction_cosines(coords, matrix, tri_j, tri_k, n_atoms)
+    drij_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_i,
+                                                  tri_j,
+                                                  n_atoms)
+    drik_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_i,
+                                                  tri_k,
+                                                  n_atoms)
+    drjk_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_j,
+                                                  tri_k,
+                                                  n_atoms)
     grids = spline_deriv_3b(tuples_3b,
                             idx_rl,
                             idx_rm,
