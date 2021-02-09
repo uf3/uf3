@@ -23,6 +23,9 @@ class BasisProcessor:
                  chemical_system,
                  bspline_config,
                  fit_forces=True,
+                 force_size_threshold=None,
+                 n_approx=None,
+                 approx_d=0.01,
                  prefix='ij'):
         """
         Args:
@@ -34,6 +37,11 @@ class BasisProcessor:
         self.chemical_system = chemical_system
         self.bspline_config = bspline_config
         self.fit_forces = fit_forces
+        if force_size_threshold is None:
+            force_size_threshold = np.NaN
+        self.force_size_threshold = force_size_threshold
+        self.n_approx = n_approx
+        self.approx_d = approx_d
         self.prefix = prefix
 
         # generate column labels
@@ -91,7 +99,12 @@ class BasisProcessor:
     @staticmethod
     def from_config(chemical_system, config):
         """Instantiate from configuration dictionary"""
-        keys = ['knot_spacing', 'prefix', 'fit_forces']
+        keys = ['knot_spacing',
+                'prefix',
+                'force_size_threshold',
+                'n_approx',
+                'approx_d',
+                'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
         return BasisProcessor(chemical_system,
                               **config)
@@ -139,11 +152,13 @@ class BasisProcessor:
             if 'fx' in column_positions and self.fit_forces:
                 forces = [row[column_positions[component]]
                           for component in ['fx', 'fy', 'fz']]
+            do_force_approx = (len(geom) > self.force_size_threshold)
             geom_features = self.evaluate_configuration(geom,
                                                         name,
                                                         energy,
                                                         forces,
-                                                        energy_key)
+                                                        energy_key,
+                                                        do_force_approx)
             eval_map.update(geom_features)
         df_features = self.arrange_features_dataframe(eval_map)
         return df_features
@@ -232,7 +247,8 @@ class BasisProcessor:
                                name=None,
                                energy=None,
                                forces=None,
-                               energy_key="energy"):
+                               energy_key="energy",
+                               approximate_forces=False):
         """
         Generate feature vector(s) for learning energy and/or forces
             of one configuration.
@@ -268,20 +284,48 @@ class BasisProcessor:
                 key = energy_key
             eval_map[key] = np.insert(vector, 0, energy)
         if forces is not None:  # compute force features
-            vectors = self.featurize_force_2B(geom, supercell)
-            if self.degree > 2:
-                trio_vectors = self.featurize_force_3B(geom, supercell)
-                vectors = np.concatenate([vectors, trio_vectors], axis=2)
-            for j, component in enumerate(['fx', 'fy', 'fz']):
-                for i in range(n_atoms):
-                    vector = vectors[i, j, :]
-                    vector = np.insert(vector, 0, forces[j][i])
-                    atom_index = component + '_' + str(i)
+            if approximate_forces and n_atoms > 1:
+                forces = np.array(forces).T
+                # approximate force snapshots via Taylor expansion of E
+                n_approx = self.n_approx
+                if isinstance(n_approx, (float, np.floating)):
+                    # number of snapshots = fraction of number of atoms
+                    n_approx = int(len(geom) * n_approx)
+                d = self.approx_d  # displacement in angstroms
+                random = (n_approx is not None)
+                snapshots, energies = geometry.energy_from_force_displacement(
+                    geom, energy, forces, d=d, n=n_approx, random=random)
+                n_snapshots = len(snapshots)
+                for i in range(n_snapshots):
+                    snapshot = snapshots[i]
+                    energy = energies[i]
+                    supercell = geometry.get_supercell(snapshot,
+                                                       r_cut=self.r_cut)
+                    vector = self.featurize_energy_2B(snapshot, supercell)
+                    if self.degree > 2:
+                        trio_vector = self.featurize_energy_3B(geom, supercell)
+                        vector = np.concatenate([vector, trio_vector])
+                    snapshot_name = 'fa_' + str(i)
                     if name is not None:
-                        key = (name, atom_index)
+                        key = (name, snapshot_name)
                     else:
-                        key = atom_index
-                    eval_map[key] = vector
+                        key = snapshot_name
+                    eval_map[key] = np.insert(vector, 0, energy)
+            else:
+                vectors = self.featurize_force_2B(geom, supercell)
+                if self.degree > 2:
+                    trio_vectors = self.featurize_force_3B(geom, supercell)
+                    vectors = np.concatenate([vectors, trio_vectors], axis=2)
+                for j, component in enumerate(['fx', 'fy', 'fz']):
+                    for i in range(n_atoms):
+                        vector = vectors[i, j, :]
+                        vector = np.insert(vector, 0, forces[j][i])
+                        atom_index = component + '_' + str(i)
+                        if name is not None:
+                            key = (name, atom_index)
+                        else:
+                            key = atom_index
+                        eval_map[key] = vector
         return eval_map
 
     def featurize_energy_2B(self, geom, supercell=None):

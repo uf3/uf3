@@ -117,3 +117,31 @@ def sort_image_indices(a_indices,
     b_grid = b_grid[centroid_sort]
     c_grid = c_grid[centroid_sort]
     return a_grid, b_grid, c_grid
+
+
+def energy_from_force_displacement(geom, energy, forces, d=0.01,
+                                   n=None, random=True):
+    n_atoms = len(geom)
+    positions = geom.get_positions()
+    if random:  # n random displacements
+        n = n or 25  # default
+        displacements = [d * (np.random.rand(n_atoms, 3) * 2 - 1)
+                         for _ in range(n)]  # small displacements
+    else:  # 3N displacements
+        n = n_atoms
+        displacements = []
+        for direction in [0, 1, 2]:  # cartesian directions
+            d = np.ones(n) * d * np.sign(forces[:, direction])
+            for atom_idx, position in enumerate(positions):  # atoms
+                displacement = np.zeros_like(positions)
+                displacement[atom_idx, direction] += d[atom_idx]
+                displacements.append(displacement)
+    snapshots = []
+    energies = []
+    for displacement in displacements:
+        snapshot = geom.copy()
+        snapshot.translate(displacement)
+        snapshots.append(snapshot)
+        de = -np.sum(np.multiply(forces, displacement))  # F = -dE/dR
+        energies.append(energy + de)
+    return snapshots, energies
