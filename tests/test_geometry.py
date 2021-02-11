@@ -56,8 +56,6 @@ class TestGeometry:
                                                              forces,
                                                              d=0.01,
                                                              random=False)
-        print([geom.get_positions() for geom in snapshots])
-        print(energies)
         assert len(snapshots) == 6
         assert len(energies) == 6
         snapshots, energies = energy_from_force_displacement(simple_structure,
@@ -65,7 +63,5 @@ class TestGeometry:
                                                              forces,
                                                              d=0.01,
                                                              n=7)
-        print([geom.get_positions() for geom in snapshots])
-        print(energies)
         assert len(snapshots) == 7
         assert len(energies) == 7
