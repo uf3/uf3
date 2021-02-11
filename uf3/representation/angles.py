@@ -30,11 +30,15 @@ from scipy import interpolate
 #     return comp_masks
 
 
-def featurize_energy_3B(geometry, ext_geometry, knot_sequence, basis_functions):
+def get_energy_3B(grid,
+                  geom,
+                  supercell,
+                  knot_sequence,
+                  basis_functions):
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
-    ext_positions = ext_geometry.get_positions()
-    geo_positions = geometry.get_positions()
+    ext_positions = supercell.get_positions()
+    geo_positions = geom.get_positions()
     # mask atoms that aren't close to any unit-cell atom
     dist_matrix = distance.cdist(geo_positions, ext_positions)
     weight_mask = dist_matrix < r_max
@@ -48,26 +52,123 @@ def featurize_energy_3B(geometry, ext_geometry, knot_sequence, basis_functions):
     x_where, y_where = np.where(cut_mask)
     # TODO: extract method
     lower_where, upper_where = sort_pairs(x_where, y_where)
-    tuples = identify_triplets(lower_where, upper_where)
+    tuples = generate_triplets(lower_where, upper_where)
     r_l, r_m, r_n, _ = get_triplet_distances(ext_distances,
                                              tuples,
                                              knot_sequence)
     # evaluate splines
+    triangle_values, idx_rl, idx_rm, idx_rn = evaluate_triplet_distances(
+        r_l, r_m, r_n, basis_functions, knot_sequence)
+    energy = evaluate_3b(triangle_values, idx_rl, idx_rm, idx_rn, grid)
+    return energy
+
+
+def get_forces_3B(grid,
+                  geom,
+                  supercell,
+                  knot_sequence,
+                  basis_functions):
+    n_atoms = len(geom)
+    r_min = np.min(knot_sequence)
+    r_max = np.max(knot_sequence)
+    sup_positions = supercell.get_positions()
+    geo_positions = geom.get_positions()
+    # mask atoms that aren't close to any unit-cell atom
+    matrix = distance.cdist(geo_positions, sup_positions)
+    weight_mask = matrix < r_max
+    valids_mask = np.any(weight_mask, axis=0)
+    coords = sup_positions[valids_mask, :]
+    # reduced distance matrix
+    matrix = distance.cdist(coords, coords)
+    cut_mask = (matrix > r_min) & (matrix < r_max)
+    x_where, y_where = np.where(cut_mask)
+    # TODO: extract method
+    lower_where, upper_where = sort_pairs(x_where, y_where)
+    tuples = generate_triplets(lower_where, upper_where)
+    r_l, r_m, r_n, mask = get_triplet_distances(matrix,
+                                                tuples,
+                                                knot_sequence)
+    # evaluate splines
+    triangle_values, idx_rl, idx_rm, idx_rn = evaluate_triplet_derivs(
+        r_l, r_m, r_n, basis_functions, knot_sequence)
+    tuples = tuples[mask]
+    tri_i = tuples[:, 0]
+    tri_j = tuples[:, 1]
+    tri_k = tuples[:, 2]
+    drij_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_i,
+                                                  tri_j,
+                                                  n_atoms)
+    drik_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_i,
+                                                  tri_k,
+                                                  n_atoms)
+    drjk_dr = distances.compute_direction_cosines(coords,
+                                                  matrix,
+                                                  tri_j,
+                                                  tri_k,
+                                                  n_atoms)
+    forces = evaluate_deriv_3b(triangle_values,
+                               idx_rl,
+                               idx_rm,
+                               idx_rn,
+                               drij_dr,
+                               drik_dr,
+                               drjk_dr,
+                               grid)
+    return forces
+
+
+def featurize_energy_3B(geom, supercell, knot_sequence, basis_functions):
+    # identify pairs
+    dist_matrix, i_where, j_where = identify_ij(geom,
+                                                knot_sequence,
+                                                supercell)
+    # enforce i < j
+    i_where, j_where = sort_pairs(i_where, j_where)
+    # generate valid i, j, k triplets by joining i-j and i-j' pairs
+    tuples_ijk = generate_triplets(i_where, j_where)
+    # query distance matrix for i-j, i-k, j-k distances
+    r_l, r_m, r_n, _ = get_triplet_distances(dist_matrix,
+                                             tuples_ijk,
+                                             knot_sequence)
+    # evaluate splines
     tuples_3b, idx_rl, idx_rm, idx_rn = evaluate_triplet_distances(
         r_l, r_m, r_n, basis_functions, knot_sequence)
-    # grid_3b = spline_3b(r_l, r_m, r_n, knot_sequence, basis_functions)
-    grid_3b = spline_3b(tuples_3b, idx_rl, idx_rm, idx_rn, knot_sequence)
-    grid_3b = symmetrize_3d_grid(grid_3b)  # enforce symmetry
+    # arrange spline values into grid - BOTTLENECK
+    L = len(knot_sequence) - 4
+    grid_3b = arrange_3B(tuples_3b, idx_rl, idx_rm, idx_rn, L)
+    # enforce symmetry
+    grid_3b = symmetrize_3B(grid_3b)
     return grid_3b
 
 
-@jit(nopython=True, cache=True, nogil=True)
-def spline_3b(triangle_values, idx_rl, idx_rm, idx_rn, knot_sequence):
-    # multiply spline values and arrange in 3D grid
-    L = len(knot_sequence) - 4
-    M = len(knot_sequence) - 4
-    N = len(knot_sequence) - 4
+def identify_ij(geom, knot_sequence, supercell):
+    r_min = np.min(knot_sequence)
+    r_max = np.max(knot_sequence)
+    sup_positions = supercell.get_positions()
+    geo_positions = geom.get_positions()
+    # mask atoms that aren't close to any unit-cell atom
+    dist_matrix = distance.cdist(geo_positions, sup_positions)
+    cutoff_mask = dist_matrix < r_max
+    cutoff_mask = np.any(cutoff_mask, axis=0)
+    sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
+    # enforce distance cutoffs
+    n_geo = len(geo_positions)
+    dist_matrix = distance.cdist(sup_positions, sup_positions)
+    dist_matrix = dist_matrix[:n_geo, :]
+    dist_mask = (dist_matrix > r_min) & (dist_matrix < r_max)
+    i_where, j_where = np.where(dist_mask)
+    return dist_matrix, i_where, j_where
 
+
+@jit(nopython=True, nogil=True)
+def arrange_3B(triangle_values, idx_rl, idx_rm, idx_rn, L):
+    # multiply spline values and arrange in 3D grid
+    M = L
+    N = L
     grid = np.zeros((L, M, N))
     n_values = len(triangle_values)
     n_triangles = int(n_values / 4)
@@ -77,34 +178,65 @@ def spline_3b(triangle_values, idx_rl, idx_rm, idx_rn, knot_sequence):
         idx_n = idx_rn[triangle_idx * 4]
         values = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
         # each triangle influences 4 x 4 x 4 = 64 basis functions
+
+        # Broadcasting
+        # value = (values[:, 0][:, None, None]
+        #          * values[:, 1][None, :, None]
+        #          * values[:, 2][None, None, :])
+        # grid[idx_l:idx_l+4, idx_m:idx_m+4, idx_n:idx_n+4] += value
+
+        # Einsum
+        # value = np.einsum('i,j,k->ijk',
+        #                   values[:, 0],
+        #                   values[:, 1],
+        #                   values[:, 2],
+        #                   out=grid[idx_l:idx_l+4,
+        #                            idx_m:idx_m+4,
+        #                            idx_n:idx_n+4])
+
+        # for loops
         for i in range(4):
             for j in range(4):
                 for k in range(4):
-                    # idx_flat = i * 16 + j * 4 + k
                     value = values[i, 0] * values[j, 1] * values[k, 2]
                     grid[idx_l + i, idx_m + j, idx_n + k] += value
     return grid
 
 
-@jit(nopython=True, cache=True)
-def spline_deriv_3b(triangle_values,
-                    idx_rl,
-                    idx_rm,
-                    idx_rn,
-                    drij_dr,
-                    drik_dr,
-                    drjk_dr,
-                    knot_sequence):
+
+@jit(nopython=True, nogil=True)
+def evaluate_3b(triangle_values, idx_rl, idx_rm, idx_rn, grid):
     # multiply spline values and arrange in 3D grid
-    L = len(knot_sequence) - 4
-    M = len(knot_sequence) - 4
-    N = len(knot_sequence) - 4
-    # one grid per
+    energy = 0.0
+    n_values = len(triangle_values)
+    n_triangles = int(n_values / 4)
+    for triangle_idx in range(n_triangles):
+        idx_l = idx_rl[triangle_idx * 4]
+        idx_m = idx_rm[triangle_idx * 4]
+        idx_n = idx_rn[triangle_idx * 4]
+        values = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+        # for loops
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    spline = values[i, 0] * values[j, 1] * values[k, 2]
+                    c = grid[idx_l + i, idx_m + j, idx_n + k]
+                    energy += c * spline
+    return energy
+
+
+@jit(nopython=True, nogil=True)
+def evaluate_deriv_3b(triangle_values,
+                      idx_rl,
+                      idx_rm,
+                      idx_rn,
+                      drij_dr,
+                      drik_dr,
+                      drjk_dr,
+                      grid):
+    # multiply spline values and arrange in 3D grid
     n_atoms = len(drij_dr)
-    force_grids = [(np.zeros((L, M, N)),
-                    np.zeros((L, M, N)),
-                    np.zeros((L, M, N)))
-                   for _ in range(n_atoms)]
+    forces = np.zeros((n_atoms, 3))
 
     n_values = len(triangle_values)
     n_triangles = int(n_values / 4)
@@ -116,6 +248,145 @@ def spline_deriv_3b(triangle_values,
         # each triangle influences 4 x 4 x 4 = 64 basis functions
         for a in range(n_atoms):  # atom index
             for c in range(3):  # cartesian directions
+                dij = drij_dr[a, c, triangle_idx]
+                dik = drik_dr[a, c, triangle_idx]
+                djk = drjk_dr[a, c, triangle_idx]
+                for i in range(4):
+                    for j in range(4):
+                        for k in range(4):
+                            val = (v[i, 3] * v[j, 1] * v[k, 2] * dij +
+                                   v[i, 0] * v[j, 4] * v[k, 2] * dik +
+                                   v[i, 0] * v[j, 1] * v[k, 5] * djk)
+                            coef = grid[idx_l + i, idx_m + j, idx_n + k]
+                            forces[a, c] += coef * val
+    return forces
+
+
+# def partition_triangles(triangle_values, idx_l, idx_m, idx_n, L):
+#     M = L
+#     N = L
+#     n_values = len(triangle_values)
+#     n_triangles = int(n_values / 4)
+#     # each triangle has 12 (4 x 3) associated basis functions.
+#     # convert 3D coordinates into flat 1D indices (L * M * N)
+#     idx_flat = idx_l[::4] * (M - 3) * (N - 3) + idx_m[::4] * (N - 3) + idx_n[::4]
+#     offsets = np.tile([0, 1, 2, 3], len(idx_flat))
+#     idx_sort = np.repeat(np.argsort(idx_flat) * 4, 4) + offsets
+#     # identify number of triangles per flat index
+#     n_groups = (L -3) * (M -3) * (N -3)
+#     group_sizes, _ = np.histogram(idx_flat, bins=np.arange(n_groups + 1))
+#     group_sizes *= 4
+#     # partition triangles by flat index
+#     triangle_groups = np.array_split(triangle_values[idx_sort],
+#                                      np.cumsum(group_sizes)[:-1])
+#     return triangle_groups
+#
+#
+# @jit(nopython=True, cache=True, nogil=True)
+# def evaluate_local_triangles(triangle_group):
+#     # triangle information is grouped into 4 tuples of 3
+#     # corresponding to four basis functions for each of 3 dimensions
+#     # goal is to find the cartesian product, yielding 64 values.
+#     grid_data = np.zeros(64)
+#     n_values = len(triangle_group)
+#     n_triangles = int(n_values / 4)
+#     for triangle_idx in range(n_triangles):
+#         values = triangle_group[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+#         # each triangle influences 4 x 4 x 4 = 64 basis functions
+#         for i in range(4):
+#             for j in range(4):
+#                 for k in range(4):
+#                     idx_flat = i * 16 + j * 4 + k
+#                     value = values[i, 0] * values[j, 1] * values[k, 2]
+#                     grid_data[idx_flat] += value
+#     return grid_data
+#
+#
+# @jit(nopython=True, cache=True, nogil=True)
+# def unravel_3d(index, shape):
+#     sizes = np.zeros(3, dtype=np.int64)
+#     result = np.zeros(3, dtype=np.int64)
+#     sizes[-1] = 1
+#     for i in range(1, -1, -1):
+#         sizes[i] = sizes[i + 1] * shape[i + 1]
+#     remainder = index
+#     for i in range(3):
+#         result[i] = remainder // sizes[i]
+#         remainder %= sizes[i]
+#     return result
+#
+#
+# @jit(nopython=True, cache=True, nogil=True)
+# def arrange_subgrids(subgrids, L):
+#     M = L
+#     N = L
+#     grid_overall = np.zeros((L, M, N))
+#     n_subgrids = len(subgrids)
+#     for idx_subgrid in range(n_subgrids):
+#         l, m, n = unravel_3d(idx_subgrid, (L - 3, M - 3, N - 3))
+#         for i in range(4):
+#             for j in range(4):
+#                 for k in range(4):
+#                     idx_flat = i * 16 + j * 4 + k
+#                     value = subgrids[idx_subgrid][idx_flat]
+#                     grid_overall[l + i, m + j, n + k] += value
+#     return grid_overall
+
+
+# @jit(nopython=True, cache=True, nogil=True)
+# def spline_3b(triangle_values, idx_rl, idx_rm, idx_rn, knot_sequence):
+#     # multiply spline values and arrange in 3D grid
+#     L = len(knot_sequence) - 4
+#     M = len(knot_sequence) - 4
+#     N = len(knot_sequence) - 4
+#
+#     grid = np.zeros((L, M, N))
+#     n_values = len(triangle_values)
+#     n_triangles = int(n_values / 4)
+#     for triangle_idx in range(n_triangles):
+#         idx_l = idx_rl[triangle_idx * 4]
+#         idx_m = idx_rm[triangle_idx * 4]
+#         idx_n = idx_rn[triangle_idx * 4]
+#         values = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+#         # each triangle influences 4 x 4 x 4 = 64 basis functions
+#         for i in range(4):
+#             for j in range(4):
+#                 for k in range(4):
+#                     # idx_flat = i * 16 + j * 4 + k
+#                     value = values[i, 0] * values[j, 1] * values[k, 2]
+#                     grid[idx_l + i, idx_m + j, idx_n + k] += value
+#     return grid
+
+
+@jit(nopython=True, nogil=True)
+def spline_deriv_3b(triangle_values,
+                    idx_rl,
+                    idx_rm,
+                    idx_rn,
+                    drij_dr,
+                    drik_dr,
+                    drjk_dr,
+                    L):
+    # multiply spline values and arrange in 3D grid
+    M = L
+    N = L
+    n_atoms = len(drij_dr)
+    force_grids = [(np.zeros((L, M, N)),
+                    np.zeros((L, M, N)),
+                    np.zeros((L, M, N)))
+                   for _ in range(n_atoms)]
+
+    n_values = len(triangle_values)
+    n_triangles = int(n_values / 4)
+    for a in range(n_atoms):  # atom index
+        for c in range(3):  # cartesian directions
+            for triangle_idx in _:
+                idx_l = idx_rl[triangle_idx * 4]
+                idx_m = idx_rm[triangle_idx * 4]
+                idx_n = idx_rn[triangle_idx * 4]
+                v = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+                # each triangle influences 4 x 4 x 4 = 64 basis functions
+
                 dij = drij_dr[a, c, triangle_idx]
                 dik = drik_dr[a, c, triangle_idx]
                 djk = drjk_dr[a, c, triangle_idx]
@@ -140,7 +411,7 @@ def sort_pairs(x_where, y_where):
     return lower_where, upper_where
 
 
-def identify_triplets(lower_where, upper_where):
+def generate_triplets(lower_where, upper_where):
     # find unique values of i (sorted such that i < j)
     i_values, group_sizes = np.unique(lower_where, return_counts=True)
     # group j by values of i
@@ -265,7 +536,7 @@ def evaluate_triplet_derivs(r_l, r_m, r_n, basis_functions, knot_sequence):
     return tuples_3b, idx_rl, idx_rm, idx_rn
 
 
-def symmetrize_3d_grid(grid_3b):
+def symmetrize_3B(grid_3b):
     """
         Symmetrize 3D array with three mirror planes, enforcing permutational
             invariance with respect to i, j , and k indices.This allows us to avoid
@@ -279,18 +550,6 @@ def symmetrize_3d_grid(grid_3b):
               grid_3b.transpose(2, 1, 0)]
     grid_3b = np.sum(images, axis=0)
     return grid_3b
-
-
-# def place_chunks_3b(grid_3b, chunk_slice, tuples_3b, idx_rl, idx_rm, idx_rn):
-#     """Place with broadcasting; incompatible with numba"""
-#     # 4 x 4 x 4 chunk to be added to v_grid
-#     v_l = tuples_3b[:, 0][chunk_slice][:, None, None]
-#     v_m = tuples_3b[:, 1][chunk_slice][None, :, None]
-#     v_n = tuples_3b[:, 2][chunk_slice][None, None, :]
-#     d_l = idx_rl[chunk_slice][:, None, None]
-#     d_m = idx_rm[chunk_slice][None, :, None]
-#     d_n = idx_rn[chunk_slice][None, None, :]
-#     grid_3b[d_l, d_m, d_n] += v_l * v_m * v_n
 
 
 def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
@@ -310,7 +569,7 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
     x_where, y_where = np.where(cut_mask)
     # TODO: extract method
     lower_where, upper_where = sort_pairs(x_where, y_where)
-    tuples = identify_triplets(lower_where, upper_where)
+    tuples = generate_triplets(lower_where, upper_where)
     r_l, r_m, r_n, mask = get_triplet_distances(matrix,
                                                 tuples,
                                                 knot_sequence)
@@ -336,6 +595,7 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
                                                   tri_j,
                                                   tri_k,
                                                   n_atoms)
+    L = len(knot_sequence) - 4
     grids = spline_deriv_3b(tuples_3b,
                             idx_rl,
                             idx_rm,
@@ -343,8 +603,8 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
                             drij_dr,
                             drik_dr,
                             drjk_dr,
-                            knot_sequence)
-    grid_3b = [[symmetrize_3d_grid(cart_grid)
+                            L)
+    grid_3b = [[symmetrize_3B(cart_grid)
                 for cart_grid in atom_grid]
                for atom_grid in grids]  # enforce symmetry
     return grid_3b
