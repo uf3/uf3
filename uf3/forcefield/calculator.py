@@ -30,6 +30,13 @@ class UFCalculator(ase_calc.Calculator):
                                                      model.coefficients)
         self.pair_potentials = construct_pair_potentials(self.solutions,
                                                          self.bspline_config)
+        if self.degree > 2:
+            self.potentials_3b = construct_trio_potentials(self.solutions,
+                                                           self.bspline_config)
+
+    @property
+    def degree(self):
+        return self.bspline_config.degree
 
     @property
     def element_list(self):
@@ -204,6 +211,27 @@ def construct_pair_potentials(coefficient_sets, bspline_config):
         knot_sequence = bspline_config.knots_map[pair]
         bspline_curve = interpolate.BSpline(knot_sequence,
                                             coefficient_sets[pair],
+                                            3,  # cubic BSpline
+                                            extrapolate=False)
+        potentials[pair] = bspline_curve
+    return potentials
+
+
+def construct_trio_potentials(coefficient_sets, bspline_config):
+    """
+    Args:
+        coefficient_sets (dict): map of pair tuple to coefficient vector.
+        bspline_config (bspline.BSplineConfig)
+
+    Returns:
+        potentials (dict): map of pair tuple to interpolate.BSpline
+    """
+    trio_tuples = bspline_config.chemical_system.interactions_map[3]
+    potentials = {}
+    for trio in trio_tuples:
+        knot_sequence = bspline_config.knots_map[trio]
+        bspline_curve = interpolate.BSpline(knot_sequence,
+                                            coefficient_sets[trio],
                                             3,  # cubic BSpline
                                             extrapolate=False)
         potentials[pair] = bspline_curve
