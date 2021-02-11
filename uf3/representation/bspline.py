@@ -104,6 +104,10 @@ class BSplineConfig:
         self.partition_sizes = self.get_feature_partition_sizes()
 
     @property
+    def degree(self):
+        return self.chemical_system.degree
+
+    @property
     def element_list(self):
         return self.chemical_system.element_list
 
