@@ -130,6 +130,7 @@ def featurize_energy_3B(geom, supercell, knot_sequence, basis_functions):
     i_where, j_where = sort_pairs(i_where, j_where)
     # generate valid i, j, k triplets by joining i-j and i-j' pairs
     tuples_ijk = generate_triplets(i_where, j_where)
+
     # query distance matrix for i-j, i-k, j-k distances
     r_l, r_m, r_n, _ = get_triplet_distances(dist_matrix,
                                              tuples_ijk,
@@ -158,8 +159,8 @@ def identify_ij(geom, knot_sequence, supercell):
     # enforce distance cutoffs
     n_geo = len(geo_positions)
     dist_matrix = distance.cdist(sup_positions, sup_positions)
-    dist_matrix = dist_matrix[:n_geo, :]
-    dist_mask = (dist_matrix > r_min) & (dist_matrix < r_max)
+    cut_matrix = dist_matrix[:n_geo, :]
+    dist_mask = (cut_matrix > r_min) & (cut_matrix < r_max)
     i_where, j_where = np.where(dist_mask)
     return dist_matrix, i_where, j_where
 
@@ -201,7 +202,6 @@ def arrange_3B(triangle_values, idx_rl, idx_rm, idx_rn, L):
                     value = values[i, 0] * values[j, 1] * values[k, 2]
                     grid[idx_l + i, idx_m + j, idx_n + k] += value
     return grid
-
 
 
 @jit(nopython=True, nogil=True)
@@ -380,16 +380,17 @@ def spline_deriv_3b(triangle_values,
     n_triangles = int(n_values / 4)
     for a in range(n_atoms):  # atom index
         for c in range(3):  # cartesian directions
-            for triangle_idx in _:
-                idx_l = idx_rl[triangle_idx * 4]
-                idx_m = idx_rm[triangle_idx * 4]
-                idx_n = idx_rn[triangle_idx * 4]
-                v = triangle_values[triangle_idx * 4: (triangle_idx + 1) * 4, :]
+            for tri_idx in range(n_triangles):
+                dij = drij_dr[a, c, tri_idx]
+                dik = drik_dr[a, c, tri_idx]
+                djk = drjk_dr[a, c, tri_idx]
+                if dij == 0 and dik == 0 and djk == 0:
+                    continue
+                idx_l = idx_rl[tri_idx * 4]
+                idx_m = idx_rm[tri_idx * 4]
+                idx_n = idx_rn[tri_idx * 4]
+                v = triangle_values[tri_idx * 4: (tri_idx + 1) * 4, :]
                 # each triangle influences 4 x 4 x 4 = 64 basis functions
-
-                dij = drij_dr[a, c, triangle_idx]
-                dik = drik_dr[a, c, triangle_idx]
-                djk = drjk_dr[a, c, triangle_idx]
                 for i in range(4):
                     for j in range(4):
                         for k in range(4):
@@ -554,20 +555,9 @@ def symmetrize_3B(grid_3b):
 
 def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
     n_atoms = len(geom)
-    r_min = np.min(knot_sequence)
-    r_max = np.max(knot_sequence)
-    sup_positions = sup_geometry.get_positions()
-    geo_positions = geom.get_positions()
-    # mask atoms that aren't close to any unit-cell atom
-    matrix = distance.cdist(geo_positions, sup_positions)
-    weight_mask = matrix < r_max
-    valids_mask = np.any(weight_mask, axis=0)
-    coords = sup_positions[valids_mask, :]
-    # reduced distance matrix
-    matrix = distance.cdist(coords, coords)
-    cut_mask = (matrix > r_min) & (matrix < r_max)
-    x_where, y_where = np.where(cut_mask)
-    # TODO: extract method
+    coords, matrix, x_where, y_where = identify_ij_supercell(geom,
+                                                             sup_geometry,
+                                                             knot_sequence)
     lower_where, upper_where = sort_pairs(x_where, y_where)
     tuples = generate_triplets(lower_where, upper_where)
     r_l, r_m, r_n, mask = get_triplet_distances(matrix,
@@ -608,3 +598,20 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions):
                 for cart_grid in atom_grid]
                for atom_grid in grids]  # enforce symmetry
     return grid_3b
+
+
+def identify_ij_supercell(geom, sup_geometry, knot_sequence):
+    r_min = np.min(knot_sequence)
+    r_max = np.max(knot_sequence)
+    sup_positions = sup_geometry.get_positions()
+    geo_positions = geom.get_positions()
+    # mask atoms that aren't close to any unit-cell atom
+    matrix = distance.cdist(geo_positions, sup_positions)
+    weight_mask = matrix < r_max
+    valids_mask = np.any(weight_mask, axis=0)
+    coords = sup_positions[valids_mask, :]
+    # reduced distance matrix
+    matrix = distance.cdist(coords, coords)
+    cut_mask = (matrix > r_min) & (matrix < r_max)
+    x_where, y_where = np.where(cut_mask)
+    return coords, matrix, x_where, y_where
