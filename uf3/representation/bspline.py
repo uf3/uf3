@@ -1,3 +1,4 @@
+import re
 import numpy as np
 from scipy import interpolate
 
@@ -7,6 +8,7 @@ from uf3.regression import regularize
 class BSplineConfig:
     """
     -Manage knot resolutions and cutoffs
+    -Manage basis functions
     -Manage regularization parameters and generate matrices for regression
     -Arrange matrices by chemical interaction
     -Manage feature indices for fixed coefficients
@@ -23,54 +25,50 @@ class BSplineConfig:
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
             r_min_map (dict): map of minimum pair distance per interaction.
-                If unspecified, defaults to 0.0 for all interactions.
+                If unspecified, defaults to 1.0 for all interactions.
                 e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
             r_max_map (dict): map of maximum pair distance per interaction.
                 If unspecified, defaults to 6.0 angstroms for all interactions,
                 which probably encompasses 2nd-nearest neighbors.
             t_min_map (dict): map of interaction to tuples of
-                minimum pair distance ij/ik, theta jik.
-                Defaults to (1.0, -1.0) for all interactions.
+                minimum pair distance ij/ik/jk.
+                Defaults to 0.0 for all interactions.
             t_max_map (dict): map of interaction to tuples of
-                maximum pair distance ij/ik, theta jik.
-                Defaults to (6.0, 1.0) for all interactions.
+                maximum pair distance ij/ik/jk.
+                Defaults to 6.0 for all interactions.
             resolution_map (dict): map of resolution (number of knot intervals)
                 per interaction. If unspecified, defaults to 20 for all two-
-                body interactions and (2, 2) for three-body interactions.
+                body interactions and 3 for three-body interactions.
             knot_spacing (str): "lammps" for knot spacing by r^2
                 or "linear" for uniform spacing.
         """
         self.chemical_system = chemical_system
-        # Minimum pair distance per interaction.
+        # ij interactions
         if r_min_map is None:
             r_min_map = {}
         self.r_min_map = r_min_map
-        # Maximum pair distance per interaction.
         if r_max_map is None:
             r_max_map = {}
         self.r_max_map = r_max_map
-        # Minimum pair distance ij, pair distance ik, theta jik per interaction
+        # ij, ik, jk interactions
         if t_min_map is None:
             t_min_map = {}
         self.t_min_map = t_min_map
-        # Maximum pair distance ij, pair distance ik, theta jik per interaction
         if t_max_map is None:
             t_max_map = {}
         self.t_max_map = t_max_map
-        # Resolution (knot intervals) per interaction.
         if resolution_map is None:
             resolution_map = {}
         self.resolution_map = resolution_map
         # Default values
-        for pair in self.chemical_system.interactions_map.get(2, []):
+        for pair in self.interactions_map.get(2, []):
             self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
             self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
             self.resolution_map[pair] = self.resolution_map.get(pair, 20)
-        for trio in self.chemical_system.interactions_map.get(3, []):
-            self.t_min_map[trio] = self.t_min_map.get(trio, (1.0, -1))
-            self.t_min_map[trio] = self.t_max_map.get(trio, (6.0, 1))
-            self.resolution_map[trio] = self.resolution_map.get(trio,
-                                                                (2, 2))
+        for trio in self.interactions_map.get(3, []):
+            self.t_min_map[trio] = self.t_min_map.get(trio, 1.0)
+            self.t_max_map[trio] = self.t_max_map.get(trio, 6.0)
+            self.resolution_map[trio] = self.resolution_map.get(trio, 5)
         self.knot_spacing = knot_spacing
         if knot_spacing == 'lammps':
             knot_function = knots.generate_lammps_knots
@@ -82,15 +80,32 @@ class BSplineConfig:
         self.r_cut = max(list(self.r_max_map.values()))
         # compute knots
         self.knots_map = {}
-        for pair in chemical_system.interactions_map[2]:
+        self.knot_subintervals = {}
+        self.basis_functions = {}
+        for pair in self.interactions_map.get(2, []):
             r_min = self.r_min_map[pair]
             r_max = self.r_max_map[pair]
             n_intervals = self.resolution_map[pair]
             self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
-        self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
-                                  for pair, knot_seq in self.knots_map.items()}
-
+            subintervals = knots.get_knot_subintervals(self.knots_map[pair])
+            self.knot_subintervals[pair] = subintervals
+            self.basis_functions[pair] = generate_basis_functions(subintervals)
+        # self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
+        #                           for pair, knot_seq
+        #                           in self.knots_map.items()}
+        for trio in self.interactions_map.get(3, []):
+            r_min = self.t_min_map[trio]
+            r_max = self.t_max_map[trio]
+            r_resolution = self.resolution_map[trio]
+            self.knots_map[trio] = knot_function(r_min, r_max, r_resolution)
+            subintervals = knots.get_knot_subintervals(self.knots_map[trio])
+            self.knot_subintervals[trio] = subintervals
+            self.basis_functions[trio] = generate_basis_functions(subintervals)
         self.partition_sizes = self.get_feature_partition_sizes()
+
+    @property
+    def degree(self):
+        return self.chemical_system.degree
 
     @property
     def element_list(self):
@@ -101,27 +116,31 @@ class BSplineConfig:
         return self.chemical_system.interactions_map
 
     def get_regularization_matrix(self,
-                                  ridge_1b=1e-4,
-                                  ridge_2b=1e-6,
-                                  ridge_3b=1e-5,
-                                  curve_2b=1e-5,
-                                  curve_3b=1e-4):
+                                  ridge_map={},
+                                  curvature_map={},
+                                  **kwargs):
         """
         Args:
-            ridge_[1,2,3]b (float): n-body term ridge regularizer strength.
-            curve_[2,3]b (float): n-body term curvature regularizer strength.
+            ridge_map (dict): n-body term ridge regularizer strengths.
+                default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
+            curvature_map (dict): n-body term curvature regularizer strengths.
+                default: {1: 0.0, 2: 1e-5, 3: 1e-5}
 
         Returns:
             combined_matrix (np.ndarray): regularization matrix made up of
                 individual matrices per n-body interaction.
         """
-        ridge_map = {1: ridge_1b, 2: ridge_2b, 3: ridge_3b}
-        curvature_map = {1: 0.0, 2: curve_2b, 3: curve_3b}
-
+        for k in kwargs:
+            if "ridge" in k:
+                ridge_map[re.sub('[^0-9]', '', k)] = kwargs[k]
+            elif "curv" in k:
+                curvature_map[re.sub('[^0-9]', '', k)] = kwargs[k]
+        ridge_map = {1: 1e-4, 2: 1e-6, 3: 1e-5, **ridge_map}
+        curvature_map = {1: 0.0, 2: 1e-5, 3: 1e-5, **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
         matrix = regularize.get_regularizer_matrix(n_elements,
-                                                   ridge=ridge_1b,
+                                                   ridge=ridge_map[1],
                                                    curvature=0.0)
         matrices = [matrix]
         # two- and three-body terms
@@ -136,9 +155,9 @@ class BSplineConfig:
                                                                ridge=r,
                                                                curvature=c)
                 elif degree == 3:
-                    matrix = regularize.get_penalty_matrix_3D(size[0] + 3,
-                                                              size[0] + 3,
-                                                              size[1] + 3,
+                    matrix = regularize.get_penalty_matrix_3D(size + 3,
+                                                              size + 3,
+                                                              size + 3,
                                                               ridge=r,
                                                               curvature=c)
                 else:
@@ -151,15 +170,17 @@ class BSplineConfig:
     def get_feature_partition_sizes(self):
         """Get partition sizes: one-body, two-body, and three-body terms."""
         partition_sizes = [len(self.chemical_system.element_list)]
-        for degree in range(2, self.chemical_system.degree+1):
+        for degree in range(2, self.chemical_system.degree + 1):
             interactions = self.chemical_system.interactions_map[degree]
             for interaction in interactions:
                 if degree == 2:
                     size = self.resolution_map[interaction] + 3
                     partition_sizes.append(size)
                 elif degree == 3:
-                    size = np.product(np.add(self.resolution_map[interaction],
-                                             3))
+                    resolutions = self.resolution_map[interaction]
+                    size = np.product([resolutions + 3,
+                                       + resolutions + 3,
+                                       + resolutions + 3])
                     partition_sizes.append(size)
                 else:
                     raise ValueError(
@@ -203,12 +224,34 @@ class BSplineConfig:
         return fixed.astype(int)
 
 
-def evaluate_bspline(points, knot_subintervals, flatten=True):
+def generate_basis_functions(knot_subintervals):
     """
     Args:
-        points (np.ndarray): vector of points to sample, e.g. pair distances
         knot_subintervals (list): list of knot subintervals,
             e.g. from ufpotential.representation.knots.get_knot_subintervals
+
+    Returns:
+        basis_functions (list): list of scipy B-spline basis functions.
+    """
+    n_splines = len(knot_subintervals)
+    basis_functions = []
+    for idx in range(n_splines):
+        # loop over number of basis functions
+        b_knots = knot_subintervals[idx]
+        bs = interpolate.BSpline.basis_element(b_knots, extrapolate=False)
+        basis_functions.append(bs)
+    return basis_functions
+
+
+def evaluate_basis_functions(points, basis_functions, nu=0, flatten=True):
+    """
+    Evaluate basis functions.
+
+    Args:
+        points (np.ndarray): vector of points to sample, e.g. pair distances
+        basis_functions (list): list of callable basis functions.
+        nu (int): compute n-th derivative of basis function. Default 0.
+        flatten (bool): whether to flatten values per spline.
 
     Returns:
         if flatten:
@@ -220,24 +263,21 @@ def evaluate_bspline(points, knot_subintervals, flatten=True):
             values_per_spline (list): list of vector of cubic B-spline
                 evaluations for each knot subinterval.
     """
-    n_splines = len(knot_subintervals)
+    n_splines = len(basis_functions)
     values_per_spline = []
     for idx in range(n_splines):
         # loop over number of basis functions
-        b_knots = knot_subintervals[idx]
-        bs_l = interpolate.BSpline.basis_element(b_knots, extrapolate=False)
-        mask = np.logical_and(points >= b_knots[0],
-                              points <= b_knots[4])
-        bspline_values = bs_l(points[mask])  # evaluate bspline
+        bspline_values = basis_functions[idx](points, nu=nu)
+        bspline_values[np.isnan(bspline_values)] = 0
         values_per_spline.append(bspline_values)
     if not flatten:
         return values_per_spline
     value_per_spline = np.array([np.sum(values)
-                                for values in values_per_spline])
+                                 for values in values_per_spline])
     return value_per_spline
 
 
-def compute_force_bsplines(drij_dR, distances, knot_intervals):
+def featurize_force_2B(basis_functions, distances, drij_dR, knot_sequence):
     """
     Args:
         drij_dR (np.ndarray): distance-derivatives, e.g. from
@@ -245,8 +285,7 @@ def compute_force_bsplines(drij_dR, distances, knot_intervals):
             Shape is (n_atoms, 3, n_distances).
         distances (np.ndarray): vector of distances of the same length as
             the last dimension of drij_dR.
-        knot_intervals (list): list of knot subintervals,
-            e.g. from ufpotential.representation.knots.get_knot_subintervals
+        basis_functions (list): list of callable basis functions.
 
     Returns:
         x (np.ndarray): rotation-invariant representations generated
@@ -254,19 +293,22 @@ def compute_force_bsplines(drij_dR, distances, knot_intervals):
             Array shape is (n_atoms, 3, n_basis_functions), where the
             second dimension corresponds to the three cartesian directions.
     """
-    n_splines = len(knot_intervals)
+    n_splines = len(basis_functions)
     n_atoms, _, n_distances = drij_dR.shape
     x = np.zeros((n_atoms, 3, n_splines))
     for bspline_idx in np.arange(n_splines):
         # loop over number of basis functions
-        b_knots = knot_intervals[bspline_idx]
-        bs_l = interpolate.BSpline.basis_element(b_knots, extrapolate=False)
+        basis_function = basis_functions[bspline_idx]
+        b_knots = knot_sequence[bspline_idx: bspline_idx+5]
         mask = np.logical_and(distances > b_knots[0],
-                              distances < b_knots[4])
-        bspline_values = bs_l(distances[mask], nu=1)  # first derivative
-        deltas = drij_dR[:, :, mask]  # mask position deltas by distances
+                              distances < b_knots[-1])
+        # first derivative
+        bspline_values = basis_function(distances[mask], nu=1)
+        # mask position deltas by distances
+        deltas = drij_dR[:, :, mask]
         # broadcast multiplication over atomic and cartesian axis dimensions
-        x_splines = np.sum(np.multiply(bspline_values, deltas), axis=-1)
+        x_splines = np.multiply(bspline_values, deltas)
+        x_splines = np.sum(x_splines, axis=-1)
         x[:, :, bspline_idx] = x_splines
     x = -x
     return x
@@ -323,3 +365,25 @@ def fit_spline_1d(x, y, knot_sequence):
                                           bbox=(b_min, b_max))
     coefficients = lsq.get_coeffs()
     return coefficients
+
+
+def find_spline_indices(points, knot_sequence):
+    """
+    Identify basis functions indices that are non-zero at each point.
+
+    Args:
+        points (np.ndarray): list of points.
+        knot_sequence (np.ndarray): knot sequence vector.
+
+    Returns:
+        points (np.ndarray): array of points repeated four times
+        idx (np.ndarray): corresponding basis function index for each
+            point (four each).
+    """
+    # identify basis function "center" per point
+    idx = np.searchsorted(np.unique(knot_sequence), points, side='left') - 1
+    # tile to identify four non-zero basis functions per point
+    offsets = np.tile([0, 1, 2, 3], len(points))
+    idx = np.repeat(idx, 4) + offsets
+    points = np.repeat(points, 4)
+    return points, idx

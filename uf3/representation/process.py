@@ -5,13 +5,14 @@ import pandas as pd
 
 from uf3.representation import knots
 from uf3.representation import distances
-from uf3.representation.bspline import evaluate_bspline
-from uf3.representation.bspline import compute_force_bsplines
+from uf3.representation import angles
+from uf3.representation.bspline import evaluate_basis_functions
+from uf3.representation.bspline import featurize_force_2B
 from uf3.data import geometry
 from uf3.util import parallel
 
 
-class BasisProcessor2B:
+class BasisProcessor:
     """
     -Manage knot-related logic for pair interactions
     -Generate energy/force features
@@ -21,25 +22,39 @@ class BasisProcessor2B:
     def __init__(self,
                  chemical_system,
                  bspline_config,
+                 fit_forces=True,
+                 force_size_threshold=None,
+                 n_approx=None,
+                 approx_d=0.01,
                  prefix='ij'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
             bspline_config (uf3.representation.bspline.BsplineConfig)
+            fit_forces (bool): whether to generate force features.
             prefix (str): prefix for feature columns.
         """
         self.chemical_system = chemical_system
         self.bspline_config = bspline_config
+        self.fit_forces = fit_forces
+        if force_size_threshold is None:
+            force_size_threshold = np.NaN
+        self.force_size_threshold = force_size_threshold
+        self.n_approx = n_approx
+        self.approx_d = approx_d
         self.prefix = prefix
 
         # generate column labels
-        self.n_features = sum([n_intervals + 3 for n_intervals
-                               in self.resolution_map.values()])
+        self.n_features = sum(self.partition_sizes[1:])
         feature_columns = ['{}_{}'.format(prefix, i)
                            for i in range(self.n_features)]
         composition_columns = ['n_{}'.format(el) for el
                                in self.element_list]
         self.columns = ["y"] + composition_columns + feature_columns
+
+    @property
+    def degree(self):
+        return self.chemical_system.degree
 
     @property
     def element_list(self):
@@ -74,16 +89,25 @@ class BasisProcessor2B:
         return self.bspline_config.knot_subintervals
 
     @property
+    def basis_functions(self):
+        return self.bspline_config.basis_functions
+
+    @property
     def partition_sizes(self):
         return self.bspline_config.partition_sizes
 
     @staticmethod
     def from_config(chemical_system, config):
         """Instantiate from configuration dictionary"""
-        keys = ['knot_spacing', 'name']
+        keys = ['knot_spacing',
+                'prefix',
+                'force_size_threshold',
+                'n_approx',
+                'approx_d',
+                'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
-        return BasisProcessor2B(chemical_system,
-                                **config)
+        return BasisProcessor(chemical_system,
+                              **config)
 
     def evaluate(self, df_data, data_coordinator, progress_bar=True):
         """
@@ -125,14 +149,16 @@ class BasisProcessor2B:
             forces = None
             if energy_key in column_positions:
                 energy = row[column_positions[energy_key]]
-            if 'fx' in column_positions:
+            if 'fx' in column_positions and self.fit_forces:
                 forces = [row[column_positions[component]]
                           for component in ['fx', 'fy', 'fz']]
+            do_force_approx = (len(geom) > self.force_size_threshold)
             geom_features = self.evaluate_configuration(geom,
                                                         name,
                                                         energy,
                                                         forces,
-                                                        energy_key)
+                                                        energy_key,
+                                                        do_force_approx)
             eval_map.update(geom_features)
         df_features = self.arrange_features_dataframe(eval_map)
         return df_features
@@ -155,7 +181,7 @@ class BasisProcessor2B:
                 corresponding to target vector, pair-distance representation
                 features, and composition (one-body) features.
         """
-        if n_jobs < 1:
+        if n_jobs < 2:
             warnings.warn("Processing in serial.", RuntimeWarning)
             df_features = self.evaluate(df_data, data_coordinator)
             return df_features
@@ -221,7 +247,8 @@ class BasisProcessor2B:
                                name=None,
                                energy=None,
                                forces=None,
-                               energy_key="energy"):
+                               energy_key="energy",
+                               approximate_forces=False):
         """
         Generate feature vector(s) for learning energy and/or forces
             of one configuration.
@@ -247,27 +274,61 @@ class BasisProcessor2B:
         else:
             supercell = geom
         if energy is not None:  # compute energy features
-            vector = self.get_energy_features(geom, supercell)
+            vector = self.featurize_energy_2B(geom, supercell)
+            if self.degree > 2:
+                trio_vector = self.featurize_energy_3B(geom, supercell)
+                vector = np.concatenate([vector, trio_vector])
             if name is not None:
                 key = (name, energy_key)
             else:
                 key = energy_key
             eval_map[key] = np.insert(vector, 0, energy)
         if forces is not None:  # compute force features
-            vectors = self.get_force_features(geom, supercell)
-            for j, component in enumerate(['fx', 'fy', 'fz']):
-                for i in range(n_atoms):
-                    vector = vectors[i, j, :]
-                    vector = np.insert(vector, 0, forces[j][i])
-                    atom_index = component + '_' + str(i)
+            if approximate_forces and n_atoms > 1:
+                forces = np.array(forces).T
+                # approximate force snapshots via Taylor expansion of E
+                n_approx = self.n_approx
+                if isinstance(n_approx, (float, np.floating)):
+                    # number of snapshots = fraction of number of atoms
+                    n_approx = int(len(geom) * n_approx)
+                d = self.approx_d  # displacement in angstroms
+                random = (n_approx is not None)
+                snapshots, energies = geometry.energy_from_force_displacement(
+                    geom, energy, forces, d=d, n=n_approx, random=random)
+                n_snapshots = len(snapshots)
+                for i in range(n_snapshots):
+                    snapshot = snapshots[i]
+                    energy = energies[i]
+                    supercell = geometry.get_supercell(snapshot,
+                                                       r_cut=self.r_cut)
+                    vector = self.featurize_energy_2B(snapshot, supercell)
+                    if self.degree > 2:
+                        trio_vector = self.featurize_energy_3B(geom, supercell)
+                        vector = np.concatenate([vector, trio_vector])
+                    snapshot_name = 'fa_' + str(i)
                     if name is not None:
-                        key = (name, atom_index)
+                        key = (name, snapshot_name)
                     else:
-                        key = atom_index
-                    eval_map[key] = vector
+                        key = snapshot_name
+                    eval_map[key] = np.insert(vector, 0, energy)
+            else:
+                vectors = self.featurize_force_2B(geom, supercell)
+                if self.degree > 2:
+                    trio_vectors = self.featurize_force_3B(geom, supercell)
+                    vectors = np.concatenate([vectors, trio_vectors], axis=2)
+                for j, component in enumerate(['fx', 'fy', 'fz']):
+                    for i in range(n_atoms):
+                        vector = vectors[i, j, :]
+                        vector = np.insert(vector, 0, forces[j][i])
+                        atom_index = component + '_' + str(i)
+                        if name is not None:
+                            key = (name, atom_index)
+                        else:
+                            key = atom_index
+                        eval_map[key] = vector
         return eval_map
 
-    def get_energy_features(self, geom, supercell=None):
+    def featurize_energy_2B(self, geom, supercell=None):
         """
         Generate feature vector for learning energy of one configuration.
 
@@ -289,9 +350,9 @@ class BasisProcessor2B:
                                                            supercell=supercell)
         feature_map = {}
         for pair in pair_tuples:
-            knot_subintervals = self.knot_subintervals[pair]
-            features = evaluate_bspline(distances_map[pair],
-                                        knot_subintervals)
+            basis_function = self.basis_functions[pair]
+            features = evaluate_basis_functions(distances_map[pair],
+                                                basis_function)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -299,7 +360,7 @@ class BasisProcessor2B:
         vector = np.concatenate([comp, feature_vector])
         return vector
 
-    def get_force_features(self, geom, supercell=None):
+    def featurize_force_2B(self, geom, supercell=None):
         """
         Generate feature vectors for learning forces of one configuration.
         Args:
@@ -322,10 +383,12 @@ class BasisProcessor2B:
         distance_map, derivative_map = deriv_results
         feature_map = {}
         for pair in pair_tuples:
-            knot_subintervals = self.knot_subintervals[pair]
-            features = compute_force_bsplines(derivative_map[pair],
-                                              distance_map[pair],
-                                              knot_subintervals)
+            basis_functions = self.basis_functions[pair]
+            knot_sequence = self.knots_map[pair]
+            features = featurize_force_2B(basis_functions,
+                                          distance_map[pair],
+                                          derivative_map[pair],
+                                          knot_sequence)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -334,6 +397,33 @@ class BasisProcessor2B:
                               len(self.element_list)))
         feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
+
+    def featurize_energy_3B(self, geom, supercell=None):
+        if supercell is None:
+            supercell = geom
+        trio = self.interactions_map[3][0]  # TODO: Multicomponent
+        l_knots = self.knots_map[trio]
+        basis_functions = self.basis_functions[trio]
+        value_grid = angles.featurize_energy_3B(geom,
+                                                supercell,
+                                                l_knots,
+                                                basis_functions)
+        return value_grid.flatten()
+
+
+    def featurize_force_3B(self, geom, supercell=None):
+        if supercell is None:
+            supercell = geom
+        trio = self.interactions_map[3][0]  # TODO: Multicomponent
+        l_knots = self.knots_map[trio]
+        basis_functions = self.basis_functions[trio]
+        values = angles.featurize_force_3B(geom,
+                                           supercell,
+                                           l_knots,
+                                           basis_functions)
+        values = np.array([[grid.flatten() for grid in atom_set]
+                           for atom_set in values])
+        return values
 
 
 def dataframe_to_training_tuples(df_features,

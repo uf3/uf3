@@ -65,7 +65,7 @@ class DataCoordinator:
             pattern = '{}_{{}}'.format(prefix)
             dataframe = dataframe.rename(pattern.format)
         if prefix in self.data:
-            print('Data already exists with prefix "{}".',format(prefix),
+            print('Data already exists with prefix "{}".'.format(prefix),
                   end=' ')
             if self.overwrite is True:
                 print('Overwriting...')

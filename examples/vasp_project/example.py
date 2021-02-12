@@ -14,7 +14,7 @@ import uf3
 from uf3.data.io import DataCoordinator
 from uf3.data.composition import ChemicalSystem
 from uf3.representation.bspline import BSplineConfig
-from uf3.representation.process import BasisProcessor2B
+from uf3.representation.process import BasisProcessor
 from uf3.regression.least_squares import WeightedLinearModel
 
 from uf3.representation import distances
@@ -118,8 +118,8 @@ if __name__ == "__main__":
                                    r_min_map=r_min_map,
                                    r_max_map=r_max_map,
                                    resolution_map=resolution_map)
-    representation = BasisProcessor2B(chemical_system,
-                                      bspline_config)
+    representation = BasisProcessor(chemical_system,
+                                    bspline_config)
     regularizer = bspline_config.get_regularization_matrix(
         **regularization_params)
     fixed = bspline_config.get_fixed_tuples(values=0,
