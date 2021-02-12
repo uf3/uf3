@@ -298,3 +298,25 @@ def preprocess_fixed_coefficients(x,
     y = np.subtract(y, np.dot(x_fixed, fixed_coefficients))
     return x, y, mask
 
+  
+def postprocess_coefficients(coefficients, core_hardness=1.1):
+    """
+    Postprocess 2B coefficients to enforce repulsive core.
+
+    Args:
+        coefficients (np.ndarray): vector of 2B coefficients.
+        core_hardness (float): multiplicative factor for curvature.
+
+    Returns:
+        coefficients (np.ndarray): new vector of coefficients.
+    """
+    gradient = np.gradient(coefficients)  # finite-difference gradient
+    decreasing_check = (np.sign(gradient) < 0)  # boolean vector
+    decreasing_point = np.argmax(decreasing_check)
+    slope = gradient[decreasing_point]
+
+    coefficients = np.array(coefficients)
+    for i in np.arange(decreasing_point - 1)[::-1]:
+        right = coefficients[i + 1]
+        coefficients[i] = right - slope * core_hardness
+    return coefficients
