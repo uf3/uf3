@@ -104,7 +104,9 @@ class TestBasis:
                      [2, 1, 0]]
         df.at[0, 'geometry'] = simple_molecule
         data_coordinator = io.DataCoordinator()
-        df_features = bspline_handler.evaluate(df, data_coordinator)
+        df_features = bspline_handler.evaluate(df,
+                                               data_coordinator,
+                                               progress_bar=False)
         assert len(df_features) == 1 + 3 * 3  # energy and 3 forces per atom
         assert len(df_features.columns) == 1 + 23 + 1
         x, y, w = bspline_handler.get_training_tuples(df_features,
@@ -125,7 +127,9 @@ class TestBasis:
                      [2, 1, 0]]
         df.at[0, 'geometry'] = simple_water
         data_coordinator = io.DataCoordinator()
-        df_feats = bspline_handler.evaluate(df, data_coordinator)
+        df_feats = bspline_handler.evaluate(df,
+                                            data_coordinator,
+                                            progress_bar=False)
         assert len(df_feats) == 1 + 3 * 3  # energy and 3 forces per atom
         assert len(df_feats.columns) == 1 + 23 * 3 + 2
         # energy, 23 features per interaction, two 1-body terms
