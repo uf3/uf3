@@ -35,7 +35,7 @@ class TestCalculator:
                           cell=None)
         energy = calc.get_potential_energy(geom)
         assert np.isclose(energy, -1.21578)
-        geom.set_calculator(calc)
+        geom.calc = calc
         forces = geom.get_forces()
         assert np.allclose(forces, [[3.96244881, 3.96244881, 3.96244881],
                                     [-3.96244881, -3.96244881, -3.96244881]])

@@ -103,17 +103,23 @@ class TestBasis:
                      [0, 1, 2],
                      [2, 1, 0]]
         df.at[0, 'geometry'] = simple_molecule
+        df.loc[1] = [None,
+                     1.5,
+                     [4.1, 3.1, 0],
+                     [0, 1.1, 2.1],
+                     [2, 1, 0]]
+        df.at[1, 'geometry'] = simple_molecule
         data_coordinator = io.DataCoordinator()
         df_features = bspline_handler.evaluate(df,
                                                data_coordinator,
                                                progress_bar=False)
-        assert len(df_features) == 1 + 3 * 3  # energy and 3 forces per atom
+        assert len(df_features) == 2 + 6 * 3  # energy and 3 forces per atom
         assert len(df_features.columns) == 1 + 23 + 1
         x, y, w = bspline_handler.get_training_tuples(df_features,
                                                       0.5,
                                                       data_coordinator)
-        assert x.shape == (1 + 3 * 3, 23 + 1)
-        assert np.allclose(y, [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
+        assert x.shape == (2 + 6 * 3, 23 + 1)
+        assert np.allclose(y[:10], [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
 
     def test_evaluate_binary(self, water_chemistry, simple_water):
         bspline_config = bspline.BSplineConfig(water_chemistry)
@@ -126,18 +132,24 @@ class TestBasis:
                      [0, 1, 2],
                      [2, 1, 0]]
         df.at[0, 'geometry'] = simple_water
+        df.loc[1] = [None,
+                     1.5,
+                     [4.1, 3.1, 0],
+                     [0, 1.1, 2.1],
+                     [2, 1, 0]]
+        df.at[1, 'geometry'] = simple_water
         data_coordinator = io.DataCoordinator()
         df_feats = bspline_handler.evaluate(df,
                                             data_coordinator,
                                             progress_bar=False)
-        assert len(df_feats) == 1 + 3 * 3  # energy and 3 forces per atom
+        assert len(df_feats) == 2 * (1 + 3 * 3)  # energy and 3 forces per atom
         assert len(df_feats.columns) == 1 + 23 * 3 + 2
         # energy, 23 features per interaction, two 1-body terms
         x, y, w = bspline_handler.get_training_tuples(df_feats,
                                                       0.5,
                                                       data_coordinator)
-        assert x.shape == (1 + 3 * 3, 23 * 3 + 2)
-        assert np.allclose(y, [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
+        assert x.shape == (2 + 6 * 3, 23 * 3 + 2)
+        assert np.allclose(y[:10], [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
 
 
 def test_flatten_by_interactions():
