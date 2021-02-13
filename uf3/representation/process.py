@@ -274,10 +274,12 @@ class BasisProcessor:
         else:
             supercell = geom
         if energy is not None:  # compute energy features
-            vector = self.featurize_energy_2B(geom, supercell)
+            vector_1B = self.chemical_system.get_composition_tuple(geom)
+            vector_2B = self.featurize_energy_2B(geom, supercell)
+            vector = np.concatenate([vector_1B, vector_2B])
             if self.degree > 2:
-                trio_vector = self.featurize_energy_3B(geom, supercell)
-                vector = np.concatenate([vector, trio_vector])
+                vector_3B = self.featurize_energy_3B(geom, supercell)
+                vector = np.concatenate([vector, vector_3B])
             if name is not None:
                 key = (name, energy_key)
             else:
@@ -312,10 +314,15 @@ class BasisProcessor:
                         key = snapshot_name
                     eval_map[key] = np.insert(vector, 0, energy)
             else:
-                vectors = self.featurize_force_2B(geom, supercell)
+                vectors_1B = np.zeros((len(geom),
+                                       3,
+                                       len(self.element_list)))
+                vectors_2B = self.featurize_force_2B(geom, supercell)
+                vectors = np.concatenate([vectors_1B, vectors_2B],
+                                          axis=2)
                 if self.degree > 2:
-                    trio_vectors = self.featurize_force_3B(geom, supercell)
-                    vectors = np.concatenate([vectors, trio_vectors], axis=2)
+                    vectors_3B = self.featurize_force_3B(geom, supercell)
+                    vectors = np.concatenate([vectors, vectors_3B], axis=2)
                 for j, component in enumerate(['fx', 'fy', 'fz']):
                     for i in range(n_atoms):
                         vector = vectors[i, j, :]
@@ -356,9 +363,7 @@ class BasisProcessor:
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
-        comp = self.chemical_system.get_composition_tuple(geom)
-        vector = np.concatenate([comp, feature_vector])
-        return vector
+        return feature_vector
 
     def featurize_force_2B(self, geom, supercell=None):
         """
@@ -392,10 +397,6 @@ class BasisProcessor:
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
-        comp_array = np.zeros((len(feature_array),
-                              3,
-                              len(self.element_list)))
-        feature_array = np.concatenate([comp_array, feature_array], axis=2)
         return feature_array
 
     def featurize_energy_3B(self, geom, supercell=None):

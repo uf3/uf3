@@ -63,7 +63,7 @@ class TestBasis:
                                          bspline_config)
         vector = bspline_handler.featurize_energy_2B(simple_molecule,
                                                      simple_molecule)
-        assert len(vector) == 23 + 1  # 23 features and one 1-body term
+        assert len(vector) == 23  # 23 features
 
     def test_force_features(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
@@ -71,7 +71,7 @@ class TestBasis:
                                          bspline_config)
         vector = bspline_handler.featurize_force_2B(simple_molecule,
                                                     simple_molecule)
-        assert vector.shape == (3, 3, 24)  # 3 forces per atom
+        assert vector.shape == (3, 3, 23)  # 3 forces per atom
 
     def test_evaluate_single(self, unary_chemistry, simple_molecule):
         bspline_config = bspline.BSplineConfig(unary_chemistry)
