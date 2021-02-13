@@ -444,6 +444,9 @@ def dataframe_to_training_tuples(df_features,
     """
     if kappa < 0 or kappa > 1:
         raise ValueError("Invalid domain for kappa weighting parameter.")
+    if len(df_features) <= 1:
+        raise ValueError(
+            "Not enough samples ({} provided)".format(len(df_features)))
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
     force_mask = np.logical_not(energy_mask)
