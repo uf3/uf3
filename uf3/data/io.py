@@ -1,11 +1,16 @@
 import os
 import re
 import io
+import fnmatch
 import numpy as np
 import pandas as pd
 import ase
 from ase import io as ase_io
+from ase import db as ase_db
+from ase.db import core as db_core
 from ase.io import lammpsrun as ase_lammpsrun
+from ase.calculators import singlepoint
+from uf3.util import subsample
 
 
 class DataCoordinator:
@@ -281,7 +286,18 @@ def parse_trajectory(fname,
         df (pandas.DataFrame): standard dataframe with columns
            [atoms_key, energy_key, fx, fy, fz]
     """
-    geometries = ase_io.read(fname, index=slice(None, None))
+    extension = os.path.splitext(fname)[-1]
+    kws = ['mysql', 'postgres', 'mariadb']
+    if extension in ['.db', '.json'] or any([kw in fname for kw in kws]):
+        # handle differently to retrieve attached names instead of reindexing
+        geometries = read_database(fname, index=slice(None, None))
+        new_index = [geom.info.get('row_name', None) for geom in geometries]
+        index_errors = new_index.count(None)
+        if index_errors > 1:
+            new_index = None
+    else:  # flexible read function for a variety of filetypes
+        geometries = ase_io.read(fname, index=slice(None, None))
+        new_index = None
     if not isinstance(geometries, list):
         geometries = [geometries]
     geometries = update_geometries_from_calc(geometries,
@@ -304,10 +320,39 @@ def parse_trajectory(fname,
                                           scalar_keys=scalar_keys,
                                           array_keys=array_keys,
                                           inplace=True)
-    if prefix is not None:
+    if new_index is not None:
+        df.index = new_index
+        print('Loaded index from existing names.')
+    elif prefix is not None:
         pattern = '{}_{{}}'.format(prefix)
         df = df.rename(pattern.format)
     return df
+
+
+def read_database(filename, index=None, **kwargs):
+    """
+    Args:
+        filename (str)
+        index(slice): Default (None, None, 1)
+
+    Returns:
+        list of ase.Atoms objects from database.
+    """
+    if index is None:
+        index = slice(None, None)
+    db = ase.db.connect(filename, serial=True, **kwargs)
+
+    start, stop, _ = index.indices(db.count())
+    if start == stop:
+        return
+    geometries = []
+    for row in db.select(offset=start, limit=stop - start):
+        geom = row.toatoms(add_additional_information=True)
+        key_value_pairs = dict(geom.info['key_value_pairs'])
+        del geom.info['key_value_pairs']
+        geom.info = {**geom.info, **key_value_pairs}
+        geometries.append(geom)
+    return geometries
 
 
 def parse_lammps_outputs(path,
@@ -638,3 +683,147 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
     snapshots = pd.Series(index=snapshot_index,
                           data=snapshot_contents)
     return snapshots
+
+
+def read_vasp_pressure(path):
+    """Utility for reading external pressure (kbar) from PSTRESS INCAR tag.
+    Used for extracting energy from VASP enthalpy (H = E + PV)"""
+    fname_incar = os.path.join(path, "INCAR")
+    fname_outcar = os.path.join(path, "OUTCAR")
+    fname_vasprun = os.path.join(path, "vasprun.xml")
+
+    pstress = None
+    for fname in [fname_incar, fname_outcar, fname_vasprun]:
+        print(fname)
+        if os.path.isfile(fname):
+            with open(fname, "r") as f:
+                line = f.readline()
+                while line:
+                    if "PSTRESS" in line:
+                        pstress = float(re.sub('[^0-9\.]', '', line))
+                        break
+                    line = f.readline()
+        if isinstance(pstress, float):
+            print("BREAK")
+            break
+    if pstress is None:
+        return 0.0
+    else:
+        external_pressure = pstress * 1e-22 / (1.602176634e-19)
+        return external_pressure
+
+
+def identify_paths(experiment_path=".",
+                   data_filename=None,
+                   filename_pattern=None):
+    """
+    Args:
+        experiment_path (str): directory in which to search, recursively.
+            Default "."
+        data_filename (str): single filename.
+        filename_pattern (str): glob pattern e.g. "*.xyz" to search.
+
+    Returns:
+        data_paths (list)
+    """
+    data_paths = []
+    if data_filename is not None:
+        if os.path.isfile(data_filename):
+            data_paths.append(data_filename)
+        elif os.path.isfile(os.path.join(experiment_path, data_filename)):
+            data_paths.append(data_filename)
+    if filename_pattern is not None:
+        for directory, folders, files in os.walk(experiment_path):
+            for filename in files:
+                 if fnmatch.fnmatch(filename, filename_pattern):
+                    path = os.path.join(directory, filename)
+                    data_paths.append(path)
+    return data_paths
+
+
+def parse_with_subsampling(data_paths,
+                           data_coordinator,
+                           max_samples=100,
+                           min_diff=1e-3,
+                           vasp_pressure=False,
+                           verbose=True):
+    """
+    Args:
+        data_paths (list)
+        data_coordinator (DataCoordinator)
+        max_samples (int): maximum number of samples taken per provided path.
+            Default: 100
+        min_diff (float): minimum energy difference between consecutive samples
+            in eV. Default: 1e-3
+        vasp_pressure (bool): whether to search for pressure and apply an
+            energy correction of Pressure * Volume term (H = E + PV).
+        verbose (bool, int): verbosity level.
+    """
+    common_prefix = os.path.commonprefix(data_paths)
+    common_path = os.path.dirname(common_prefix)
+    counter = 0
+    for data_path in data_paths:
+        prefix = data_path[len(common_path):]
+        prefix = prefix.replace("/", "-")
+        if prefix[0] == "-":
+            prefix = prefix[1:]
+        df = data_coordinator.dataframe_from_trajectory(data_path,
+                                                        prefix=prefix,
+                                                        load=False)
+        energy_list = df['energy'].values
+        subsamples = subsample.farthest_point_sampling(energy_list,
+                                                       max_samples=max_samples,
+                                                       min_diff=min_diff)
+        if verbose >= 2:
+            print("{}/{} samples taken from {}.".format(len(subsamples),
+                                                        len(energy_list),
+                                                        prefix))
+        counter += len(subsamples)
+        if verbose >= 1:
+            print("Total: {} samples parsed.".format(counter))
+        df = df.iloc[np.sort(subsamples)]
+
+        if vasp_pressure:
+            vasp_path = os.path.dirname(data_path)
+            external_pressure = read_vasp_pressure(vasp_path)
+            if external_pressure != 0:
+                volumes = [geom.get_volume() for geom in df['geometry'].values]
+                corrections = np.multiply(volumes, external_pressure)
+                df['energy'] = np.subtract(df['energy'], corrections)
+                if verbose >= 1:
+                    line = "External pressure corrected (P={} kbar)."
+                    print(line.format(external_pressure))
+        data_coordinator.load_dataframe(df, prefix=prefix)
+
+
+def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
+    """
+    Save dataframe from data_coordinator as ase Database.
+
+    Args:
+        data_coordinator (DataCoordinator)
+        filename (str)
+        energy_key (str): column name for energies, default "energy".
+        serial (bool)
+    """
+    append = os.path.isfile(filename)
+
+    df_data = data_coordinator.consolidate()
+    geometries = df_data['geometry']
+
+    with ase_db.connect(filename, append=append, serial=serial) as database:
+        for name, geom in geometries.iteritems():
+            if geom.calc is None:
+                energy = geom.info[energy_key]
+                forces = np.vstack([geom.arrays['fx'],
+                                    geom.arrays['fy'],
+                                    geom.arrays['fz']]).T
+                calc = singlepoint.SinglePointCalculator(geom,
+                                                         energy=energy,
+                                                         forces=forces)
+                geom.calc = calc
+            database.write(geom,
+                           id=None,
+                           key_value_pairs={k: geom.info[k] for k in geom.info
+                                            if k not in db_core.reserved_keys},
+                           row_name=name)
