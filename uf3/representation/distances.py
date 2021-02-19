@@ -463,7 +463,7 @@ def summarize_distances(geometries,
                         n_bins=100,
                         print_stats=True,
                         min_peak_width=0.5,
-                        progressbar=True):
+                        progress_bar=True):
     """
     Construct histogram of distances per pair interaction across
         list of geometries. Useful for optimizing the lower- and upper-
@@ -488,7 +488,7 @@ def summarize_distances(geometries,
     bin_edges = np.linspace(0, r_cut, n_bins + 1)
     histogram_values = {pair: np.zeros(n_bins) for pair in pair_tuples}
     n_entries = len(geometries)
-    if progressbar:
+    if progress_bar:
         iterable = parallel.ProgressBar(geometries)
     else:
         iterable = geometries

@@ -21,7 +21,6 @@ class BasisProcessor:
                  chemical_system,
                  bspline_config,
                  fit_forces=True,
-                 force_size_threshold=None,
                  prefix='ij'):
         """
         Args:
@@ -33,9 +32,6 @@ class BasisProcessor:
         self.chemical_system = chemical_system
         self.bspline_config = bspline_config
         self.fit_forces = fit_forces
-        if force_size_threshold is None:
-            force_size_threshold = np.NaN
-        self.force_size_threshold = force_size_threshold
         self.prefix = prefix
 
         # generate column labels
@@ -152,7 +148,8 @@ class BasisProcessor:
         df_features = self.arrange_features_dataframe(eval_map)
         return df_features
 
-    def evaluate_parallel(self, df_data, data_coordinator, client, n_jobs=2):
+    def evaluate_parallel(self, df_data, data_coordinator,
+            client, n_jobs=2, progress_bar=True):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -182,7 +179,8 @@ class BasisProcessor:
                                             progress_bar=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
-                                                cancel=True)
+                                                cancel=True,
+                                                progress_bar=progress_bar)
         return df_features
 
     def arrange_features_dataframe(self, eval_map):
