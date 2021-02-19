@@ -9,7 +9,7 @@ def dump_interaction_map(interaction_map,
                          write=True):
     """
     Utility function for writing ragged arrays to json file.
-        e.g. {("x", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
+        e.g. {("A", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
 
     Args:
         interaction_map (dict): map of interaction to ragged array
@@ -19,16 +19,17 @@ def dump_interaction_map(interaction_map,
         write (bool): whether to write to file.
     """
     map_copy = {}
-    for key, ragged_array in interaction_map.items():
+    for key, value in interaction_map.items():
         if isinstance(key, tuple):
             key = '-'.join([str(item) for item in key])
             # tuple keys must be converted for json
-        map_copy[key] = []
-        for vector in ragged_array:
-            map_copy[key].append(vector.tolist())
-    text = json.dumps(map_copy,
-                      indent=indent,
-                      cls=CompactJSONEncoder)
+        if isinstance(value, np.ndarray):
+            map_copy[key] = value.tolist()
+        else:
+            map_copy[key] = value
+        text = json.dumps(map_copy,
+                          indent=indent,
+                          cls=CompactJSONEncoder)
     if write:
         with open(filename, 'w') as f:
             f.write(text)
@@ -39,24 +40,28 @@ def dump_interaction_map(interaction_map,
 def load_interaction_map(filename):
     """
     Utility function for reading ragged arrays from json file.
-        e.g. {("x", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
+        e.g. {("A", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
     """
     with open(filename, "r") as f:
         formatted_map = json.load(f)
     interaction_map = {}
-    for key, ragged_array in formatted_map.items():
-        new_key = key.split('-')
-        try:
-            new_key = [int(i) for i in new_key]
-        except ValueError:
-            pass
-        interaction_map[tuple(new_key)] = np.array(ragged_array)
+    for key, value in formatted_map.items():
+        if '-' in key:
+            key = key.split('-')
+            try:
+                key = [int(i) for i in key]
+            except ValueError:
+                pass
+            key = tuple(key)
+        if isinstance(value, list):
+            value = np.array(value)
+        interaction_map[key] = value
     return interaction_map
 
 
 class CompactJSONEncoder(json.JSONEncoder):
     """
-    x JSON Encoder that formats vectors into single lines.
+    A JSON Encoder that formats vectors into single lines.
 
     Discussion on StackOverflow:
         https://stackoverflow.com/questions/16264515/
