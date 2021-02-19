@@ -17,6 +17,19 @@ class TestBSplineConfig:
         # default 20 intervals yields 23 basis functions
         assert np.allclose(partitions, [2, 23, 23, 23])
 
+    def test_custom_knots(self):
+        element_list = ['Au', 'Ag']
+        chemistry = composition.ChemicalSystem(element_list)
+        knots_map = {('Ag', 'Au'): [1, 1, 1, 1, 1.1, 1.1, 1.1, 1.1]}
+        bspline_handler = BSplineConfig(chemistry,
+                                        knots_map=knots_map)
+        assert bspline_handler.r_min_map[('Ag', 'Au')] == 1.0
+        assert bspline_handler.r_max_map[('Ag', 'Au')] == 1.1
+        assert bspline_handler.resolution_map[('Ag', 'Au')] == 1
+        assert bspline_handler.r_min_map[('Au', 'Au')] == 1.0
+        assert bspline_handler.r_max_map[('Au', 'Au')] == 6.0
+        assert bspline_handler.resolution_map[('Au', 'Au')] == 20
+
     def test_unary(self):
         element_list = ['Au']
         chemistry = composition.ChemicalSystem(element_list)

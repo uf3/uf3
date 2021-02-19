@@ -20,7 +20,8 @@ class BSplineConfig:
                  t_min_map=None,
                  t_max_map=None,
                  resolution_map=None,
-                 knot_spacing='lammps'):
+                 knot_spacing='lammps',
+                 knots_map=None):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
@@ -41,8 +42,14 @@ class BSplineConfig:
                 body interactions and 3 for three-body interactions.
             knot_spacing (str): "lammps" for knot spacing by r^2
                 or "linear" for uniform spacing.
+            knots_map (dict): pre-generated map of knots.
+                Overrides other settings.
         """
         self.chemical_system = chemical_system
+        self.knot_spacing = knot_spacing
+        self.knots_map = {}
+        self.knot_subintervals = {}
+        self.basis_functions = {}
         # ij interactions
         if r_min_map is None:
             r_min_map = {}
@@ -60,6 +67,22 @@ class BSplineConfig:
         if resolution_map is None:
             resolution_map = {}
         self.resolution_map = resolution_map
+        # Pregenerated knots_map
+        if knots_map is not None:
+            for pair in self.interactions_map.get(2, []):
+                if pair in knots_map:
+                    knot_sequence = knots_map[pair]
+                    self.knots_map[pair] = knot_sequence
+                    self.r_min_map[pair] = knot_sequence[0]
+                    self.r_max_map[pair] = knot_sequence[-1]
+                    self.resolution_map[pair] = len(knot_sequence) - 7
+            for trio in self.interactions_map.get(3, []):
+                if trio in knots_map:
+                    knot_sequence = knots_map[trio]
+                    self.knots_map[trio] = knot_sequence
+                    self.t_min_map[trio] = knot_sequence[0]
+                    self.t_max_map[trio] = knot_sequence[-1]
+                    self.resolution_map[trio] = len(knot_sequence) - 7
         # Default values
         for pair in self.interactions_map.get(2, []):
             self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
@@ -69,35 +92,35 @@ class BSplineConfig:
             self.t_min_map[trio] = self.t_min_map.get(trio, 1.0)
             self.t_max_map[trio] = self.t_max_map.get(trio, 6.0)
             self.resolution_map[trio] = self.resolution_map.get(trio, 5)
-        self.knot_spacing = knot_spacing
-        if knot_spacing == 'lammps':
+        if self.knot_spacing == 'lammps':
             knot_function = knots.generate_lammps_knots
-        elif knot_spacing == 'linear':
+        elif self.knot_spacing == 'linear':
             knot_function = knots.generate_uniform_knots
+        elif self.knot_spacing == 'custom':
+            pass
         else:
             raise ValueError('Invalid value of knot_spacing:', knot_spacing)
         # supercell cutoff
-        self.r_cut = max(list(self.r_max_map.values()))
-        # compute knots
-        self.knots_map = {}
-        self.knot_subintervals = {}
-        self.basis_functions = {}
+        self.r_cut = max(list(self.r_max_map.values())
+                         + list(self.t_max_map.values()))
+        # Generate subintervals and basis functions
         for pair in self.interactions_map.get(2, []):
-            r_min = self.r_min_map[pair]
-            r_max = self.r_max_map[pair]
-            n_intervals = self.resolution_map[pair]
-            self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
+            if pair not in self.knots_map:  # compute knots if not provided
+                r_min = self.r_min_map[pair]
+                r_max = self.r_max_map[pair]
+                n_intervals = self.resolution_map[pair]
+                self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
             subintervals = knots.get_knot_subintervals(self.knots_map[pair])
             self.knot_subintervals[pair] = subintervals
             self.basis_functions[pair] = generate_basis_functions(subintervals)
-        # self.knot_subintervals = {pair: knots.get_knot_subintervals(knot_seq)
-        #                           for pair, knot_seq
-        #                           in self.knots_map.items()}
         for trio in self.interactions_map.get(3, []):
-            r_min = self.t_min_map[trio]
-            r_max = self.t_max_map[trio]
-            r_resolution = self.resolution_map[trio]
-            self.knots_map[trio] = knot_function(r_min, r_max, r_resolution)
+            if trio not in self.knots_map:
+                r_min = self.t_min_map[trio]
+                r_max = self.t_max_map[trio]
+                r_resolution = self.resolution_map[trio]
+                self.knots_map[trio] = knot_function(r_min,
+                                                     r_max,
+                                                     r_resolution)
             subintervals = knots.get_knot_subintervals(self.knots_map[trio])
             self.knot_subintervals[trio] = subintervals
             self.basis_functions[trio] = generate_basis_functions(subintervals)

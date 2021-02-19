@@ -1,4 +1,6 @@
 import numpy as np
+from uf3.data import composition
+from uf3.util import json_io
 
 
 def knot_sequence_from_points(knot_points):
@@ -78,3 +80,26 @@ def generate_lammps_knots(r_min, r_max, n_intervals, sequence=True):
     if sequence:
         knots = knot_sequence_from_points(knots)
     return knots
+
+
+def parse_knots_file(filename, chemical_system):
+    """
+    Args:
+        filename (str)
+        chemical_system (composition.ChemicalSystem)
+
+    Returns:
+        knots_map (dict): map of knots per chemical interaction.
+    """
+    json_data = json_io.load_interaction_map(filename)
+    knots_map = {}
+    for d in range(2, chemical_system.degree + 1):
+        for interaction in chemical_system.interactions_map[d]:
+            if interaction in json_data:
+                array = json_data[interaction]
+                conditions = [np.ptp(array[:4]) == 0,
+                              np.ptp(array[-4:]) == 0,
+                              np.all(np.gradient(array) >= 0)]
+                if all(conditions):
+                    knots_map[interaction] = array
+    return knots_map
