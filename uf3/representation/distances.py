@@ -4,6 +4,7 @@ from scipy import signal
 import ase
 from numba import jit
 from uf3.data import geometry
+from uf3.util import parallel
 
 
 def get_unit_cell_distances(geom,
@@ -461,7 +462,8 @@ def summarize_distances(geometries,
                         r_cut=12,
                         n_bins=100,
                         print_stats=True,
-                        min_peak_width=0.5):
+                        min_peak_width=0.5,
+                        progressbar=True):
     """
     Construct histogram of distances per pair interaction across
         list of geometries. Useful for optimizing the lower- and upper-
@@ -486,7 +488,11 @@ def summarize_distances(geometries,
     bin_edges = np.linspace(0, r_cut, n_bins + 1)
     histogram_values = {pair: np.zeros(n_bins) for pair in pair_tuples}
     n_entries = len(geometries)
-    for geom in geometries:
+    if progressbar:
+        iterable = parallel.ProgressBar(geometries)
+    else:
+        iterable = geometries
+    for geom in iterable:
         if any(geom.pbc):
             supercell = geometry.get_supercell(geom, r_cut=r_cut)
             density = len(geom) / geom.get_volume()
