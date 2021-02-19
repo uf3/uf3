@@ -714,24 +714,24 @@ def read_vasp_pressure(path):
 
 
 def identify_paths(experiment_path=".",
-                   data_filename=None,
+                   filename=None,
                    filename_pattern=None):
     """
     Args:
         experiment_path (str): directory in which to search, recursively.
             Default "."
-        data_filename (str): single filename.
+        filename (str): single filename.
         filename_pattern (str): glob pattern e.g. "*.xyz" to search.
 
     Returns:
         data_paths (list)
     """
     data_paths = []
-    if data_filename is not None:
-        if os.path.isfile(data_filename):
-            data_paths.append(data_filename)
-        elif os.path.isfile(os.path.join(experiment_path, data_filename)):
-            data_paths.append(data_filename)
+    if filename is not None:
+        if os.path.isfile(filename):
+            data_paths.append(filename)
+        elif os.path.isfile(os.path.join(experiment_path, filename)):
+            data_paths.append(filename)
     if filename_pattern is not None:
         for directory, folders, files in os.walk(experiment_path):
             for filename in files:
