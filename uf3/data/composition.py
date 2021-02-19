@@ -18,7 +18,8 @@ class ChemicalSystem:
             degree (int): handle N-body interactions
                 e.g. 2 to fit pair potentials.
         """
-        numbers = {el: ase_symbols.symbols2numbers(el) for el in element_list}
+        numbers = {el: ase_symbols.symbols2numbers(el).pop()
+                   for el in element_list}
         self.element_list = sorted(element_list, key=lambda el: numbers[el])
         self.numbers = [numbers[el] for el in self.element_list]
         self.degree = degree
