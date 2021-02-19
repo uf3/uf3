@@ -1,5 +1,6 @@
 import numpy as np
 import ase
+from scipy import linalg
 
 
 def get_supercell(geometry, r_cut=10, sort_indices=False):
@@ -76,7 +77,7 @@ def get_supercell_factors(cell, r_cut):
     projected_vectors = [n * np.dot(v, n) / np.dot(n, n)
                          for v, n in zip([a, b, c],
                                          normal_vectors)]
-    supercell_factors = [r_cut / np.linalg.norm(p) for p in projected_vectors]
+    supercell_factors = [r_cut / linalg.norm(p) for p in projected_vectors]
     supercell_factors = np.ceil(supercell_factors)
     return supercell_factors
 
@@ -111,7 +112,7 @@ def sort_image_indices(a_indices,
                      for a_idx, b_idx, c_idx
                      in zip(a_grid, b_grid, c_grid)]
     img_centroids = np.array(img_centroids)
-    centroid_distances = np.linalg.norm(img_centroids, axis=1)
+    centroid_distances = linalg.norm(img_centroids, axis=1)
     centroid_sort = np.argsort(centroid_distances)
     a_grid = a_grid[centroid_sort]
     b_grid = b_grid[centroid_sort]

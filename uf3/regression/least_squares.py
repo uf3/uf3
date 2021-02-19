@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn import model_selection
 from uf3.regression import regularize
+from scipy import linalg
 
 
 DEFAULT_REGULARIZER_GRID = dict(ridge_1b=[1e-3],
@@ -196,9 +197,9 @@ def linear_least_squares(x, y):
     Returns:
         solution (np.ndarray): coefficients.
     """
-    xTx = np.dot(x.T, x)
-    xTx_inv = np.linalg.inv(xTx)
-    solution = np.dot(np.dot(xTx_inv, x.T), y)
+    gram_matrix = np.dot(x.T, x)
+    gram_inverse = linalg.inv(gram_matrix)
+    solution = np.dot(np.dot(gram_inverse, x.T), y)
     return solution
 
 

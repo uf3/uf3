@@ -43,7 +43,7 @@ class TestGeometry:
         centroids = []
         for a_idx, b_idx, c_idx in zip(a_grid, b_grid, c_grid):
             centroids.append(np.dot([a_idx, b_idx, c_idx], cell))
-        distances = np.linalg.norm(centroids, axis=1)
+        distances = linalg.norm(centroids, axis=1)
         gradient = np.gradient(distances)
         assert np.min(gradient) >= 0
 
