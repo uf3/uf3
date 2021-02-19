@@ -257,7 +257,17 @@ class BasisProcessor:
         """
         eval_map = {}
         n_atoms = len(geom)
-        if any(geom.pbc):
+        symbols = set(geom.get_chemical_symbols())
+        # check for undefined elements
+        invalid_set = symbols.difference(self.element_list)
+        if len(invalid_set) > 0:
+            invalid_set = ', '.join(invalid_set)
+            warning_str = "Invalid elements: {}".format(invalid_set)
+            if name is not None:
+                warning_str += " in configuration "+name
+            warnings.warn(warning_str, RuntimeWarning)
+            return dict()
+        if any(geom.pbc):  # generate supercell if necessary
             supercell = geometry.get_supercell(geom, r_cut=self.r_cut)
         else:
             supercell = geom
