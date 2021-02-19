@@ -1,9 +1,7 @@
 import warnings
-
+import sqlite3
 import numpy as np
 import pandas as pd
-
-from uf3.representation import knots
 from uf3.representation import distances
 from uf3.representation import angles
 from uf3.representation.bspline import evaluate_basis_functions
@@ -387,6 +385,39 @@ class BasisProcessor:
         values = np.array([[grid.flatten() for grid in atom_set]
                            for atom_set in values])
         return values
+
+
+def save_feature_db(dataframe, filename, table_name='features', chunksize=100):
+    """
+    Save dataframe with sqlite.
+
+    Args:
+        dataframe (pd.DataFrame)
+        filename (str)
+        table_name (str): default "features".
+        chunksize (int): default 100.
+    """
+    conn = sqlite3.connect(filename)
+    dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
+    conn.close()
+
+
+def load_feature_db(filename, table_name='features'):
+    """
+    Load dataframe with sqlite.
+
+    Args:
+        filename (str)
+        table_name (str): default "features".
+
+    Returns:
+        dataframe (pd.DataFrame)
+    """
+    conn = sqlite3.connect(filename)
+    dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
+    dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
+    conn.close()
+    return dataframe
 
 
 def dataframe_to_training_tuples(df_features,
