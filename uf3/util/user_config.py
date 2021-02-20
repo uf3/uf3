@@ -44,7 +44,7 @@ def read_config(settings_filename):
             if type_target == bool:  # boolean
                 settings[k] = bool(v)
             if type_target in [float, int]:  # number
-                if type_user in [float, int]:
+                if type_user in [float, int, str]:
                     settings[k] = type_target(v)
             elif type_target in [list, tuple]:  # iterable
                 if type_user in [list, tuple]:

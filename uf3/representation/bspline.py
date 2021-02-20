@@ -138,10 +138,10 @@ class BSplineConfig:
                 individual matrices per n-body interaction.
         """
         for k in kwargs:
-            if "r" in k:
-                ridge_map[int(re.sub('[^0-9]', '', k))] = kwargs[k]
-            elif "c" in k:
-                curvature_map[int(re.sub('[^0-9]', '', k))] = kwargs[k]
+            if k.lower()[0] == 'r':
+                ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
+            elif k.lower()[0] == 'c':
+                curvature_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
         ridge_map = {1: 1e-4, 2: 1e-9, 3: 1e-6, **ridge_map}
         curvature_map = {1: 0.0, 2: 1e-9, 3: 1e-6, **curvature_map}
         # one-body element terms
