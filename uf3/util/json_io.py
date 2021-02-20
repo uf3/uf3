@@ -18,18 +18,10 @@ def dump_interaction_map(interaction_map,
         filename (str): name of file to write.
         write (bool): whether to write to file.
     """
-    map_copy = {}
-    for key, value in interaction_map.items():
-        if isinstance(key, tuple):
-            key = '-'.join([str(item) for item in key])
-            # tuple keys must be converted for json
-        if isinstance(value, np.ndarray):
-            map_copy[key] = value.tolist()
-        else:
-            map_copy[key] = value
-        text = json.dumps(map_copy,
-                          indent=indent,
-                          cls=CompactJSONEncoder)
+    formatted_map = encode_interaction_map(interaction_map)
+    text = json.dumps(formatted_map,
+                      indent=indent,
+                      cls=CompactJSONEncoder)
     if write:
         with open(filename, 'w') as f:
             f.write(text)
@@ -37,26 +29,47 @@ def dump_interaction_map(interaction_map,
         return text
 
 
+def encode_interaction_map(interaction_map):
+    """Recursive function for converting arrays to lists and
+    tuples into dash-joined keys for JSON serialization."""
+    encoded_map = {}
+    for key, value in interaction_map.items():
+        if isinstance(value, np.ndarray):  # array to list
+            value = value.tolist()
+        elif isinstance(value, dict):
+            value = encode_interaction_map(value)
+        if isinstance(key, tuple):  # tuple to joined str
+            key = '-'.join([str(item) for item in key])
+        encoded_map[key] = value
+    return encoded_map
+
+
 def load_interaction_map(filename):
-    """
-    Utility function for reading ragged arrays from json file.
-        e.g. {("A", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
-    """
+    """Parse interaction map(s) from JSON."""
     with open(filename, "r") as f:
         formatted_map = json.load(f)
-    interaction_map = {}
+    interaction_map = decode_interaction_map(formatted_map)
+    return interaction_map
+
+
+def decode_interaction_map(formatted_map):
+    """Recursive function for converting lists to arrays and
+    dash-joined keys into tuples for JSON deserialization."""
+    decoded_map = {}
     for key, value in formatted_map.items():
-        if '-' in key:
+        if isinstance(value, list):  # list to array
+            value = np.array(value)
+        elif isinstance(value, dict):
+            value = decode_interaction_map(value)
+        if '-' in key:  # joined str to tuple
             key = key.split('-')
             try:
                 key = [int(i) for i in key]
             except ValueError:
                 pass
             key = tuple(key)
-        if isinstance(value, list):
-            value = np.array(value)
-        interaction_map[key] = value
-    return interaction_map
+        decoded_map[key] = value
+    return decoded_map
 
 
 class CompactJSONEncoder(json.JSONEncoder):
