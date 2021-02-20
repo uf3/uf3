@@ -1,6 +1,7 @@
 import numpy as np
-from sklearn import model_selection
 from scipy import linalg
+from sklearn import model_selection
+from uf3.representation import bspline
 
 
 DEFAULT_REGULARIZER_GRID = dict(ridge_1b=[1e-3],
@@ -297,6 +298,29 @@ def preprocess_fixed_coefficients(x,
     x = x[:, mask]
     y = np.subtract(y, np.dot(x_fixed, fixed_coefficients))
     return x, y, mask
+
+
+def arrange_coefficients(coefficients, bspline_config):
+    """
+
+    Args:
+        coefficients (np.ndarray): Flattened vector of coefficients.
+            Partitioned by provided bspline_config per degree.
+        bspline_config (bspline.BSplineConfig)
+
+    Returns:
+        solutions (dict): fit coefficients per degree.
+    """
+    split_indices = np.cumsum(bspline_config.partition_sizes)[:-1]
+    solutions_list = np.array_split(coefficients,
+                                    split_indices)
+    solutions = {element: value for element, value
+                 in zip(bspline_config.element_list, solutions_list[0])}
+    for d in range(2, bspline_config.degree + 1):
+        interactions_map = bspline_config.interactions_map[d]
+        for i, interaction in enumerate(interactions_map):
+            solutions[interaction] = solutions_list[i + 1]
+    return solutions
 
   
 def postprocess_coefficients(coefficients, core_hardness=1.1):
