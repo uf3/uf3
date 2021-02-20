@@ -5,6 +5,7 @@ from scipy import interpolate
 from uf3.representation import knots
 from uf3.regression import regularize
 
+
 class BSplineConfig:
     """
     -Manage knot resolutions and cutoffs

@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn import model_selection
-from uf3.regression import regularize
 from scipy import linalg
 
 

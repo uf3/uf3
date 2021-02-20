@@ -305,7 +305,7 @@ class BasisProcessor:
 
     def featurize_energy_2B(self, geom, supercell=None):
         """
-        Generate feature vector for learning energy of one configuration.
+        Generate 2B feature vector for learning energy of one configuration.
 
         Args:
             geom (ase.Atoms): unit cell or configuration of interest.
@@ -335,7 +335,7 @@ class BasisProcessor:
 
     def featurize_force_2B(self, geom, supercell=None):
         """
-        Generate feature vectors for learning forces of one configuration.
+        Generate 2B feature vectors for learning forces of one configuration.
         Args:
             geom (ase.Atoms): unit cell or configuration of interest.
             supercell (ase.Atoms): optional ase.Atoms output of get_supercell
@@ -368,6 +368,17 @@ class BasisProcessor:
         return feature_array
 
     def featurize_energy_3B(self, geom, supercell=None):
+        """
+        Generate 3B feature vector for learning energy of one configuration.
+
+        Args:
+            geom (ase.Atoms): unit cell or configuration of interest.
+            supercell (ase.Atoms): optional ase.Atoms output of get_supercell
+                used to account for atoms in periodic images.
+
+        Returns:
+            vector (np.ndarray): vector of features.
+        """
         if supercell is None:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent
@@ -381,6 +392,18 @@ class BasisProcessor:
 
 
     def featurize_force_3B(self, geom, supercell=None):
+        """
+        Generate 3B feature vectors for learning forces of one configuration.
+
+        Args:
+            geom (ase.Atoms): unit cell or configuration of interest.
+            supercell (ase.Atoms): optional ase.Atoms output of get_supercell
+                used to account for atoms in periodic images.
+
+        Returns:
+            feature_array (np.ndarray): feature vectors arranged in
+                array of shape (n_atoms, n_force_components, n_features).
+        """
         if supercell is None:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent

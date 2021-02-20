@@ -2,7 +2,7 @@ import numpy as np
 from scipy import spatial
 from scipy import signal
 import ase
-from numba import jit
+from ase import symbols as ase_symbols
 from uf3.data import geometry
 from uf3.util import parallel
 
@@ -99,7 +99,7 @@ def partition_distances_by_comp(distance_matrix, pair_tuples,
         # loop through interactions
         r_min = r_min_map[pair]
         r_max = r_max_map[pair]
-        pair_numbers = ase.symbols.symbols2numbers(pair)
+        pair_numbers = ase_symbols.symbols2numbers(pair)
         comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                     geo_composition,
                                                     sup_composition)
@@ -372,55 +372,6 @@ def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
     return distances
 
 
-# @jit(nopython=True, cache=True)
-# def compute_drij_dR(sup_positions,
-#                     distance_matrix,
-#                     i_where,
-#                     j_where,
-#                     n_atoms):
-#     """
-#     Intermediate function for computing derivatives for forces.
-#
-#     Args:
-#         sup_positions: atom positions in supercell.
-#         distance_matrix: output of spatial.distance.cdist(sup_positions,
-#             sup_positions).
-#         i_where: indices of i-th atom based on distance mask.
-#         j_where: indices of j-th atom based on distance mask.
-#         n_atoms: number of atoms in original unit cell.
-#
-#     Returns:
-#         drij_dR: np.ndarray of shape (n_atoms, 3, n_distances)
-#             and the second dimension corresponds to x, y, and z directions.
-#             Used to evaluate forces.
-#     """
-#     m_range = np.arange(n_atoms)
-#     n_dists = len(i_where)
-#     im = np.zeros((n_atoms, n_dists))
-#     jm = np.zeros((n_atoms, n_dists))
-#
-#     for i in m_range:
-#         for j in range(n_dists):
-#             if m_range[i] == i_where[j]:
-#                 im[i, j] = 1
-#             if m_range[j] == j_where[j]:
-#                 jm[i, j] = 1
-#     kronecker = jm - im  # n_atoms x n_distances
-#     kronecker = np.expand_dims(kronecker, 1)
-#
-#     delta_r = sup_positions[j_where, :] - sup_positions[i_where, :]
-#     delta_r = np.expand_dims(delta_r.T, 0)
-#     # n_distances x 3
-#     rij = np.zeros(n_dists)
-#     for idx in range(n_dists):
-#         rij[idx] = distance_matrix[i_where[idx], j_where[idx]]
-#     # rij = distance_matrix[i_where, j_where]  # n_distances
-#     rij = np.expand_dims(np.expand_dims(rij, 0), 0)
-#
-#     drij_dr = kronecker * delta_r / rij
-#     return drij_dr
-
-
 def compute_direction_cosines(sup_positions,
                               distance_matrix,
                               i_where,
@@ -477,6 +428,7 @@ def summarize_distances(geometries,
         print_stats (bool): print minimum distance and identified peaks.
         min_peak_width (float): minimum peak with in angstroms for
             peak-finding algorithm.
+        progress_bar (bool): whether to display progress bar.
 
     Returns:
         histogram_map (dict): for each interaction key (A-A, A-B, ...),
@@ -504,7 +456,7 @@ def summarize_distances(geometries,
         sup_composition = np.array(supercell.get_atomic_numbers())
         # loop through interactions
         for pair in pair_tuples:
-            pair_numbers = ase.symbols.symbols2numbers(pair)
+            pair_numbers = ase_symbols.symbols2numbers(pair)
             comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                         geo_composition,
                                                         sup_composition)

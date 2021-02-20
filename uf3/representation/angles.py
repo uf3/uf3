@@ -1,13 +1,8 @@
-import warnings
-import itertools
 import numpy as np
-import ase
 from numba import jit
-from uf3.representation import knots
 from uf3.representation import bspline
 from uf3.representation import distances
 from scipy.spatial import distance
-from scipy import interpolate
 
 
 # def mask_matrix_by_trio_interaction(tuples_idx,
@@ -35,6 +30,7 @@ def get_energy_3B(grid,
                   supercell,
                   knot_sequence,
                   basis_functions):
+    """Evaluate energy contribution from 3B term."""
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
     ext_positions = supercell.get_positions()
@@ -68,6 +64,7 @@ def get_forces_3B(grid,
                   supercell,
                   knot_sequence,
                   basis_functions):
+    """Evaluate force contributions from 3B term."""
     n_atoms = len(geom)
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
@@ -121,6 +118,7 @@ def get_forces_3B(grid,
 
 @jit(nopython=True, nogil=True)
 def evaluate_3b(triangle_values, idx_lmn, grid):
+    """Evaluate energy contribution from 3B term."""
     # multiply spline values and arrange in 3D grid
     energy = 0.0
     n_values = len(triangle_values)
@@ -147,6 +145,7 @@ def evaluate_deriv_3b(triangle_values,
                       drik_dr,
                       drjk_dr,
                       grid):
+    """Evaluate force contributions from 3B term."""
     # multiply spline values and arrange in 3D grid
     n_atoms = len(drij_dr)
     forces = np.zeros((n_atoms, 3))
@@ -176,6 +175,16 @@ def evaluate_deriv_3b(triangle_values,
 
 
 def featurize_energy_3B(geom, supercell, knot_sequence, basis_functions):
+    """
+    Args:
+        geom (ase.Atoms)
+        supercell (ase.Atoms)
+        knot_sequence (np.ndarray)
+        basis_functions (list): list of callable basis functions.
+
+    Returns:
+        grid_3b (np.ndarray)
+    """
     # identify pairs
     dist_matrix, i_where, j_where = identify_ij(geom,
                                                 knot_sequence,
@@ -202,6 +211,15 @@ def featurize_energy_3B(geom, supercell, knot_sequence, basis_functions):
 
 @jit(nopython=True, nogil=True)
 def arrange_3B(triangle_values, idx_lmn, L):
+    """
+    Args:
+        triangle_values (np.ndarray): array of shape (n_triangles * 4, 3)
+        idx_lmn (np.ndarray): array of shape (n_triangles * 4, 3)
+        L (int): number of basis functions.
+
+    Returns:
+        grid (np.ndarray)
+    """
     # multiply spline values and arrange in 3D grid
     M = L
     N = L
@@ -224,6 +242,20 @@ def arrange_3B(triangle_values, idx_lmn, L):
 
 def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions,
                        batch_size=10000):
+    """
+    Args:
+        geom (ase.Atoms)
+        sup_geometry (ase.Atoms)
+        knot_sequence (np.ndarray)
+        basis_functions (list): list of callable basis functions.
+        batch_size (int): Batching operations by triangles for improved speed
+            and memory consumption. Default 10000.
+
+    Returns:
+        grid_3b (list): array-like list of shape
+            (n_atoms, 3, n_basis_functions) where 3 refers to the three
+            cartesian directions x, y, and z.
+    """
     n_atoms = len(geom)
     L = len(knot_sequence) - 4
     coords, matrix, x_where, y_where = identify_ij_supercell(geom,
@@ -276,10 +308,10 @@ def featurize_force_3B(geom, sup_geometry, knot_sequence, basis_functions,
         for a in range(n_atoms):
             for c in range(3):
                 force_grids[a][c] += grids[a][c]
-    grid_3b = [[symmetrize_3B(cart_grid)
-                for cart_grid in atom_grid]
-               for atom_grid in force_grids]  # enforce symmetry
-    return grid_3b
+    force_grids = [[symmetrize_3B(cart_grid)
+                    for cart_grid in atom_grid]
+                   for atom_grid in force_grids]  # enforce symmetry
+    return force_grids
 
 
 @jit(nopython=True, nogil=True)
@@ -289,6 +321,19 @@ def spline_deriv_3b(triangle_values,
                     drik_dr,
                     drjk_dr,
                     L):
+    """
+    Args:
+        triangle_values (np.ndarray): array of shape (n_triangles * 4, 3)
+        idx_lmn (np.ndarray): array of shape (n_triangles * 4, 3)
+        dr{ij, ik, jk}_dr (np.ndarray): direction-cosine arrays of shape
+            (n_atoms, 3, n_triangles).
+        L (int): number of basis functions.
+
+    Returns:
+        force_grids (list): array-like list of shape
+            (n_atoms, 3, n_basis_functions) where 3 refers to the three
+            cartesian directions x, y, and z.
+    """
     # multiply spline values and arrange in 3D grid
     M = L
     N = L
@@ -323,13 +368,26 @@ def spline_deriv_3b(triangle_values,
 
 
 def identify_ij(geom, knot_sequence, supercell):
+    """
+    Args:
+        geom (ase.Atoms)
+        knot_sequence (np.ndarray)
+        supercell (ase.Atoms)
+
+    Returns:
+        dist_matrix (np.ndarray): rectangular matrix of shape
+            (n_atoms, n_supercell) where n_supercell is the number of
+            atoms within the cutoff distance of any in-unit-cell atom.
+        {i, j}_where (np.ndarray): unsorted list of atom indices
+            over which to loop to obtain valid pair distances.
+    """
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
     sup_positions = supercell.get_positions()
     geo_positions = geom.get_positions()
     # mask atoms that aren't close to any unit-cell atom
     dist_matrix = distance.cdist(geo_positions, sup_positions)
-    cutoff_mask = dist_matrix < r_max
+    cutoff_mask = dist_matrix < r_max  # ignore atoms without in-cell neighbors
     cutoff_mask = np.any(cutoff_mask, axis=0)
     sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
     # enforce distance cutoffs
@@ -342,6 +400,7 @@ def identify_ij(geom, knot_sequence, supercell):
 
 
 def identify_ij_supercell(geom, sup_geometry, knot_sequence):
+    """Copy of identify_ij() that produces a square distance matrix instead."""
     r_min = np.min(knot_sequence)
     r_max = np.max(knot_sequence)
     sup_positions = sup_geometry.get_positions()
@@ -359,7 +418,7 @@ def identify_ij_supercell(geom, sup_geometry, knot_sequence):
 
 
 def sort_pairs(x_where, y_where):
-    # find pairs, i < j
+    """Sort atom indices from identify_ij() such that i < j."""
     idx_stacked = np.vstack((x_where, y_where)).T
     lower_where = np.min(idx_stacked, axis=1)
     upper_where = np.max(idx_stacked, axis=1)
@@ -370,6 +429,16 @@ def sort_pairs(x_where, y_where):
 
 
 def generate_triplets(lower_where, upper_where):
+    """
+    Identify unique "i-j-j'" tuples by combining provided i-j pairs.
+
+    Args:
+        lower_where (np.ndarray): sorted "i" indices
+        upper_where (np.ndarray): sorted "j" indices
+
+    Returns:
+        tuples_idx (np.ndarray): array of shape (n_triangles, 3)
+    """
     # find unique values of i (sorted such that i < j)
     i_values, group_sizes = np.unique(lower_where, return_counts=True)
     # group j by values of i
@@ -390,16 +459,30 @@ def generate_triplets(lower_where, upper_where):
     return tuples_idx
 
 
-def get_triplet_distances(ext_distances, tuples, knot_sequence):
-    # tuple_mask = np.logical_and.reduce([tuples[:, 0] < tuples[:, 1],
-    #                                     tuples[:, 1] < tuples[:, 2]])
+def get_triplet_distances(distance_matrix, tuples, knot_sequence):
+    """
+    Identify i-j, i-k, and j-k pair distances from i-j-k tuples,
+        distance matrix, and knot sequence for cutoffs.
+
+    Args:
+        distance_matrix (np.ndarray)
+        tuples (np.ndarray): array of shape (n_triangles, 3)
+        knot_sequence (np.ndarray)
+
+    Returns:
+        r_l (np.ndarray): vector of i-j distances.
+        r_m (np.ndarray): vector of i-k distances.
+        r_n (np.ndarray): vector of j-k distances.
+        tuple_mask (np.ndarray): array of shape (n_triangles, 3)
+            where triangles outside of cutoffs are ignored.
+    """
     tuple_mask = (tuples[:, 1] < tuples[:, 2])
     tuples = tuples[tuple_mask]
     # extract distance tuples
-    r_l = ext_distances[tuples[:, 0], tuples[:, 1]]
-    r_m = ext_distances[tuples[:, 0], tuples[:, 2]]
-    r_n = ext_distances[tuples[:, 1], tuples[:, 2]]
-    # mask by longest distance (hotfix)
+    r_l = distance_matrix[tuples[:, 0], tuples[:, 1]]
+    r_m = distance_matrix[tuples[:, 0], tuples[:, 2]]
+    r_n = distance_matrix[tuples[:, 1], tuples[:, 2]]
+    # mask by longest distance
     mask = (r_n > knot_sequence[0]) & (r_n < knot_sequence[-1])
     r_l = r_l[mask]
     r_m = r_m[mask]
@@ -412,14 +495,15 @@ def evaluate_triplet_distances(r_l, r_m, r_n, basis_functions, knot_sequence):
     Identify non-zero basis functions for each point and call functions.
 
     Args:
-        r_l (np.ndarray):
-        r_m (np.ndarray):
-        r_n (np.ndarray):
-        basis_functions:
-        knot_sequence:
+        r_l (np.ndarray): vector of i-j distances.
+        r_m (np.ndarray): vector of i-k distances.
+        r_n (np.ndarray): vector of j-k distances.
+        basis_functions (list): list of callable basis functions.
+        knot_sequence (np.ndarray)
 
     Returns:
-
+        tuples_3b (np.ndarray):
+        idx_lmn (np.ndarray):
     """
     l_knots = knot_sequence
     m_knots = knot_sequence
@@ -455,14 +539,15 @@ def evaluate_triplet_derivs(r_l, r_m, r_n, basis_functions, knot_sequence):
     Identify non-zero basis functions for each point and call functions.
 
     Args:
-        r_l (np.ndarray):
-        r_m (np.ndarray):
-        r_n (np.ndarray):
-        basis_functions:
-        knot_sequence:
+        r_l (np.ndarray): vector of i-j distances.
+        r_m (np.ndarray): vector of i-k distances.
+        r_n (np.ndarray): vector of j-k distances.
+        basis_functions (list): list of callable basis functions.
+        knot_sequence (np.ndarray)
 
     Returns:
-
+        tuples_3b (np.ndarray):
+        idx_lmn (np.ndarray):
     """
     l_knots = knot_sequence
     m_knots = knot_sequence
@@ -501,7 +586,7 @@ def symmetrize_3B(grid_3b):
         Symmetrize 3D array with three mirror planes, enforcing permutational
             invariance with respect to i, j , and k indices.
             This allows us to avoid sorting, which is slow.
-        """
+    """
     images = [grid_3b,
               grid_3b.transpose(0, 2, 1),
               grid_3b.transpose(1, 0, 2),

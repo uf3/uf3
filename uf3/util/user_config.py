@@ -4,6 +4,7 @@ import yaml
 import uf3
 from ase import symbols as ase_symbols
 
+
 def get_element_tuple(string):
     """
     Args:
