@@ -1,9 +1,113 @@
 import numpy as np
 from scipy import spatial
 from scipy import signal
-
 import ase
+from ase import symbols as ase_symbols
 from uf3.data import geometry
+from uf3.util import parallel
+
+
+def get_unit_cell_distances(geom,
+                            pair_tuples,
+                            r_min_map,
+                            r_max_map,
+                            supercell=None):
+    """
+    Identify pair distances within an entry (or between an entry and its
+    supercell), subject to lower and upper bounds given by r_min_map
+    and r_max_map, per pair interaction e.g. A-A, A-B, B-B, etc.
+
+    Args:
+        geom (ase.Atoms): configuration of interest.
+        pair_tuples (list): list of pair interactions
+            e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
+        r_min_map (dict): map of minimum pair distance per interaction
+            e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
+        r_max_map (dict): map of maximum pair distance per interaction
+        supercell (ase.Atoms): ase.Atoms output of get_supercell
+            used to account for atoms in periodic images.
+
+    Returns:
+        distances_map (dict): for each interaction key (A-A, A-B, ...),
+            flattened np.ndarray of pair distances within range
+            or list of flattened np.ndarray if atomic is True.
+        mask_map (dict): boolean mask per interaction.
+    """
+    distance_matrix = get_distance_matrix(geom, supercell)
+    if supercell is None:
+        supercell = geom
+    geo_composition = np.array(geom.get_atomic_numbers())
+    sup_composition = np.array(supercell.get_atomic_numbers())
+    distances_map, mask_map = partition_distances_by_comp(distance_matrix,
+                                                          pair_tuples,
+                                                          geo_composition,
+                                                          sup_composition,
+                                                          r_max_map,
+                                                          r_min_map)
+    return distance_matrix, distances_map, mask_map
+
+
+def get_supercell_distances(geom,
+                            pair_tuples,
+                            r_min_map,
+                            r_max_map,
+                            supercell=None):
+    """
+    Identify pair distances across a supercell, subject to lower and upper
+        bounds given by r_min_map and r_max_map, per pair interaction
+        e.g. A-A, A-B, B-B, etc.
+
+    Args:
+        geom (ase.Atoms): configuration of interest.
+        pair_tuples (list): list of pair interactions
+            e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
+        r_min_map (dict): map of minimum pair distance per interaction
+            e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
+        r_max_map (dict): map of maximum pair distance per interaction
+        supercell (ase.Atoms): ase.Atoms output of get_supercell
+            used to account for atoms in periodic images.
+
+    Returns:
+        distances_map (dict): for each interaction key (A-A, A-B, ...),
+            flattened np.ndarray of pair distances within range
+            or list of flattened np.ndarray if atomic is True.
+        mask_map (dict): boolean mask per interaction.
+    """
+    if supercell is None:
+        supercell = geom
+    # extract atoms from supercell that are within the maximum
+    # cutoff distance of atoms in the unit cell.
+    r_max = np.max(list(r_max_map.values()))
+    supercell = mask_supercell_with_radius(geom, supercell, r_max)
+    distance_matrix = get_distance_matrix(supercell, supercell)
+    sup_composition = np.array(supercell.get_atomic_numbers())
+    distances_map, mask_map = partition_distances_by_comp(distance_matrix,
+                                                          pair_tuples,
+                                                          sup_composition,
+                                                          sup_composition,
+                                                          r_max_map,
+                                                          r_min_map)
+    return distance_matrix, distances_map, mask_map
+
+
+def partition_distances_by_comp(distance_matrix, pair_tuples,
+                                geo_composition, sup_composition,
+                                r_max_map, r_min_map):
+    distances_map = {}
+    mask_map = {}
+    for pair in pair_tuples:
+        # loop through interactions
+        r_min = r_min_map[pair]
+        r_max = r_max_map[pair]
+        pair_numbers = ase_symbols.symbols2numbers(pair)
+        comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
+                                                    geo_composition,
+                                                    sup_composition)
+        cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
+        interaction_mask = comp_mask & cut_mask
+        mask_map[pair] = interaction_mask
+        distances_map[pair] = distance_matrix[interaction_mask]
+    return distances_map, mask_map
 
 
 def distances_by_interaction(geom,
@@ -114,8 +218,8 @@ def derivatives_by_interaction(geom, supercell, pair_tuples,
         distance_map[pair] = distance_matrix[interaction_mask]
         # corresponding derivatives, flattened
         x_where, y_where = np.where(interaction_mask)
-        drij_dr = compute_drij_dR(sup_positions, distance_matrix,
-                                  x_where, y_where, n_atoms)
+        drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
+                                            x_where, y_where, n_atoms)
         derivative_map[pair] = drij_dr
     return distance_map, derivative_map
 
@@ -240,8 +344,8 @@ def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
 
     i_where, j_where = np.where(cut_mask)
 
-    drij_dr = compute_drij_dR(sup_positions, distance_matrix,
-                              i_where, j_where, n_atoms)
+    drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
+                                        i_where, j_where, n_atoms)
     distances = distance_matrix[cut_mask]
     return distances, drij_dr
 
@@ -268,11 +372,11 @@ def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
     return distances
 
 
-def compute_drij_dR(sup_positions,
-                    distance_matrix,
-                    i_where,
-                    j_where,
-                    n_atoms):
+def compute_direction_cosines(sup_positions,
+                              distance_matrix,
+                              i_where,
+                              j_where,
+                              n_atoms):
     """
     Intermediate function for computing derivatives for forces.
 
@@ -309,7 +413,8 @@ def summarize_distances(geometries,
                         r_cut=12,
                         n_bins=100,
                         print_stats=True,
-                        min_peak_width=0.5):
+                        min_peak_width=0.5,
+                        progress_bar=True):
     """
     Construct histogram of distances per pair interaction across
         list of geometries. Useful for optimizing the lower- and upper-
@@ -323,6 +428,7 @@ def summarize_distances(geometries,
         print_stats (bool): print minimum distance and identified peaks.
         min_peak_width (float): minimum peak with in angstroms for
             peak-finding algorithm.
+        progress_bar (bool): whether to display progress bar.
 
     Returns:
         histogram_map (dict): for each interaction key (A-A, A-B, ...),
@@ -334,7 +440,11 @@ def summarize_distances(geometries,
     bin_edges = np.linspace(0, r_cut, n_bins + 1)
     histogram_values = {pair: np.zeros(n_bins) for pair in pair_tuples}
     n_entries = len(geometries)
-    for geom in geometries:
+    if progress_bar:
+        iterable = parallel.ProgressBar(geometries)
+    else:
+        iterable = geometries
+    for geom in iterable:
         if any(geom.pbc):
             supercell = geometry.get_supercell(geom, r_cut=r_cut)
             density = len(geom) / geom.get_volume()
@@ -346,7 +456,7 @@ def summarize_distances(geometries,
         sup_composition = np.array(supercell.get_atomic_numbers())
         # loop through interactions
         for pair in pair_tuples:
-            pair_numbers = ase.symbols.symbols2numbers(pair)
+            pair_numbers = ase_symbols.symbols2numbers(pair)
             comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                         geo_composition,
                                                         sup_composition)
@@ -361,14 +471,16 @@ def summarize_distances(geometries,
     bin_centers = 0.5 * np.add(bin_edges[:-1], bin_edges[1:])
     bin_span = int(np.ceil(min_peak_width
                            / (bin_edges[1] - bin_edges[0])))
+    lower_bounds = {}
     for pair in pair_tuples:
         histogram_values[pair] /= bin_centers ** 2 * 4 * np.pi
+        lower_bound = bin_edges[np.nonzero(histogram_values[pair])[0][0]]
+        lower_bounds[pair] = lower_bound
         if print_stats:
-            lower_bound = bin_edges[np.nonzero(histogram_values[pair])[0][0]]
             peaks = bin_centers[signal.find_peaks(histogram_values[pair],
                                                   width=bin_span)[0]]
             print(pair, 'Lower bound: {0:.3f} angstroms'.format(lower_bound))
             print(pair,
                   'Peaks (min width {} angstroms):'.format(min_peak_width),
                   peaks)
-    return histogram_values, bin_edges
+    return histogram_values, bin_edges, lower_bounds

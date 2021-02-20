@@ -43,6 +43,25 @@ class TestGeometry:
         centroids = []
         for a_idx, b_idx, c_idx in zip(a_grid, b_grid, c_grid):
             centroids.append(np.dot([a_idx, b_idx, c_idx], cell))
-        distances = np.linalg.norm(centroids, axis=1)
+        distances = linalg.norm(centroids, axis=1)
         gradient = np.gradient(distances)
         assert np.min(gradient) >= 0
+
+    def test_energy_force_augment(self, simple_structure):
+        energy = 1
+        forces = np.array([[0.1, 0.2, 0.3],
+                           [-0.11, -0.22, -0.33]])
+        snapshots, energies = energy_from_force_displacement(simple_structure,
+                                                             energy,
+                                                             forces,
+                                                             d=0.01,
+                                                             random=False)
+        assert len(snapshots) == 6
+        assert len(energies) == 6
+        snapshots, energies = energy_from_force_displacement(simple_structure,
+                                                             energy,
+                                                             forces,
+                                                             d=0.01,
+                                                             n=7)
+        assert len(snapshots) == 7
+        assert len(energies) == 7

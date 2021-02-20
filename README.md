@@ -26,6 +26,11 @@ pip install seekpath
 pip install "phonopy>=2.6.0"
 ```
 
+LAMMPS interface:
+```
+conda install -c anaconda -c conda-forge lammps
+```
+
 ## Basic Usage
 
 ## Citing This Work

@@ -28,6 +28,10 @@ class TestLinearModel:
         assert np.allclose(model.predict(x), y)
         assert model.score(x, y) < 1e-6
 
+    def test_optimize(self):
+        x, y, c = simple_problem(20, 500, seed=0)
+
+
 
 def test_linear_least_squares():
     x, y, c = simple_problem(10, 30, seed=0)

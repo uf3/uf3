@@ -60,12 +60,7 @@ def wait_progress(future_list, timeout=None):
     future_progress = ProgressBar(total=n)
     last = 0
 
-    if isinstance(future_list[0], futures.Future):
-        wait = futures.wait
-    elif isinstance(future_list[0], distributed.Future):
-        wait = distributed.wait
-    else:
-        raise ValueError("Unsupported future type.")
+    wait = select_wait_function(future_list)
 
     while True:
         if timeout is not None and ((time.time() - t0) > timeout):
@@ -82,6 +77,16 @@ def wait_progress(future_list, timeout=None):
         if remain < 1:
             break
     future_progress.close()
+
+
+def select_wait_function(future_list):
+    if isinstance(future_list[0], futures.Future):
+        wait = futures.wait
+    elif USE_DASK and isinstance(future_list[0], distributed.Future):
+        wait = distributed.wait
+    else:
+        raise ValueError("Unsupported future type.")
+    return wait
 
 
 def split_zip(n_batches, *args):
@@ -148,7 +153,8 @@ def batch_submit(func, batches, client, *args, **kwargs):
     return future_list
 
 
-def gather_and_merge(future_list, client=None, cancel=False):
+def gather_and_merge(
+        future_list, client=None, cancel=False, progress_bar=True):
     """
     Args:
         future_list (list): list of futures.
@@ -158,7 +164,11 @@ def gather_and_merge(future_list, client=None, cancel=False):
     Returns:
         result: merged result, if datatype is supported, or list of results.
     """
-    wait_progress(future_list)
+    if progress_bar:
+        wait_progress(future_list)
+    else:
+        wait = select_wait_function(future_list)
+        wait(future_list)
     try:  # more efficient but not implemented in concurrent.futures
         item_list = client.gather(future_list)
     except AttributeError:

@@ -1,12 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
 from matplotlib import cm
 from matplotlib import axes
-
 from scipy import stats
 from scipy import interpolate
-
 
 
 def round_lims(values, round_factor=0.5):

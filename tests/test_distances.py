@@ -38,7 +38,6 @@ class TestMolecule:
         element_list = ['Ar']
         cwr = itertools.combinations_with_replacement(element_list, 2)
         pair_tuples = sorted(cwr)
-        print(pair_tuples)
         r_min_map = {('Ar', 'Ar'): 0.5}
         r_max_map = {('Ar', 'Ar'): 6.0}
         # compute
@@ -81,7 +80,6 @@ class TestUnary:
         element_list = ['Au']
         cwr = itertools.combinations_with_replacement(element_list, 2)
         pair_tuples = sorted(cwr)
-        print(pair_tuples)
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute

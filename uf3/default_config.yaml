@@ -1,7 +1,5 @@
 # General #####################################################################
-element_list:
-    - Bi
-    - Cl
+# element_list: 
 
 degree: 2
 
@@ -22,15 +20,15 @@ cache_data: True
 
 data_filename: "data.db"
 
-max_samples_per_file: 100
+max_samples_per_file: -1
 
-min_diff: 1e-3
+min_diff: 0.0
 
 analyze_pair_distribution: True
 
 analyze_fraction: 1.0
 
-vasp_pressure: True
+vasp_pressure: False
 
 # Featurization ###############################################################
 read_knots: False
@@ -39,22 +37,13 @@ write_knots: True
 
 knots_file: "knots.json"
 
-r_min_map:  # angstroms
-    Cl-Cl: 1.0
-    Bi-Cl: 1.0
-    Bi-Bi: 1.0
-    
-r_max_map:  # angstroms
-    Cl-Cl: 5.0
-    Bi-Cl: 5.5
-    Bi-Bi: 6.0
-    
-resolution_map:  # number of unique knots
-    Cl-Cl: 25
-    Bi-Cl: 25
-    Bi-Bi: 25
+# r_min_map:
 
-n_jobs: 4
+# r_max_map:
+
+# resolution_map:
+
+n_jobs: 2
 
 parallel: "python"
 
@@ -68,12 +57,14 @@ knot_spacing: "linear"
 # Learning ####################################################################
 frac_train: 0.5
 
-kappa: 0.99
+kappa: 0.99  # 1.0 to disable force-training
 
 regularization_params:
-    ridge_1b: 1e-3
-    ridge_2b: 1e-8
-    curve_2b: 1e-8
+    ridge_1b: 1.0e-4
+    ridge_2b: 1.0e-9
+    ridge_3b: 1.0e-6
+    curve_2b: 1.0e-9
+    curve_3b: 1.0e-6
     
 zero_tail: True
 
@@ -93,5 +84,11 @@ core_correction: 1.1
 plot_fit: True
 
 plot_2B: True
+
+plot_3B: True
+
+
+
+
 
 

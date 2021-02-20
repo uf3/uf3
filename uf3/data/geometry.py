@@ -1,5 +1,6 @@
 import numpy as np
 import ase
+from scipy import linalg
 
 
 def get_supercell(geometry, r_cut=10, sort_indices=False):
@@ -68,7 +69,7 @@ def get_supercell_factors(cell, r_cut):
         supercell_factors: minimum number of images per direction (radius).
     """
     a, b, c = cell
-    if np.min(np.sum(cell, axis=1)) == 0:
+    if np.any(np.max(cell, axis=1) == 0):
         raise ValueError("Unit cell has 0-length lattice vector(s).")
     normal_vectors = [np.cross(b, c),
                       np.cross(a, c),
@@ -76,7 +77,7 @@ def get_supercell_factors(cell, r_cut):
     projected_vectors = [n * np.dot(v, n) / np.dot(n, n)
                          for v, n in zip([a, b, c],
                                          normal_vectors)]
-    supercell_factors = [r_cut / np.linalg.norm(p) for p in projected_vectors]
+    supercell_factors = [r_cut / linalg.norm(p) for p in projected_vectors]
     supercell_factors = np.ceil(supercell_factors)
     return supercell_factors
 
@@ -111,9 +112,37 @@ def sort_image_indices(a_indices,
                      for a_idx, b_idx, c_idx
                      in zip(a_grid, b_grid, c_grid)]
     img_centroids = np.array(img_centroids)
-    centroid_distances = np.linalg.norm(img_centroids, axis=1)
+    centroid_distances = linalg.norm(img_centroids, axis=1)
     centroid_sort = np.argsort(centroid_distances)
     a_grid = a_grid[centroid_sort]
     b_grid = b_grid[centroid_sort]
     c_grid = c_grid[centroid_sort]
     return a_grid, b_grid, c_grid
+
+
+def energy_from_force_displacement(geom, energy, forces, d=0.01,
+                                   n=None, random=True):
+    n_atoms = len(geom)
+    positions = geom.get_positions()
+    if random:  # n random displacements
+        n = n or 25  # default
+        displacements = [d * (np.random.rand(n_atoms, 3) * 2 - 1)
+                         for _ in range(n)]  # small displacements
+    else:  # 3N displacements
+        n = n_atoms
+        displacements = []
+        for direction in [0, 1, 2]:  # cartesian directions
+            d = np.ones(n) * d * np.sign(forces[:, direction])
+            for atom_idx, position in enumerate(positions):  # atoms
+                displacement = np.zeros_like(positions)
+                displacement[atom_idx, direction] += d[atom_idx]
+                displacements.append(displacement)
+    snapshots = []
+    energies = []
+    for displacement in displacements:
+        snapshot = geom.copy()
+        snapshot.translate(displacement)
+        snapshots.append(snapshot)
+        de = -np.sum(np.multiply(forces, displacement))  # F = -dE/dR
+        energies.append(energy + de)
+    return snapshots, energies

@@ -1,5 +1,5 @@
 import itertools
-import ase
+from ase import symbols as ase_symbols
 import numpy as np
 
 
@@ -18,13 +18,14 @@ class ChemicalSystem:
             degree (int): handle N-body interactions
                 e.g. 2 to fit pair potentials.
         """
-        self.element_list = element_list
-        self.numbers = ase.symbols.symbols2numbers(element_list)
-
+        numbers = {el: ase_symbols.symbols2numbers(el).pop()
+                   for el in element_list}
+        self.element_list = sorted(element_list, key=lambda el: numbers[el])
+        self.numbers = [numbers[el] for el in self.element_list]
         self.degree = degree
         self.interactions_map = {}
         for d in range(2, degree+1):
-            cwr = itertools.combinations_with_replacement(element_list, d)
+            cwr = itertools.combinations_with_replacement(self.element_list, d)
             self.interactions_map[d] = sorted(cwr)
 
     @staticmethod
