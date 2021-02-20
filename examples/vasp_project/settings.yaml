@@ -1,39 +1,97 @@
-element_list: 
-    - W
+# General #####################################################################
+element_list:
+    - Bi
+    - Cl
 
 degree: 2
 
+output_directory: "./output"
+
+verbose: 2
+
+random_seed: 1234
+
+progress_bars: True
+
+# Preprocess ##################################################################
 experiment_path: "./data/"
 
 filename_pattern: "vasprun*"
 
-r_min_map:
-    W-W: 1.5
+cache_data: True
+
+data_filename: "data.db"
+
+max_samples_per_file: 100
+
+min_diff: 1e-3
+
+analyze_pair_distribution: True
+
+analyze_fraction: 1.0
+
+vasp_pressure: True
+
+# Featurization ###############################################################
+read_knots: False
+
+write_knots: True
+
+knots_file: "knots.json"
+
+r_min_map:  # angstroms
+    Cl-Cl: 1.0
+    Bi-Cl: 1.0
+    Bi-Bi: 1.0
     
-r_max_map:
-    W-W: 5.5
+r_max_map:  # angstroms
+    Cl-Cl: 5.0
+    Bi-Cl: 5.5
+    Bi-Bi: 6.0
     
-resolution_map:
-    W-W: 25
-    
+resolution_map:  # number of unique knots
+    Cl-Cl: 25
+    Bi-Cl: 25
+    Bi-Bi: 25
+
 n_jobs: 4
-       
+
+parallel: "python"
+
+cache_features: True
+
+features_filename: "features.db"
+
+knot_spacing: "linear"
+
+
+# Learning ####################################################################
 frac_train: 0.5
 
 kappa: 0.99
 
 regularization_params:
-    ridge_1b: 1e-4
-    ridge_2b: 1e-4
-    curve_2b: 1e-5
-    curve_3b: 1e-4
+    ridge_1b: 1e-3
+    ridge_2b: 1e-8
+    curve_2b: 1e-8
+    
+zero_tail: True
 
-output_directory: "./output"
+fit_self_energy: True
+    
+cache_features: True
 
-cache_representations: False
+features_filename: "features.db"
 
-plot_fit: False
+model_filename: "model.json"
 
-max_samples_per_file: 100
+training_filename: "training.txt"
 
-min_diff: 1e-3  # minimum 1 meV difference between selected samples
+# Postprocess #################################################################
+core_correction: 1.1
+
+plot_fit: True
+
+plot_2B: True
+
+
