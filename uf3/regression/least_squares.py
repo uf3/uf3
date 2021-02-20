@@ -58,6 +58,43 @@ class WeightedLinearModel:
             reg = self.bspline_config.get_regularization_matrix(**params)
             self.regularizer = reg
 
+    def load(self, coefficients):
+        """
+        Reflatten coefficients (e.g. obtained through arrange_coefficients)
+        and load into model for prediction.
+
+        Args:
+            coefficients (dict): dictionary of 1B, 2B, ... terms
+                organized as interaction: vector entries.
+        """
+        flattened_coefficients = []
+        for element in self.bspline_config.element_list:
+            value = coefficients[element]
+            flattened_coefficients.append([value])
+        for degree in range(2, self.bspline_config.degree + 1):
+            interactions = self.bspline_config.interactions_map[degree]
+            for interaction in interactions:
+                values = coefficients[interaction]
+                flattened_coefficients.append(values)
+        n_interactions = len(self.bspline_config.partition_sizes) - 1
+        # pair interactions & trio interactions, minus self-energy partition
+        n_interactions += len(self.bspline_config.element_list)
+        # add self-energy as separate interactions
+        n_coefficients = sum(self.bspline_config.partition_sizes)
+        if len(flattened_coefficients) != n_interactions:
+            error_line = "Incorrect interactions: {} provided, {} expected."
+            error_line = error_line.format(len(flattened_coefficients),
+                                           n_interactions)
+            raise ValueError(error_line)
+        flattened_coefficients = np.concatenate(flattened_coefficients)
+        if len(flattened_coefficients) != n_coefficients:
+            error_line = "Incorrect coefficients: {} provided, {} expected."
+            error_line = error_line.format(len(flattened_coefficients),
+                                           n_coefficients)
+            raise ValueError(error_line)
+        self.coefficients = np.array(flattened_coefficients)
+
+
     def fit(self, x, y, weights=None):
         """
         Args:
