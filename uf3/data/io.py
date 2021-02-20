@@ -175,6 +175,7 @@ def concat_dataframes(dataframes,
         if remove_duplicates:
             print('Removing with keep=', keep)
             df = df[~duplicate_array]
+            print('Unique keys:', len(df))
     return df
 
 
@@ -322,7 +323,7 @@ def parse_trajectory(fname,
                                           inplace=True)
     if new_index is not None:
         df.index = new_index
-        print('Loaded index from existing names.')
+        print('Loaded index from file:', fname)
     elif prefix is not None:
         pattern = '{}_{{}}'.format(prefix)
         df = df.rename(pattern.format)
@@ -704,7 +705,6 @@ def read_vasp_pressure(path):
                         break
                     line = f.readline()
         if isinstance(pstress, float):
-            print("BREAK")
             break
     if pstress is None:
         return 0.0
@@ -790,9 +790,9 @@ def parse_with_subsampling(data_paths,
                 volumes = [geom.get_volume() for geom in df['geometry'].values]
                 corrections = np.multiply(volumes, external_pressure)
                 df['energy'] = np.subtract(df['energy'], corrections)
-                if verbose >= 1:
-                    line = "External pressure corrected (P={} kbar)."
-                    print(line.format(external_pressure))
+            if verbose >= 1:
+                line = "External pressure correction: {} kbar."
+                print(line.format(external_pressure))
         data_coordinator.load_dataframe(df, prefix=prefix)
 
 
@@ -827,3 +827,16 @@ def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
                            key_value_pairs={k: geom.info[k] for k in geom.info
                                             if k not in db_core.reserved_keys},
                            row_name=name)
+
+
+def resolve_name_conflict(path):
+    """Simple renaming by incrementing an integer preceding file extension."""
+    if os.path.isfile(path):
+        i = 0
+        while True:
+            stem, ext = os.path.splitext(path)
+            backup_path = stem + "." + str(i) + ext
+            if not os.path.isfile(backup_path):
+                os.rename(path, backup_path)
+                break
+            i += 1
