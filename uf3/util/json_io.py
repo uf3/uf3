@@ -5,8 +5,8 @@ import numpy as np
 
 def dump_interaction_map(interaction_map,
                          indent=4,
-                         filename="interaction.json",
-                         write=True):
+                         filename=None,
+                         write=False):
     """
     Utility function for writing ragged arrays to json file.
         e.g. {("A", "B"): [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
