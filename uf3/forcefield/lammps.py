@@ -66,7 +66,7 @@ def export_tabulated_potential(knot_sequence,
         x_table = grid
 
     n_line = "N {}\n"
-    p_line = "{{0}} {{1:.{0}f}} {{2:.{0}f}} {{3:.{0}f}}    #".format(rounding)
+    p_line = "{{0}} {{1:.{0}f}} {{2:.{0}f}} {{3:.{0}f}}".format(rounding)
 
     lines = [
         "# DATE: {}  UNITS: metal  CONTRIBUTOR: {}".format(date, contributor),
@@ -80,14 +80,6 @@ def export_tabulated_potential(knot_sequence,
         f = -bspline_func(r, nu=1) * 2  # introduce factor of 2 for consistency
         line = p_line.format(i + 1, r, e, f)
         lines.append(line)
-
-    line_indices = np.arange(len(x_table)) + 4
-    line_indices = np.insert(np.append(line_indices,
-                                       line_indices[-1]),
-                             0, line_indices[0])
-    for i, coefficient in enumerate(coefficients):
-        line_idx = line_indices[i]
-        lines[line_idx] += " c{0}={1:.10f}".format(i, coefficient)
     text = '\n'.join(lines)
     if filename is not None:
         with open(filename, 'w') as f:
