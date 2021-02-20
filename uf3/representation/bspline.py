@@ -154,12 +154,12 @@ class BSplineConfig:
                 individual matrices per n-body interaction.
         """
         for k in kwargs:
-            if "ridge" in k:
-                ridge_map[re.sub('[^0-9]', '', k)] = kwargs[k]
-            elif "curv" in k:
-                curvature_map[re.sub('[^0-9]', '', k)] = kwargs[k]
-        ridge_map = {1: 1e-4, 2: 1e-6, 3: 1e-5, **ridge_map}
-        curvature_map = {1: 0.0, 2: 1e-5, 3: 1e-5, **curvature_map}
+            if "r" in k:
+                ridge_map[int(re.sub('[^0-9]', '', k))] = kwargs[k]
+            elif "c" in k:
+                curvature_map[int(re.sub('[^0-9]', '', k))] = kwargs[k]
+        ridge_map = {1: 1e-4, 2: 1e-9, 3: 1e-6, **ridge_map}
+        curvature_map = {1: 0.0, 2: 1e-9, 3: 1e-6, **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
         matrix = regularize.get_regularizer_matrix(n_elements,

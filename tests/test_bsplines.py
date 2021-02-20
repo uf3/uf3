@@ -61,6 +61,14 @@ class TestBSplineConfig:
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
+        matrix = bspline_handler.get_regularization_matrix(r1=2,
+                                                           r2=0.5,
+                                                           c2=1)
+        ridge_sum = (2 * 2) + (0.5 * (23 + 23 + 23))
+        curv_sum = (0 * 2) + (1 + (2 * 21) + 1) * 3
+        assert np.sum(matrix) == ridge_sum
+        assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
+
 def test_fit_spline_1d():
     x = np.linspace(-1, 7, 1000)
     y = np.sin(x) + 0.5 * x
