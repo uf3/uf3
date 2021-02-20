@@ -21,10 +21,8 @@ def farthest_point_sampling(data, max_samples=None, min_diff=0):
         data = data[:, np.newaxis]
     dist_matrix = distance.cdist(data, data)
 
-    if max_samples is None or max_samples >= len(data):
+    if max_samples is None or max_samples >= len(data) or max_samples < 1:
         max_samples = len(data)
-    elif max_samples < 1:
-        raise ValueError("n_samples must be greater than 1.")
 
     subsamples = np.array([np.argmin(data)])  # begin with lowest value
     while len(subsamples) < max_samples:
