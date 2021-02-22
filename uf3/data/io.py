@@ -822,10 +822,13 @@ def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
                                                          energy=energy,
                                                          forces=forces)
                 geom.calc = calc
+            geom_info = {k: geom.info[k] for k in geom.info
+                         if (isinstance(geom.info[k],
+                                        (int, float, str, np.floating))
+                             and k not in db_core.reserved_keys)}
             database.write(geom,
                            id=None,
-                           key_value_pairs={k: geom.info[k] for k in geom.info
-                                            if k not in db_core.reserved_keys},
+                           key_value_pairs=geom_info,
                            row_name=name)
 
 
