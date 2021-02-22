@@ -19,7 +19,7 @@ class BSplineConfig:
                  r_min_map=None,
                  r_max_map=None,
                  resolution_map=None,
-                 knot_spacing='lammps',
+                 knot_spacing='linear',
                  knots_map=None):
         """
         Args:
@@ -33,8 +33,8 @@ class BSplineConfig:
             resolution_map (dict): map of resolution (number of knot intervals)
                 per interaction. If unspecified, defaults to 20 for all two-
                 body interactions and 5 for three-body interactions.
-            knot_spacing (str): "lammps" for knot spacing by r^2
-                or "linear" for uniform spacing.
+            knot_spacing (str): "linear" for uniform spacing
+                or "lammps" for knot spacing by r^2.
             knots_map (dict): pre-generated map of knots.
                 Overrides other settings.
         """
