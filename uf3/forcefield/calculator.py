@@ -3,15 +3,17 @@ import time
 import warnings
 import numpy as np
 from scipy import interpolate
+from ase import optimize as ase_optim
+from ase import constraints as ase_constraints
+from ase.calculators import calculator as ase_calc
 from uf3.data import geometry
 from uf3.representation import distances
 from uf3.representation import knots
 from uf3.representation import bspline
 from uf3.regression import regularize
 from uf3.regression import least_squares
-from ase.calculators import calculator as ase_calc
-from ase import optimize as ase_optim
-from ase import constraints as ase_constraints
+from uf3.forcefield.properties import elastic
+from uf3.forcefield.properties import phonon
 
 
 class UFCalculator(ase_calc.Calculator):
@@ -170,6 +172,17 @@ class UFCalculator(ase_calc.Calculator):
             return True
         return False
 
+    def get_elastic_constants(self, atoms):
+        results = elastic.get_elastic_constants(atoms, self)
+        return results
+
+    def get_phonon_data(self, atoms, n_super=5, disp=0.05):
+        results = phonon.compute_phonon_data(atoms,
+                                             self,
+                                             n_super=n_super,
+                                             disp=disp)
+        return results
+
 
 def coefficients_by_interaction(element_list,
                                 interactions_map,
@@ -184,7 +197,7 @@ def coefficients_by_interaction(element_list,
         coefficients (list, np.ndarray): vector of joined, fit coefficients.
 
     Returns:
-
+        solutions (dict)
     """
     split_indices = np.cumsum(partition_sizes)[:-1]
     solutions_list = np.array_split(coefficients,
@@ -234,7 +247,7 @@ def construct_trio_potentials(coefficient_sets, bspline_config):
                                             coefficient_sets[trio],
                                             3,  # cubic BSpline
                                             extrapolate=False)
-        potentials[pair] = bspline_curve
+        potentials[trio] = bspline_curve
     return potentials
 
 

@@ -1,90 +1,18 @@
-import warnings
 from datetime import datetime
-from multiprocessing import pool
 import numpy as np
-import pandas as pd
 from scipy import interpolate
 from ase import data as ase_data
-from uf3.util import parallel
 from ase.io import lammpsdata as ase_lammpsdata
 from ase.calculators import lammps as ase_lammps
 from ase.calculators import lammpslib
 from ase.io import lammpsrun
+from uf3.forcefield.properties import elastic
+from uf3.forcefield.properties import phonon
 
 
 RELAX_LINES = ["fix fix_relax all box/relax iso 0.0 vmax 0.001",
                "min_style cg",
                "minimize 1e-25 1e-25 5000 10000"]
-
-
-def write_lammps_data(filename, geom, element_list, **kwargs):
-    """
-    Args:
-        filename (str):
-        geom (ase.Atoms):
-        element_list (list)
-    """
-    cell = geom.get_cell()
-    prism = ase_lammps.Prism(cell)
-    ase_lammpsdata.write_lammps_data(filename,
-                                     geom,
-                                     specorder=element_list,
-                                     force_skew=True,
-                                     prismobj=prism,
-                                     **kwargs)
-
-
-def export_tabulated_potential(knot_sequence,
-                               coefficients,
-                               interaction,
-                               grid=None,
-                               filename=None,
-                               contributor=None,
-                               rounding=6):
-    """
-    Args:
-        knot_sequence (np.ndarray): knot sequence.
-        coefficients (np.ndarray): spline coefficients corresponding to knots.
-        interaction (tuple): tuple of elements involved e.g. ("A", "B").
-        filename (str, None)
-        contributor (str, None)
-        rounding (int): number of decimal digits to print.
-    """
-    now = datetime.now()  # current date and time
-    date = now.strftime("%m/%d/%Y")
-    contributor = contributor or ""
-    if not isinstance(interaction[0], str):
-        interaction = [ase_data.chemical_symbols[int(z)]
-                       for z in interaction]
-    interaction = "-".join(interaction)  # e.g. W-W. Ne-Xe
-    # LAMMPS' pair_style table performs interpolation internally.
-    if grid is None:  # default: equally-spaced 100 samples
-        grid = 100
-    if isinstance(grid, int):  # integer number of equally-spaced samples
-        x_table = np.linspace(knot_sequence[0], knot_sequence[-1], grid)
-    else:  # custom 1D grid
-        x_table = grid
-
-    n_line = "N {}\n"
-    p_line = "{{0}} {{1:.{0}f}} {{2:.{0}f}} {{3:.{0}f}}".format(rounding)
-
-    lines = [
-        "# DATE: {}  UNITS: metal  CONTRIBUTOR: {}".format(date, contributor),
-        "# Ultra-Fast Force Field for {}\n".format(interaction),
-        "UF_{}".format(interaction),
-        n_line.format(len(x_table))]
-
-    for i, r in enumerate(x_table):
-        bspline_func = interpolate.BSpline(knot_sequence, coefficients, 3)
-        e = bspline_func(r) * 2  # LAMMPS does not double-count bonds
-        f = -bspline_func(r, nu=1) * 2  # introduce factor of 2 for consistency
-        line = p_line.format(i + 1, r, e, f)
-        lines.append(line)
-    text = '\n'.join(lines)
-    if filename is not None:
-        with open(filename, 'w') as f:
-            f.write(text)
-    return text
 
 
 class UFLammps(lammpslib.LAMMPSlib):
@@ -180,3 +108,84 @@ class UFLammps(lammpslib.LAMMPSlib):
         self.atoms = atoms.copy()
         if not self.parameters.keep_alive:
             self.lmp.close()
+
+    def get_elastic_constants(self, atoms):
+        results = elastic.get_elastic_constants(atoms, self)
+        return results
+
+    def get_phonon_data(self, atoms, n_super=5, disp=0.05):
+        results = phonon.compute_phonon_data(atoms,
+                                             self,
+                                             n_super=n_super,
+                                             disp=disp)
+        return results
+
+
+def write_lammps_data(filename, geom, element_list, **kwargs):
+    """
+    Args:
+        filename (str):
+        geom (ase.Atoms):
+        element_list (list)
+    """
+    cell = geom.get_cell()
+    prism = ase_lammps.Prism(cell)
+    ase_lammpsdata.write_lammps_data(filename,
+                                     geom,
+                                     specorder=element_list,
+                                     force_skew=True,
+                                     prismobj=prism,
+                                     **kwargs)
+
+
+def export_tabulated_potential(knot_sequence,
+                               coefficients,
+                               interaction,
+                               grid=None,
+                               filename=None,
+                               contributor=None,
+                               rounding=6):
+    """
+    Args:
+        knot_sequence (np.ndarray): knot sequence.
+        coefficients (np.ndarray): spline coefficients corresponding to knots.
+        interaction (tuple): tuple of elements involved e.g. ("A", "B").
+        filename (str, None)
+        contributor (str, None)
+        rounding (int): number of decimal digits to print.
+    """
+    now = datetime.now()  # current date and time
+    date = now.strftime("%m/%d/%Y")
+    contributor = contributor or ""
+    if not isinstance(interaction[0], str):
+        interaction = [ase_data.chemical_symbols[int(z)]
+                       for z in interaction]
+    interaction = "-".join(interaction)  # e.g. W-W. Ne-Xe
+    # LAMMPS' pair_style table performs interpolation internally.
+    if grid is None:  # default: equally-spaced 100 samples
+        grid = 100
+    if isinstance(grid, int):  # integer number of equally-spaced samples
+        x_table = np.linspace(knot_sequence[0], knot_sequence[-1], grid)
+    else:  # custom 1D grid
+        x_table = grid
+
+    n_line = "N {}\n"
+    p_line = "{{0}} {{1:.{0}f}} {{2:.{0}f}} {{3:.{0}f}}".format(rounding)
+
+    lines = [
+        "# DATE: {}  UNITS: metal  CONTRIBUTOR: {}".format(date, contributor),
+        "# Ultra-Fast Force Field for {}\n".format(interaction),
+        "UF_{}".format(interaction),
+        n_line.format(len(x_table))]
+
+    for i, r in enumerate(x_table):
+        bspline_func = interpolate.BSpline(knot_sequence, coefficients, 3)
+        e = bspline_func(r) * 2  # LAMMPS does not double-count bonds
+        f = -bspline_func(r, nu=1) * 2  # introduce factor of 2 for consistency
+        line = p_line.format(i + 1, r, e, f)
+        lines.append(line)
+    text = '\n'.join(lines)
+    if filename is not None:
+        with open(filename, 'w') as f:
+            f.write(text)
+    return text

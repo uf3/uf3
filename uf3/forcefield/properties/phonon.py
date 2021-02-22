@@ -1,10 +1,15 @@
+import warnings
 import ase
 import seekpath
 import numpy as np
-import matplotlib.pyplot as plt
-import phonopy
-from phonopy.structure import atoms as phonopy_atoms
 from matplotlib import cm
+import matplotlib.pyplot as plt
+try:
+    import phonopy
+    from phonopy.structure import atoms as phonopy_atoms
+    USE_PHONOPY = True
+except ImportError:
+    USE_PHONOPY = False
 
 
 def replace_list(text_string):
@@ -29,6 +34,9 @@ def compute_phonon_data(geom, calc, n_super=5, disp=0.05, resolution=30):
         path_data (dict)
         bands_dict (dict)
     """
+    if not USE_PHONOPY:
+        warnings.warn("Phonopy could not be imported.", RuntimeWarning)
+        return (None, None, None)
     # generate supercells with displacements
     pbc = geom.pbc
     scaled_positions = geom.get_scaled_positions()
