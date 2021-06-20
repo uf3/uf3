@@ -10,7 +10,6 @@ from ase.calculators import calculator as ase_calc
 import uf3.representation.bspline
 from uf3.data import geometry
 from uf3.representation import distances
-from uf3.representation import knots
 from uf3.representation import bspline
 from uf3.representation import angles
 from uf3.regression import regularize
