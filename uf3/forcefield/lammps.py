@@ -12,7 +12,7 @@ from uf3.forcefield.properties import phonon
 
 RELAX_LINES = ["fix fix_relax all box/relax iso 0.0 vmax 0.001",
                "min_style cg",
-               "minimize 1e-25 1e-25 5000 10000"]
+               "minimize 0 1e-3 125 125"]
 
 
 class UFLammps(lammpslib.LAMMPSlib):
@@ -119,6 +119,56 @@ class UFLammps(lammpslib.LAMMPSlib):
                                              n_super=n_super,
                                              disp=disp)
         return results
+
+
+def batched_energy_and_forces(geometries, lmpcmds, atom_types=None):
+    """Convenience function for batched evaluation of geometries."""
+    calc = UFLammps(atom_types=atom_types,
+                    lmpcmds=lmpcmds,
+                    keep_alive=True)
+    energies = []
+    forces = []
+    for geom in geometries:
+        geom.calc = calc
+        energy = geom.get_potential_energy()
+        force = geom.get_forces()
+        geom.calc = None
+        energies.append(energy)
+        forces.append(force)
+    del calc
+    return energies, forces
+
+
+def batch_relax(geometries,  lmpcmds, atom_types=None, names=None):
+    """Convenience function for batch relaxation of geometries."""
+    calc = UFLammps(atom_types=atom_types,
+                    lmpcmds=lmpcmds,
+                    keep_alive=True)
+    energies = []
+    forces = []
+    new_geometries = []
+    for geom in geometries:
+        try:
+            geom.calc = calc
+            e0 = geom.get_potential_energy()  # setup
+            calc.relax(geom)
+            energy = geom.get_potential_energy()
+            force = geom.get_forces()
+            geom.calc = None
+            new_geometries.append(geom)
+            energies.append(energy)
+            forces.append(force)
+        except Exception:
+            del calc
+            calc = UFLammps(atom_types=atom_types,
+                            lmpcmds=lmpcmds,
+                            keep_alive=True)
+            continue
+    del calc
+    if names is not None:
+        return new_geometries, energies, forces, names
+    else:
+        return new_geometries, energies, forces
 
 
 def write_lammps_data(filename, geom, element_list, **kwargs):
