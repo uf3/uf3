@@ -360,7 +360,7 @@ def arrange_coefficients(coefficients, bspline_config):
     return solutions
 
   
-def postprocess_coefficients(coefficients, core_hardness=1.1):
+def postprocess_coefficients(coefficients, core_hardness=2.0):
     """
     Postprocess 2B coefficients to enforce repulsive core.
 
@@ -371,13 +371,28 @@ def postprocess_coefficients(coefficients, core_hardness=1.1):
     Returns:
         coefficients (np.ndarray): new vector of coefficients.
     """
+    # identify inflection point and enforce curvature
     gradient = np.gradient(coefficients)  # finite-difference gradient
     decreasing_check = (np.sign(gradient) < 0)  # boolean vector
-    decreasing_point = np.argmax(decreasing_check)
+    decreasing_point = np.argmax(decreasing_check) + 1
     slope = gradient[decreasing_point]
-
     coefficients = np.array(coefficients)
-    for i in np.arange(decreasing_point - 1)[::-1]:
+    for i in np.arange(decreasing_point)[::-1]:
         right = coefficients[i + 1]
-        coefficients[i] = right - slope * core_hardness
+        coefficients[i] = right - slope
+        slope *= core_hardness
+    # Ensure hard core up to highest coefficient
+    max_coeff = int(np.argmax(coefficients))
+    if np.all(coefficients[:max_coeff] < 0):
+        coefficients = np.array(coefficients)
+        for i in np.arange(max_coeff)[::-1]:
+            right = coefficients[i + 1]
+            coefficients[i] = right - slope * core_hardness
+    # check for negative first coefficient
+    if coefficients[0] <= 0:
+        max_coeff = int(np.argmax(coefficients > 0))
+        coefficients = np.array(coefficients)
+        for i in np.arange(max_coeff)[::-1]:
+            right = coefficients[i + 1]
+            coefficients[i] = right - slope * core_hardness
     return coefficients
