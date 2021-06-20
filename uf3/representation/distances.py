@@ -1,4 +1,5 @@
 import numpy as np
+import numba as nb
 from scipy import spatial
 from scipy import signal
 import ase
@@ -168,8 +169,10 @@ def distances_by_interaction(geom,
     return distances_map
 
 
-def derivatives_by_interaction(geom, supercell, pair_tuples,
-                               r_min_map, r_max_map):
+def derivatives_by_interaction(geom, pair_tuples,
+                               r_cut,
+                               r_min_map, r_max_map,
+                               supercell=None):
     """
     Identify pair distances within a supercell and derivatives for evaluating
     forces, subject to lower and upper bounds given by r_min_map
@@ -197,8 +200,7 @@ def derivatives_by_interaction(geom, supercell, pair_tuples,
     n_atoms = len(geom)
     # extract atoms from supercell that are within the maximum
     # cutoff distance of atoms in the unit cell.
-    r_max = np.max(list(r_max_map.values()))
-    supercell = mask_supercell_with_radius(geom, supercell, r_max)
+    supercell = mask_supercell_with_radius(geom, supercell, r_cut)
     distance_matrix = get_distance_matrix(supercell, supercell)
     sup_positions = supercell.get_positions()
     sup_composition = np.array(supercell.get_atomic_numbers())
@@ -372,6 +374,20 @@ def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
     return distances
 
 
+@nb.njit(nb.float64[:, :](nb.int64[:], nb.int64[:], nb.int64[:]))
+def kronecker_delta(m_range, i_where, j_where):
+    n_atoms = len(m_range)
+    n_pairs = len(i_where)
+    kronecker = np.zeros((n_atoms, n_pairs), dtype=nb.float64)
+
+    for m in m_range:
+        for idx in range(n_pairs):
+            i = i_where[idx]
+            j = j_where[idx]
+            kronecker[m, idx] = (m == j) - (m == i)
+    return kronecker
+
+
 def compute_direction_cosines(sup_positions,
                               distance_matrix,
                               i_where,
@@ -393,10 +409,11 @@ def compute_direction_cosines(sup_positions,
             and the second dimension corresponds to x, y, and z directions.
             Used to evaluate forces.
     """
-    m_range = np.arange(n_atoms)
-    im = m_range[:, None] == i_where[None, :]
-    jm = m_range[:, None] == j_where[None, :]
-    kronecker = jm.astype(int) - im.astype(int)  # n_atoms x n_distances
+    kronecker = kronecker_delta(np.arange(n_atoms), i_where, j_where)
+    # m_range = np.arange(n_atoms)
+    # im = m_range[:, None] == i_where[None, :]
+    # jm = m_range[:, None] == j_where[None, :]
+    # kronecker = jm.astype(int) - im.astype(int)  # n_atoms x n_distances
 
     delta_r = sup_positions[j_where, :] - sup_positions[i_where, :]
     # n_distances x 3
