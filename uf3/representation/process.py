@@ -176,18 +176,37 @@ class BasisFeaturizer:
         """
         if n_jobs < 2:
             warnings.warn("Processing in serial.", RuntimeWarning)
-            df_features = self.evaluate(df_data, data_coordinator)
+            df_features = self.evaluate(df_data,
+                                        atoms_key=atoms_key,
+                                        energy_key=energy_key)
             return df_features
-        batches = parallel.split_dataframe(df_data, n_jobs)
+        if shuffle:
+            shuffled_idx = np.arange(len(df_data))
+            np.random.shuffle(shuffled_idx)
+            batches = parallel.split_dataframe(df_data.iloc[shuffled_idx],
+                                               n_jobs)
+        else:
+            batches = parallel.split_dataframe(df_data, n_jobs)
+        try:
+            batches = [client.scatter(batch) for batch in batches]
+        except AttributeError:
+            pass
         future_list = parallel.batch_submit(self.evaluate,
                                             batches,
                                             client,
-                                            data_coordinator=data_coordinator,
+                                            atoms_key=atoms_key,
+                                            energy_key=energy_key,
                                             progress_bar=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
                                                 cancel=True,
                                                 progress_bar=progress_bar)
+        df_features = df_features.loc[df_data.index, :]
+        try:
+            for batch in batches:
+                client.cancel(batch)
+        except AttributeError:
+            pass
         return df_features
 
     def arrange_features_dataframe(self, eval_map):
