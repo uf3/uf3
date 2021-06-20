@@ -346,12 +346,17 @@ def arrange_coefficients(coefficients, bspline_config):
     split_indices = np.cumsum(bspline_config.partition_sizes)[:-1]
     solutions_list = np.array_split(coefficients,
                                     split_indices)
-    solutions = {element: value for element, value
-                 in zip(bspline_config.element_list, solutions_list[0])}
+    element_list = bspline_config.element_list
+    solutions = {element: value[0] for element, value
+                 in zip(element_list, solutions_list[:len(element_list)])}
+    solutions_list = solutions_list[len(element_list):]
+
+    j = 0
     for d in range(2, bspline_config.degree + 1):
         interactions_map = bspline_config.interactions_map[d]
-        for i, interaction in enumerate(interactions_map):
-            solutions[interaction] = solutions_list[i + 1]
+        for interaction in interactions_map:
+            solutions[interaction] = solutions_list[j]
+            j += 1
     return solutions
 
   
