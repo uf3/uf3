@@ -232,10 +232,7 @@ def linear_least_squares(x, y):
     Returns:
         solution (np.ndarray): coefficients.
     """
-    gram_matrix = np.dot(x.T, x)
-    gram_inverse = linalg.inv(gram_matrix)
-    solution = np.dot(np.dot(gram_inverse, x.T), y)
-    return solution
+    return np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
 
 
 def weighted_least_squares(x,
