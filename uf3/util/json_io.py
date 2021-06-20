@@ -34,6 +34,9 @@ def encode_interaction_map(interaction_map):
     tuples into dash-joined keys for JSON serialization."""
     encoded_map = {}
     for key, value in interaction_map.items():
+        if isinstance(value, list):  # array to list
+            if isinstance(value[0], np.ndarray):
+                value = [entry.tolist() for entry in value]
         if isinstance(value, np.ndarray):  # array to list
             value = value.tolist()
         elif isinstance(value, dict):
@@ -58,7 +61,10 @@ def decode_interaction_map(formatted_map):
     decoded_map = {}
     for key, value in formatted_map.items():
         if isinstance(value, list):  # list to array
-            value = np.array(value)
+            if isinstance(value[0], list):
+                value = [np.array(row) for row in value]
+            else:
+                value = np.array(value)
         elif isinstance(value, dict):
             value = decode_interaction_map(value)
         if '-' in key:  # joined str to tuple
