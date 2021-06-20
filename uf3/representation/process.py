@@ -456,9 +456,11 @@ def save_feature_db(dataframe, filename, table_name='features', chunksize=100):
         table_name (str): default "features".
         chunksize (int): default 100.
     """
-    conn = sqlite3.connect(filename)
-    dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
-    conn.close()
+    dataframe.to_hdf(
+        filename, table_name, mode="a", append=True, format='table')
+    # conn = sqlite3.connect(filename)
+    # dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
+    # conn.close()
 
 
 def load_feature_db(filename, table_name='features'):
@@ -472,10 +474,11 @@ def load_feature_db(filename, table_name='features'):
     Returns:
         dataframe (pd.DataFrame)
     """
-    conn = sqlite3.connect(filename)
-    dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
-    dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
-    conn.close()
+    dataframe = pd.read_hdf(filename, table_name)
+    # conn = sqlite3.connect(filename)
+    # dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
+    # dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
+    # conn.close()
     return dataframe
 
 
