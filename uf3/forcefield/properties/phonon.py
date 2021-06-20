@@ -14,7 +14,7 @@ except ImportError:
 
 def replace_list(text_string):
     """Quick formatting of Gamma point"""
-    substitutions = {'GAMMA': u'$\Gamma$'}
+    substitutions = {'GAMMA': u'$\\Gamma$'}
     for item in substitutions.items():
         text_string = text_string.replace(item[0], item[1])
     return text_string

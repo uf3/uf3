@@ -719,7 +719,7 @@ def read_vasp_pressure(path):
                 line = f.readline()
                 while line:
                     if "PSTRESS" in line:
-                        pstress = float(re.sub('[^0-9\.]', '', line))
+                        pstress = float(re.sub('[^0-9\\.]', '', line))
                         break
                     line = f.readline()
         if isinstance(pstress, float):
