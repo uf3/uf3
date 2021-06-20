@@ -60,11 +60,13 @@ class TestMolecule:
         r_min_map = {('Ar', 'Ar'): 0.5, }
         r_max_map = {('Ar', 'Ar'): 6.0, }
         # compute
+        r_cut = 6.0
         distances, derivatives = derivatives_by_interaction(geom,
-                                                            supercell,
                                                             pair_tuples,
+                                                            r_cut,
                                                             r_min_map,
-                                                            r_max_map)
+                                                            r_max_map,
+                                                            supercell,)
         d_aa = distances[('Ar', 'Ar')]
         assert len(d_aa) == 6
         dr_aa = derivatives[('Ar', 'Ar')]
@@ -104,11 +106,13 @@ class TestUnary:
         r_min_map = {('Au', 'Au'): 0.5, }
         r_max_map = {('Au', 'Au'): 3.0, }
         # compute
+        r_cut = 3.0
         distances, derivatives = derivatives_by_interaction(geom,
-                                                            supercell,
                                                             pair_tuples,
+                                                            r_cut,
                                                             r_min_map,
-                                                            r_max_map)
+                                                            r_max_map,
+                                                            supercell,)
         d_aa = distances[('Au', 'Au')]
         assert len(d_aa) == 542
         dr_aa = derivatives[('Au', 'Au')]
@@ -163,11 +167,13 @@ class TestBinary:
                      ('Ne', 'Xe'): 4.0,
                      ('Xe', 'Xe'): 5.0, }
         # compute
+        r_cut = 5.0
         distances, derivatives = derivatives_by_interaction(geom,
-                                                            supercell,
                                                             pair_tuples,
+                                                            r_cut,
                                                             r_min_map,
-                                                            r_max_map)
+                                                            r_max_map,
+                                                            supercell)
         d_aa = distances[('Ne', 'Ne')]
         d_ab = distances[('Ne', 'Xe')]
         d_bb = distances[('Xe', 'Xe')]
