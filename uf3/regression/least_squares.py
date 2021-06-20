@@ -76,9 +76,8 @@ class WeightedLinearModel:
             for interaction in interactions:
                 values = coefficients[interaction]
                 flattened_coefficients.append(values)
-        n_interactions = len(self.bspline_config.partition_sizes) - 1
-        # pair interactions & trio interactions, minus self-energy partition
-        n_interactions += len(self.bspline_config.element_list)
+        # self-energies, pair interactions & trio interactions
+        n_interactions = len(self.bspline_config.partition_sizes)
         # add self-energy as separate interactions
         n_coefficients = sum(self.bspline_config.partition_sizes)
         if len(flattened_coefficients) != n_interactions:
@@ -93,7 +92,6 @@ class WeightedLinearModel:
                                            n_coefficients)
             raise ValueError(error_line)
         self.coefficients = np.array(flattened_coefficients)
-
 
     def fit(self, x, y, weights=None):
         """
@@ -266,11 +264,11 @@ def weighted_least_squares(x,
     """
     n_feats = len(x[0])
     if regularizer is not None:
-        if regularizer.shape != (n_feats, n_feats):
-            s1, s2 = regularizer.shape
-            shape_comparison = "{0} x {0}. Provided: {1} x {2}".format(n_feats,
-                                                                       s1,
-                                                                       s2)
+        n_row, n_col = regularizer.shape
+        if n_col != n_feats:
+            shape_comparison = "N x {0}. Provided: {1} x {2}".format(n_feats,
+                                                                     n_row,
+                                                                     n_col)
             raise ValueError(
                 "Expected regularizer shape: " + shape_comparison)
 
@@ -343,7 +341,7 @@ def arrange_coefficients(coefficients, bspline_config):
     Args:
         coefficients (np.ndarray): Flattened vector of coefficients.
             Partitioned by provided bspline_config per degree.
-        bspline_config (bspline.BSplineConfig)
+        bspline_config (bspline.BSplineBasis)
 
     Returns:
         solutions (dict): fit coefficients per degree.
