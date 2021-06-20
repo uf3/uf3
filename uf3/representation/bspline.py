@@ -3,7 +3,6 @@ import warnings
 import numpy as np
 from scipy import interpolate
 
-from uf3.representation import knots
 from uf3.representation import angles
 from uf3.regression import regularize
 from uf3.util import json_io
