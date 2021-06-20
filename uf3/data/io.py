@@ -589,12 +589,12 @@ def parse_lammps_log(fname, log_regex=None):
     Args:
         fname (str): filename of log file.
         log_regex (str): Regular expression for identifying step information.
-            Defaults to '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
+            Defaults to '\n(Step[^\n]+\n[^A-Z]+)(?:Loop time)'
 
     Returns:
         df_log (pandas.DataFrame)
     """
-    log_regex = log_regex or '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
+    log_regex = log_regex or '\n(Step[^\n]+\n[^A-Z]+)(?:Loop time)'
     log_blocks = []
     with open(fname, 'r') as f:
         text = f.read()
@@ -620,7 +620,7 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
 
     Args:
         fname (str): filename of dump file.
-        lammps_aliases (dict): map of LAMMSP type to species.
+        lammps_aliases (dict): map of LAMMSPS type to species.
         timesteps (list, np.ndarray): Optional subset of timesteps to parse.
             Note: function expects timesteps to match dump chronologically.
             This behavior is intended to accommodate LAMMPS runs with
@@ -667,6 +667,8 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
                                 # parsed. May not trigger if a requested
                                 # timestep is absent from the dump.
                                 break
+                if not line:
+                    break
                 timestep = int(f.readline())
                 atom_lines = []  # reset timestep data
             elif "ITEM: NUMBER OF ATOMS" in line:
@@ -761,7 +763,10 @@ def parse_with_subsampling(data_paths,
                            data_coordinator,
                            max_samples=100,
                            min_diff=1e-3,
+                           energy_key='energy',
                            vasp_pressure=False,
+                           lammps_log=None,
+                           lammps_aliases=None,
                            verbose=True):
     """
     Args:
@@ -771,8 +776,11 @@ def parse_with_subsampling(data_paths,
             Default: 100
         min_diff (float): minimum energy difference between consecutive samples
             in eV. Default: 1e-3
+        energy_key (str): column name for energies, default "energy".
         vasp_pressure (bool): whether to search for pressure and apply an
             energy correction of Pressure * Volume term (H = E + PV).
+        lammps_log (str): optional name of lammps log, if applicable.
+        lammps_aliases (dict): map of LAMMPS type to species.
         verbose (bool, int): verbosity level.
     """
     common_prefix = os.path.commonprefix(data_paths)
@@ -783,13 +791,32 @@ def parse_with_subsampling(data_paths,
         prefix = prefix.replace("/", "-")
         if prefix[0] == "-":
             prefix = prefix[1:]
-        df = data_coordinator.dataframe_from_trajectory(data_path,
-                                                        prefix=prefix,
-                                                        load=False)
-        energy_list = df['energy'].values
-        subsamples = subsample.farthest_point_sampling(energy_list,
-                                                       max_samples=max_samples,
-                                                       min_diff=min_diff)
+
+        try:
+            if lammps_log is not None:
+                vasp_pressure = False
+                lammps_path, dump_fname = os.path.split(data_path)
+
+                df = data_coordinator.dataframe_from_lammps_run(
+                    lammps_path, lammps_aliases, prefix=prefix, load=False,
+                    log_fname=lammps_log, dump_fname=dump_fname,
+                    column_subs={"TotEng": "energy"})
+            else:
+                df = data_coordinator.dataframe_from_trajectory(data_path,
+                                                                prefix=prefix,
+                                                                load=False)
+        except ValueError:
+            continue
+        if len(df) == 0:
+            continue
+        energy_list = df[energy_key].values
+
+        if max_samples > 0:
+            subsamples = subsample.farthest_point_sampling(energy_list,
+                                                           max_samples=max_samples,
+                                                           min_diff=min_diff)
+        else:
+            subsamples = np.arange(len(energy_list))
         if verbose >= 2:
             print("{}/{} samples taken from {}.".format(len(subsamples),
                                                         len(energy_list),
