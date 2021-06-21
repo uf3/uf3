@@ -76,9 +76,8 @@ class WeightedLinearModel:
             for interaction in interactions:
                 values = coefficients[interaction]
                 flattened_coefficients.append(values)
-        n_interactions = len(self.bspline_config.partition_sizes) - 1
-        # pair interactions & trio interactions, minus self-energy partition
-        n_interactions += len(self.bspline_config.element_list)
+        # self-energies, pair interactions & trio interactions
+        n_interactions = len(self.bspline_config.partition_sizes)
         # add self-energy as separate interactions
         n_coefficients = sum(self.bspline_config.partition_sizes)
         if len(flattened_coefficients) != n_interactions:
@@ -93,7 +92,6 @@ class WeightedLinearModel:
                                            n_coefficients)
             raise ValueError(error_line)
         self.coefficients = np.array(flattened_coefficients)
-
 
     def fit(self, x, y, weights=None):
         """
@@ -234,10 +232,7 @@ def linear_least_squares(x, y):
     Returns:
         solution (np.ndarray): coefficients.
     """
-    gram_matrix = np.dot(x.T, x)
-    gram_inverse = linalg.inv(gram_matrix)
-    solution = np.dot(np.dot(gram_inverse, x.T), y)
-    return solution
+    return np.linalg.solve(np.dot(x.T, x), np.dot(x.T, y))
 
 
 def weighted_least_squares(x,
@@ -266,11 +261,11 @@ def weighted_least_squares(x,
     """
     n_feats = len(x[0])
     if regularizer is not None:
-        if regularizer.shape != (n_feats, n_feats):
-            s1, s2 = regularizer.shape
-            shape_comparison = "{0} x {0}. Provided: {1} x {2}".format(n_feats,
-                                                                       s1,
-                                                                       s2)
+        n_row, n_col = regularizer.shape
+        if n_col != n_feats:
+            shape_comparison = "N x {0}. Provided: {1} x {2}".format(n_feats,
+                                                                     n_row,
+                                                                     n_col)
             raise ValueError(
                 "Expected regularizer shape: " + shape_comparison)
 
@@ -343,7 +338,7 @@ def arrange_coefficients(coefficients, bspline_config):
     Args:
         coefficients (np.ndarray): Flattened vector of coefficients.
             Partitioned by provided bspline_config per degree.
-        bspline_config (bspline.BSplineConfig)
+        bspline_config (bspline.BSplineBasis)
 
     Returns:
         solutions (dict): fit coefficients per degree.
@@ -351,16 +346,21 @@ def arrange_coefficients(coefficients, bspline_config):
     split_indices = np.cumsum(bspline_config.partition_sizes)[:-1]
     solutions_list = np.array_split(coefficients,
                                     split_indices)
-    solutions = {element: value for element, value
-                 in zip(bspline_config.element_list, solutions_list[0])}
+    element_list = bspline_config.element_list
+    solutions = {element: value[0] for element, value
+                 in zip(element_list, solutions_list[:len(element_list)])}
+    solutions_list = solutions_list[len(element_list):]
+
+    j = 0
     for d in range(2, bspline_config.degree + 1):
         interactions_map = bspline_config.interactions_map[d]
-        for i, interaction in enumerate(interactions_map):
-            solutions[interaction] = solutions_list[i + 1]
+        for interaction in interactions_map:
+            solutions[interaction] = solutions_list[j]
+            j += 1
     return solutions
 
   
-def postprocess_coefficients(coefficients, core_hardness=1.1):
+def postprocess_coefficients(coefficients, core_hardness=2.0):
     """
     Postprocess 2B coefficients to enforce repulsive core.
 
@@ -371,13 +371,28 @@ def postprocess_coefficients(coefficients, core_hardness=1.1):
     Returns:
         coefficients (np.ndarray): new vector of coefficients.
     """
+    # identify inflection point and enforce curvature
     gradient = np.gradient(coefficients)  # finite-difference gradient
     decreasing_check = (np.sign(gradient) < 0)  # boolean vector
-    decreasing_point = np.argmax(decreasing_check)
+    decreasing_point = np.argmax(decreasing_check) + 1
     slope = gradient[decreasing_point]
-
     coefficients = np.array(coefficients)
-    for i in np.arange(decreasing_point - 1)[::-1]:
+    for i in np.arange(decreasing_point)[::-1]:
         right = coefficients[i + 1]
-        coefficients[i] = right - slope * core_hardness
+        coefficients[i] = right - slope
+        slope *= core_hardness
+    # Ensure hard core up to highest coefficient
+    max_coeff = int(np.argmax(coefficients))
+    if np.all(coefficients[:max_coeff] < 0):
+        coefficients = np.array(coefficients)
+        for i in np.arange(max_coeff)[::-1]:
+            right = coefficients[i + 1]
+            coefficients[i] = right - slope * core_hardness
+    # check for negative first coefficient
+    if coefficients[0] <= 0:
+        max_coeff = int(np.argmax(coefficients > 0))
+        coefficients = np.array(coefficients)
+        for i in np.arange(max_coeff)[::-1]:
+            right = coefficients[i + 1]
+            coefficients[i] = right - slope * core_hardness
     return coefficients

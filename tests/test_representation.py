@@ -49,8 +49,8 @@ def binary_chemistry():
 
 class TestBasis:
     def test_setup(self, unary_chemistry):
-        bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor(unary_chemistry, bspline_config)
+        bspline_config = bspline.BSplineBasis(unary_chemistry)
+        bspline_handler = BasisFeaturizer(unary_chemistry, bspline_config)
         assert bspline_handler.r_cut == 6.0
         assert len(bspline_handler.knots_map[('Ar', 'Ar')]) == 27
         assert len(bspline_handler.basis_functions[('Ar', 'Ar')]) == 23
@@ -58,25 +58,25 @@ class TestBasis:
         assert len(bspline_handler.columns) == 25  # 1 + 23 + 1
 
     def test_energy_features(self, unary_chemistry, simple_molecule):
-        bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor(unary_chemistry,
-                                         bspline_config)
+        bspline_config = bspline.BSplineBasis(unary_chemistry)
+        bspline_handler = BasisFeaturizer(unary_chemistry,
+                                          bspline_config)
         vector = bspline_handler.featurize_energy_2B(simple_molecule,
                                                      simple_molecule)
         assert len(vector) == 23  # 23 features
 
     def test_force_features(self, unary_chemistry, simple_molecule):
-        bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor(unary_chemistry,
-                                         bspline_config)
+        bspline_config = bspline.BSplineBasis(unary_chemistry)
+        bspline_handler = BasisFeaturizer(unary_chemistry,
+                                          bspline_config)
         vector = bspline_handler.featurize_force_2B(simple_molecule,
                                                     simple_molecule)
         assert vector.shape == (3, 3, 23)  # 3 forces per atom
 
     def test_evaluate_single(self, unary_chemistry, simple_molecule):
-        bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor(unary_chemistry,
-                                         bspline_config)
+        bspline_config = bspline.BSplineBasis(unary_chemistry)
+        bspline_handler = BasisFeaturizer(unary_chemistry,
+                                          bspline_config)
         eval_map = bspline_handler.evaluate_configuration(simple_molecule,
                                                           energy=1.5)
         assert len(eval_map['energy']) == 1 + 23 + 1  # number of columns
@@ -93,9 +93,9 @@ class TestBasis:
         assert len(eval_map[('sample', 'fz_2')]) == 1 + 23 + 1   # columns
 
     def test_evaluate_unary(self, unary_chemistry, simple_molecule):
-        bspline_config = bspline.BSplineConfig(unary_chemistry)
-        bspline_handler = BasisProcessor(unary_chemistry,
-                                         bspline_config)
+        bspline_config = bspline.BSplineBasis(unary_chemistry)
+        bspline_handler = BasisFeaturizer(unary_chemistry,
+                                          bspline_config)
         df = pd.DataFrame(columns=['geometry', 'energy', 'fx', 'fy', 'fz'])
         df.loc[0] = [None,
                      1.5,
@@ -110,8 +110,11 @@ class TestBasis:
                      [2, 1, 0]]
         df.at[1, 'geometry'] = simple_molecule
         data_coordinator = io.DataCoordinator()
+        atoms_key = data_coordinator.atoms_key
+        energy_key = data_coordinator.energy_key
         df_features = bspline_handler.evaluate(df,
-                                               data_coordinator,
+                                               atoms_key,
+                                               energy_key,
                                                progress_bar=False)
         assert len(df_features) == 2 + 6 * 3  # energy and 3 forces per atom
         assert len(df_features.columns) == 1 + 23 + 1
@@ -122,9 +125,9 @@ class TestBasis:
         assert np.allclose(y[:10], [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
 
     def test_evaluate_binary(self, water_chemistry, simple_water):
-        bspline_config = bspline.BSplineConfig(water_chemistry)
-        bspline_handler = BasisProcessor(water_chemistry,
-                                         bspline_config)
+        bspline_config = bspline.BSplineBasis(water_chemistry)
+        bspline_handler = BasisFeaturizer(water_chemistry,
+                                          bspline_config)
         df = pd.DataFrame(columns=['geometry', 'energy', 'fx', 'fy', 'fz'])
         df.loc[0] = [None,
                      1.5,
@@ -139,11 +142,15 @@ class TestBasis:
                      [2, 1, 0]]
         df.at[1, 'geometry'] = simple_water
         data_coordinator = io.DataCoordinator()
+        print(len(bspline_handler.columns))
+        atoms_key = data_coordinator.atoms_key
+        energy_key = data_coordinator.energy_key
         df_feats = bspline_handler.evaluate(df,
-                                            data_coordinator,
+                                            atoms_key,
+                                            energy_key,
                                             progress_bar=False)
         assert len(df_feats) == 2 * (1 + 3 * 3)  # energy and 3 forces per atom
-        assert len(df_feats.columns) == 1 + 23 * 3 + 2
+        assert len(df_feats.columns) == 1 + 2 + 23 * 3
         # energy, 23 features per interaction, two 1-body terms
         x, y, w = bspline_handler.get_training_tuples(df_feats,
                                                       0.5,

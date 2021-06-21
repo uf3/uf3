@@ -10,9 +10,10 @@ class TestCalculator:
     def test_unary(self):
         element_list = ['W']
         chemical_system = composition.ChemicalSystem(element_list)
-        bspline_config = bspline.BSplineConfig(chemical_system,
-                                               r_min_map={('W', 'W'): 2.0},
-                                               r_max_map={('W', 'W'): 6.0})
+        bspline_config = bspline.BSplineBasis(chemical_system,
+                                              r_min_map={('W', 'W'): 2.0},
+                                              r_max_map={('W', 'W'): 6.0},
+                                              knot_spacing='lammps')
         model = least_squares.WeightedLinearModel(
             bspline_config=bspline_config)
         pair = bspline_config.interactions_map[2][0]

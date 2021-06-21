@@ -21,6 +21,7 @@ class DataCoordinator:
     def __init__(self,
                  atoms_key='geometry',
                  energy_key='energy',
+                 force_key='force',
                  size_key='size',
                  overwrite=False):
         """
@@ -28,6 +29,7 @@ class DataCoordinator:
             atoms_key (str): column name for geometries, default "geometry".
                 Modify when parsed geometries are part of a larger pipeline.
             energy_key (str): column name for energies, default "energy".
+            force_key (str): identifier for forces, default "force".
             size_key (str):  column name for number of atoms per geometry,
                 default "size".
             overwrite (bool): Allow overwriting of existing DataFrame
@@ -35,6 +37,7 @@ class DataCoordinator:
         """
         self.atoms_key = atoms_key
         self.energy_key = energy_key
+        self.force_key = force_key
         self.size_key = size_key
         self.overwrite = overwrite
 
@@ -44,7 +47,11 @@ class DataCoordinator:
     @staticmethod
     def from_config(config):
         """Instantiate from configuration dictionary"""
-        keys = ['atoms_key', 'energy_key', 'size_key', 'overwrite']
+        keys = ['atoms_key',
+                'energy_key',
+                'force_key',
+                'size_key',
+                'overwrite']
         config = {k: v for k, v in config.items() if k in keys}
         return DataCoordinator(**config)
 
@@ -98,6 +105,7 @@ class DataCoordinator:
                                           forces=forces,
                                           atoms_key=self.atoms_key,
                                           energy_key=self.energy_key,
+                                          force_key=self.force_key,
                                           size_key=self.size_key,
                                           **kwargs)
         if load:
@@ -117,6 +125,7 @@ class DataCoordinator:
                               prefix=prefix,
                               atoms_key=self.atoms_key,
                               energy_key=self.energy_key,
+                              force_key=self.force_key,
                               size_key=self.size_key,
                               **kwargs)
         if load:
@@ -185,6 +194,7 @@ def prepare_dataframe_from_lists(geometries,
                                  forces=None,
                                  atoms_key='geometry',
                                  energy_key='energy',
+                                 force_key='force',
                                  size_key='size',
                                  copy=True):
     """
@@ -204,6 +214,7 @@ def prepare_dataframe_from_lists(geometries,
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
         energy_key (str): column name for energies, default "energy".
+        force_key (str): identifier for forces, default "force".
         size_key (str):  column name for number of atoms per geometry,
             default "size".
         copy (bool): copy geometries, energies and forces before modification.
@@ -214,7 +225,9 @@ def prepare_dataframe_from_lists(geometries,
     """
     if copy:
         geometries = [geom.copy() for geom in geometries]
-    geometries = update_geometries_from_calc(geometries)
+    geometries = update_geometries_from_calc(geometries,
+                                             energy_key=energy_key,
+                                             force_key=force_key)
     # generate dataframe
     default_columns = [atoms_key, energy_key, 'fx', 'fy', 'fz']
     df = pd.DataFrame(columns=default_columns)
@@ -262,6 +275,7 @@ def parse_trajectory(fname,
                      prefix=None,
                      atoms_key="geometry",
                      energy_key="energy",
+                     force_key='force',
                      size_key='size'):
     """
     Wrapper for ase.io.read, which is compatible with
@@ -280,6 +294,7 @@ def parse_trajectory(fname,
         atoms_key (str): column name for geometries, default "geometry".
             Modify when parsed geometries are part of a larger pipeline.
         energy_key (str): column name for energies, default "energy".
+        force_key (str): identifier for forces, default "force".
         size_key (str):  column name for number of atoms per geometry,
             default "size".
 
@@ -302,7 +317,8 @@ def parse_trajectory(fname,
     if not isinstance(geometries, list):
         geometries = [geometries]
     geometries = update_geometries_from_calc(geometries,
-                                             energy_key=energy_key)
+                                             energy_key=energy_key,
+                                             force_key=force_key)
     # create DataFrame
     default_columns = [atoms_key, energy_key, 'fx', 'fy', 'fz']
     scalar_keys = [p for p in scalar_keys
@@ -418,7 +434,7 @@ def parse_lammps_outputs(path,
         for key, value in timestep_info.items():
             geom.info[key] = value
     # Add geometries to DataFrame and remove timesteps with no geometry.
-    df = df.dropna()
+    df = df.iloc[intersection_idxs]
     if prefix is not None:
         pattern = '{}_{{}}'.format(prefix)
         df = df.rename(pattern.format)
@@ -573,12 +589,12 @@ def parse_lammps_log(fname, log_regex=None):
     Args:
         fname (str): filename of log file.
         log_regex (str): Regular expression for identifying step information.
-            Defaults to '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
+            Defaults to '\n(Step[^\n]+\n[^A-Z]+)(?:Loop time)'
 
     Returns:
         df_log (pandas.DataFrame)
     """
-    log_regex = log_regex or '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
+    log_regex = log_regex or '\n(Step[^\n]+\n[^A-Z]+)(?:Loop time)'
     log_blocks = []
     with open(fname, 'r') as f:
         text = f.read()
@@ -604,7 +620,7 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
 
     Args:
         fname (str): filename of dump file.
-        lammps_aliases (dict): map of LAMMSP type to species.
+        lammps_aliases (dict): map of LAMMSPS type to species.
         timesteps (list, np.ndarray): Optional subset of timesteps to parse.
             Note: function expects timesteps to match dump chronologically.
             This behavior is intended to accommodate LAMMPS runs with
@@ -651,6 +667,8 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
                                 # parsed. May not trigger if a requested
                                 # timestep is absent from the dump.
                                 break
+                if not line:
+                    break
                 timestep = int(f.readline())
                 atom_lines = []  # reset timestep data
             elif "ITEM: NUMBER OF ATOMS" in line:
@@ -701,7 +719,7 @@ def read_vasp_pressure(path):
                 line = f.readline()
                 while line:
                     if "PSTRESS" in line:
-                        pstress = float(re.sub('[^0-9\.]', '', line))
+                        pstress = float(re.sub('[^0-9\\.]', '', line))
                         break
                     line = f.readline()
         if isinstance(pstress, float):
@@ -745,7 +763,10 @@ def parse_with_subsampling(data_paths,
                            data_coordinator,
                            max_samples=100,
                            min_diff=1e-3,
+                           energy_key='energy',
                            vasp_pressure=False,
+                           lammps_log=None,
+                           lammps_aliases=None,
                            verbose=True):
     """
     Args:
@@ -755,8 +776,11 @@ def parse_with_subsampling(data_paths,
             Default: 100
         min_diff (float): minimum energy difference between consecutive samples
             in eV. Default: 1e-3
+        energy_key (str): column name for energies, default "energy".
         vasp_pressure (bool): whether to search for pressure and apply an
             energy correction of Pressure * Volume term (H = E + PV).
+        lammps_log (str): optional name of lammps log, if applicable.
+        lammps_aliases (dict): map of LAMMPS type to species.
         verbose (bool, int): verbosity level.
     """
     common_prefix = os.path.commonprefix(data_paths)
@@ -767,13 +791,32 @@ def parse_with_subsampling(data_paths,
         prefix = prefix.replace("/", "-")
         if prefix[0] == "-":
             prefix = prefix[1:]
-        df = data_coordinator.dataframe_from_trajectory(data_path,
-                                                        prefix=prefix,
-                                                        load=False)
-        energy_list = df['energy'].values
-        subsamples = subsample.farthest_point_sampling(energy_list,
-                                                       max_samples=max_samples,
-                                                       min_diff=min_diff)
+
+        try:
+            if lammps_log is not None:
+                vasp_pressure = False
+                lammps_path, dump_fname = os.path.split(data_path)
+
+                df = data_coordinator.dataframe_from_lammps_run(
+                    lammps_path, lammps_aliases, prefix=prefix, load=False,
+                    log_fname=lammps_log, dump_fname=dump_fname,
+                    column_subs={"TotEng": "energy"})
+            else:
+                df = data_coordinator.dataframe_from_trajectory(data_path,
+                                                                prefix=prefix,
+                                                                load=False)
+        except ValueError:
+            continue
+        if len(df) == 0:
+            continue
+        energy_list = df[energy_key].values
+
+        if max_samples > 0:
+            subsamples = subsample.farthest_point_sampling(energy_list,
+                                                           max_samples=max_samples,
+                                                           min_diff=min_diff)
+        else:
+            subsamples = np.arange(len(energy_list))
         if verbose >= 2:
             print("{}/{} samples taken from {}.".format(len(subsamples),
                                                         len(energy_list),
@@ -789,7 +832,7 @@ def parse_with_subsampling(data_paths,
             if external_pressure != 0:
                 volumes = [geom.get_volume() for geom in df['geometry'].values]
                 corrections = np.multiply(volumes, external_pressure)
-                df['energy'] = np.subtract(df['energy'], corrections)
+                df[energy_key] = np.subtract(df['energy'], corrections)
             if verbose >= 1:
                 line = "External pressure correction: {} kbar."
                 print(line.format(external_pressure))
@@ -813,19 +856,22 @@ def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
 
     with ase_db.connect(filename, append=append, serial=serial) as database:
         for name, geom in geometries.iteritems():
-            if geom.calc is None:
-                energy = geom.info[energy_key]
-                forces = np.vstack([geom.arrays['fx'],
-                                    geom.arrays['fy'],
-                                    geom.arrays['fz']]).T
-                calc = singlepoint.SinglePointCalculator(geom,
-                                                         energy=energy,
-                                                         forces=forces)
-                geom.calc = calc
+            energy = geom.info[energy_key]
+            forces = np.vstack([geom.arrays['fx'],
+                                geom.arrays['fy'],
+                                geom.arrays['fz']]).T
+            geom_info = {k: geom.info[k] for k in geom.info
+                         if (isinstance(geom.info[k],
+                                        (int, float, str, np.floating))
+                             and k not in db_core.reserved_keys)}
+            geom = geom.copy()
+            calc = singlepoint.SinglePointCalculator(geom,
+                                                     energy=energy,
+                                                     forces=forces)
+            geom.calc = calc
             database.write(geom,
                            id=None,
-                           key_value_pairs={k: geom.info[k] for k in geom.info
-                                            if k not in db_core.reserved_keys},
+                           key_value_pairs=geom_info,
                            row_name=name)
 
 

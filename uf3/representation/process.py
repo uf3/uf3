@@ -10,7 +10,7 @@ from uf3.data import geometry
 from uf3.util import parallel
 
 
-class BasisProcessor:
+class BasisFeaturizer:
     """
     -Manage knot-related logic for pair interactions
     -Generate energy/force features
@@ -35,7 +35,7 @@ class BasisProcessor:
         self.prefix = prefix
 
         # generate column labels
-        self.n_features = sum(self.partition_sizes[1:])
+        self.n_features = sum(self.partition_sizes) - len(self.element_list)
         feature_columns = ['{}_{}'.format(prefix, i)
                            for i in range(self.n_features)]
         composition_columns = ['n_{}'.format(el) for el
@@ -93,10 +93,14 @@ class BasisProcessor:
                 'prefix',
                 'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
-        return BasisProcessor(chemical_system,
-                              **config)
+        return BasisFeaturizer(chemical_system,
+                               **config)
 
-    def evaluate(self, df_data, data_coordinator, progress_bar=True):
+    def evaluate(self,
+                 df_data,
+                 atoms_key="geometry",
+                 energy_key="energy",
+                 progress_bar=True):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -104,7 +108,6 @@ class BasisProcessor:
         Args:
             df_data (pd.DataFrame): standard dataframe with columns
                 [atoms_key, energy_key, fx, fy, fz]
-            data_coordinator (uf3.data.io.DataCoordinator)
             progress_bar (bool)
 
         Returns:
@@ -113,8 +116,6 @@ class BasisProcessor:
                 corresponding to target vector, pair-distance representation
                 features, and composition (one-body) features.
         """
-        atoms_key = data_coordinator.atoms_key
-        energy_key = data_coordinator.energy_key
         eval_map = {}
         header = df_data.columns
         column_positions = {}
@@ -148,8 +149,14 @@ class BasisProcessor:
         df_features = self.arrange_features_dataframe(eval_map)
         return df_features
 
-    def evaluate_parallel(self, df_data, data_coordinator,
-            client, n_jobs=2, progress_bar=True):
+    def evaluate_parallel(self,
+                          df_data,
+                          client,
+                          atoms_key="geometry",
+                          energy_key="energy",
+                          n_jobs=2,
+                          shuffle=True,
+                          progress_bar=True):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -169,18 +176,37 @@ class BasisProcessor:
         """
         if n_jobs < 2:
             warnings.warn("Processing in serial.", RuntimeWarning)
-            df_features = self.evaluate(df_data, data_coordinator)
+            df_features = self.evaluate(df_data,
+                                        atoms_key=atoms_key,
+                                        energy_key=energy_key)
             return df_features
-        batches = parallel.split_dataframe(df_data, n_jobs)
+        if shuffle:
+            shuffled_idx = np.arange(len(df_data))
+            np.random.shuffle(shuffled_idx)
+            batches = parallel.split_dataframe(df_data.iloc[shuffled_idx],
+                                               n_jobs)
+        else:
+            batches = parallel.split_dataframe(df_data, n_jobs)
+        try:
+            batches = [client.scatter(batch) for batch in batches]
+        except AttributeError:
+            pass
         future_list = parallel.batch_submit(self.evaluate,
                                             batches,
                                             client,
-                                            data_coordinator=data_coordinator,
+                                            atoms_key=atoms_key,
+                                            energy_key=energy_key,
                                             progress_bar=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
                                                 cancel=True,
                                                 progress_bar=progress_bar)
+        df_features = df_features.loc[df_data.index, :]
+        try:
+            for batch in batches:
+                client.cancel(batch)
+        except AttributeError:
+            pass
         return df_features
 
     def arrange_features_dataframe(self, eval_map):
@@ -287,7 +313,7 @@ class BasisProcessor:
                                    len(self.element_list)))
             vectors_2B = self.featurize_force_2B(geom, supercell)
             vectors = np.concatenate([vectors_1B, vectors_2B],
-                                      axis=2)
+                                     axis=2)
             if self.degree > 2:
                 vectors_3B = self.featurize_force_3B(geom, supercell)
                 vectors = np.concatenate([vectors, vectors_3B], axis=2)
@@ -349,10 +375,11 @@ class BasisProcessor:
             supercell = geom
         pair_tuples = self.interactions_map[2]
         deriv_results = distances.derivatives_by_interaction(geom,
-                                                             supercell,
                                                              pair_tuples,
+                                                             self.r_cut,
                                                              self.r_min_map,
-                                                             self.r_max_map)
+                                                             self.r_max_map,
+                                                             supercell)
         distance_map, derivative_map = deriv_results
         feature_map = {}
         for pair in pair_tuples:
@@ -382,14 +409,14 @@ class BasisProcessor:
         if supercell is None:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent
-        l_knots = self.knots_map[trio]
+        knot_sequences = self.knots_map[trio]
         basis_functions = self.basis_functions[trio]
-        value_grid = angles.featurize_energy_3B(geom,
+        value_grid = angles.featurize_energy_3b(geom,
                                                 supercell,
-                                                l_knots,
+                                                knot_sequences,
                                                 basis_functions)
-        return value_grid.flatten()
-
+        vector = self.bspline_config.compress_3B(value_grid, trio)
+        return vector
 
     def featurize_force_3B(self, geom, supercell=None):
         """
@@ -407,13 +434,14 @@ class BasisProcessor:
         if supercell is None:
             supercell = geom
         trio = self.interactions_map[3][0]  # TODO: Multicomponent
-        l_knots = self.knots_map[trio]
+        knot_sequences = self.knots_map[trio]
         basis_functions = self.basis_functions[trio]
-        values = angles.featurize_force_3B(geom,
+        values = angles.featurize_force_3b(geom,
                                            supercell,
-                                           l_knots,
+                                           knot_sequences,
                                            basis_functions)
-        values = np.array([[grid.flatten() for grid in atom_set]
+        values = np.array([[self.bspline_config.compress_3B(grid, trio)
+                            for grid in atom_set]
                            for atom_set in values])
         return values
 
@@ -428,9 +456,11 @@ def save_feature_db(dataframe, filename, table_name='features', chunksize=100):
         table_name (str): default "features".
         chunksize (int): default 100.
     """
-    conn = sqlite3.connect(filename)
-    dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
-    conn.close()
+    dataframe.to_hdf(
+        filename, table_name, mode="a", append=True, format='table')
+    # conn = sqlite3.connect(filename)
+    # dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
+    # conn.close()
 
 
 def load_feature_db(filename, table_name='features'):
@@ -444,10 +474,11 @@ def load_feature_db(filename, table_name='features'):
     Returns:
         dataframe (pd.DataFrame)
     """
-    conn = sqlite3.connect(filename)
-    dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
-    dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
-    conn.close()
+    dataframe = pd.read_hdf(filename, table_name)
+    # conn = sqlite3.connect(filename)
+    # dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
+    # dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
+    # conn.close()
     return dataframe
 
 

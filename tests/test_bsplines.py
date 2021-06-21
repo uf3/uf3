@@ -1,6 +1,7 @@
 import pytest
+
+import uf3.representation.bspline
 from uf3.representation.bspline import *
-from uf3.representation import knots
 from uf3.data import composition
 
 @pytest.fixture()
@@ -10,19 +11,43 @@ def binary_chemistry():
     yield chemistry_config
 
 
+class TestKnots:
+    def test_knot_sequence_from_points(self):
+        sequence = knot_sequence_from_points([1, 2, 3])
+        assert np.allclose(sequence, [1, 1, 1, 1, 2, 3, 3, 3, 3])
+
+    def test_get_knot_subintervals(self):
+        sequence = knot_sequence_from_points([1, 2, 3])
+        subintervals = get_knot_subintervals(sequence)
+        assert np.allclose(subintervals[0], [1, 1, 1, 1, 2])
+        assert np.allclose(subintervals[2], [1, 1, 2, 3, 3])
+        assert np.allclose(subintervals[4], [2, 3, 3, 3, 3])
+
+    def test_generate_uniform_knots(self):
+        points = generate_uniform_knots(1, 6, 5, sequence=False)
+        sequence = generate_uniform_knots(1, 6, 5, sequence=True)
+        assert np.allclose(points, [1, 2, 3, 4, 5, 6])
+        assert np.allclose(sequence, [1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 6, 6])
+
+    def test_lammps_knots(self):
+        points = generate_lammps_knots(0, 1, 2)
+        points = np.round(points, 4)
+        assert np.allclose(points, [0, 0, 0, 0, 0.7071, 1, 1, 1, 1])
+
+
 class TestBSplineConfig:
     def test_regularizer_subdivision(self, binary_chemistry):
-        bspline_handler = BSplineConfig(binary_chemistry)
+        bspline_handler = BSplineBasis(binary_chemistry)
         partitions = bspline_handler.get_feature_partition_sizes()
         # default 20 intervals yields 23 basis functions
-        assert np.allclose(partitions, [2, 23, 23, 23])
+        assert np.allclose(partitions, [1, 1, 23, 23, 23])
 
     def test_custom_knots(self):
         element_list = ['Au', 'Ag']
         chemistry = composition.ChemicalSystem(element_list)
         knots_map = {('Ag', 'Au'): [1, 1, 1, 1, 1.1, 1.1, 1.1, 1.1]}
-        bspline_handler = BSplineConfig(chemistry,
-                                        knots_map=knots_map)
+        bspline_handler = BSplineBasis(chemistry,
+                                       knots_map=knots_map)
         assert bspline_handler.r_min_map[('Ag', 'Au')] == 1.0
         assert bspline_handler.r_max_map[('Ag', 'Au')] == 1.1
         assert bspline_handler.resolution_map[('Ag', 'Au')] == 1
@@ -33,8 +58,8 @@ class TestBSplineConfig:
     def test_unary(self):
         element_list = ['Au']
         chemistry = composition.ChemicalSystem(element_list)
-        bspline_handler = BSplineConfig(chemistry,
-                                        r_min_map={('Au', 'Au'): 1.1})
+        bspline_handler = BSplineBasis(chemistry,
+                                       r_min_map={('Au', 'Au'): 1.1})
         assert bspline_handler.r_min_map[('Au', 'Au')] == 1.1
         assert bspline_handler.r_max_map[('Au', 'Au')] == 6.0
         assert bspline_handler.resolution_map[('Au', 'Au')] == 20
@@ -42,8 +67,8 @@ class TestBSplineConfig:
     def test_binary(self):
         element_list = ['Ne', 'Xe']
         chemistry = composition.ChemicalSystem(element_list)
-        bspline_handler = BSplineConfig(chemistry,
-                                        resolution_map={('Ne', 'Xe'): 10})
+        bspline_handler = BSplineBasis(chemistry,
+                                       resolution_map={('Ne', 'Xe'): 10})
         assert bspline_handler.r_min_map[('Ne', 'Ne')] == 1.0
         assert bspline_handler.r_max_map[('Xe', 'Xe')] == 6.0
         assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
@@ -53,7 +78,7 @@ class TestBSplineConfig:
         curvature_map = {2: 1}
         element_list = ['Ne', 'Xe']
         chemistry = composition.ChemicalSystem(element_list)
-        bspline_handler = BSplineConfig(chemistry)
+        bspline_handler = BSplineBasis(chemistry)
         matrix = bspline_handler.get_regularization_matrix(ridge_map,
                                                            curvature_map)
         ridge_sum = (2 * 2) + (0.5 * (23 + 23 + 23))
@@ -72,7 +97,7 @@ class TestBSplineConfig:
 def test_fit_spline_1d():
     x = np.linspace(-1, 7, 1000)
     y = np.sin(x) + 0.5 * x
-    knot_sequence = knots.generate_lammps_knots(0, 6, 5)
+    knot_sequence = uf3.representation.bspline.generate_lammps_knots(0, 6, 5)
     coefficients = fit_spline_1d(x, y, knot_sequence)
     coefficients = np.round(coefficients, 2)
     assert np.allclose(coefficients,
@@ -90,8 +115,8 @@ def test_distance_bspline():
     points = np.array([1e-10,  # close to 0
                        0.5,
                        1 - 1e-10])  # close to 1
-    sequence = knots.knot_sequence_from_points([0, 1])
-    subintervals = knots.get_knot_subintervals(sequence)
+    sequence = uf3.representation.bspline.knot_sequence_from_points([0, 1])
+    subintervals = uf3.representation.bspline.get_knot_subintervals(sequence)
     basis_functions = generate_basis_functions(subintervals)
     values_per_spline = evaluate_basis_functions(points,
                                                  basis_functions,
@@ -119,8 +144,8 @@ def test_force_bspline():
                          [0.0, 1.0, 0.0, 0.8, 1.0, 0.8],
                          [0.0, 0.0, 0.0, 0.0, -0.0, -0.0, ]]])
 
-    sequence = knots.knot_sequence_from_points([2, 6])
-    subintervals = knots.get_knot_subintervals(sequence)
+    sequence = uf3.representation.bspline.knot_sequence_from_points([2, 6])
+    subintervals = uf3.representation.bspline.get_knot_subintervals(sequence)
     basis_functions = generate_basis_functions(subintervals)
     x = featurize_force_2B(basis_functions, distances, drij_dR, sequence)
     assert x.shape == (3, 3, 4)

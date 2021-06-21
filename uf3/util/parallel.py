@@ -29,7 +29,7 @@ except ImportError:  # optional import
                 self.pad = len(self.total)
             self.counter = 0
 
-        def update(self, i):
+        def update(self, i=1):
             self.counter += i
             print(str(self.counter).ljust(self.pad),
                   "/",
@@ -42,7 +42,7 @@ try:
     from dask import distributed
     USE_DASK = True
 except ImportError:
-    distributed = None
+    from concurrent import futures as distributed
     USE_DASK = False
 
 
@@ -154,7 +154,7 @@ def batch_submit(func, batches, client, *args, **kwargs):
 
 
 def gather_and_merge(
-        future_list, client=None, cancel=False, progress_bar=True):
+        future_list, client=None, cancel=False, progress_bar=True, asynchronous=True):
     """
     Args:
         future_list (list): list of futures.
@@ -164,15 +164,33 @@ def gather_and_merge(
     Returns:
         result: merged result, if datatype is supported, or list of results.
     """
-    if progress_bar:
-        wait_progress(future_list)
+
+    if asynchronous:
+        item_list = []
+        if progress_bar:
+            pbar = ProgressBar(total=len(future_list))
+        if USE_DASK and isinstance(client, distributed.Client):
+            for future, result in distributed.as_completed(
+                    future_list, with_results=True):
+                item_list.append(result)
+                client.cancel(future)
+                if progress_bar:
+                    pbar.update()
+        else:
+            for future in futures.as_completed(future_list):
+                item_list.append(future.result())
+                if progress_bar:
+                    pbar.update()
     else:
-        wait = select_wait_function(future_list)
-        wait(future_list)
-    try:  # more efficient but not implemented in concurrent.futures
-        item_list = client.gather(future_list)
-    except AttributeError:
-        item_list = [future.result() for future in future_list]
+        if progress_bar:
+            wait_progress(future_list)
+        else:
+            wait = select_wait_function(future_list)
+            wait(future_list)
+        try:  # more efficient but not implemented in concurrent.futures
+            item_list = client.gather(future_list)
+        except AttributeError:
+            item_list = [future.result() for future in future_list]
     # merge according to data type
     if isinstance(item_list[0], dict):
         result = {}

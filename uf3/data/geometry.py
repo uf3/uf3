@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import ase
 from scipy import linalg
@@ -69,8 +70,11 @@ def get_supercell_factors(cell, r_cut):
         supercell_factors: minimum number of images per direction (radius).
     """
     a, b, c = cell
-    if np.any(np.max(cell, axis=1) == 0):
-        raise ValueError("Unit cell has 0-length lattice vector(s).")
+    if np.all(cell == 0):
+        return [1, 1, 1]
+    elif np.any(np.linalg.norm(cell, 2, axis=1) == 0):
+        warnings.warn("Unit cell has 0-length lattice vector(s).")
+        return [1, 1, 1]
     normal_vectors = [np.cross(b, c),
                       np.cross(a, c),
                       np.cross(a, b)]

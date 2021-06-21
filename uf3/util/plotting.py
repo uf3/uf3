@@ -4,6 +4,7 @@ from matplotlib import cm
 from matplotlib import axes
 from scipy import stats
 from scipy import interpolate
+from scipy import linalg
 
 
 def round_lims(values, round_factor=0.5):
@@ -47,7 +48,7 @@ def density_scatter(references,
                     loglog=False,
                     lims=None,
                     lim_factor=0.5,
-                    subset_threshold=10000,
+                    subset_threshold=1000,
                     cmap=None,
                     metrics=True,
                     text_size=8,
@@ -99,9 +100,12 @@ def density_scatter(references,
     max_over = np.max(residuals)
     max_under = np.min(residuals)
     # Randomly select subset for large datasets
-    x, y = get_subsets(subset_threshold, x, y)
+    x_subset, y_subset = get_subsets(subset_threshold, x, y)
     # Scatter, colored by log density
-    x, y, z = density_estimation(x, y)
+    try:
+        x, y, z = density_estimation(x_subset, y_subset, x, y)
+    except linalg.LinAlgError:
+        z = np.ones(len(y))
     ax.scatter(x, y, c=z, cmap=cmap, **scatter_kwargs)
     # Axis scale and limits
     ax.axis('square')
@@ -145,15 +149,16 @@ def density_scatter(references,
     return fig_tuple
 
 
-def density_estimation(x, y):
+def density_estimation(x_subset, y_subset, x, y):
     """Estimate with gaussian kernel density method. Sort by log-density."""
+    xy_subset = np.vstack([x_subset, y_subset])
     xy_stack = np.vstack([x, y])
-    z = stats.gaussian_kde(xy_stack)(xy_stack)
+    z = stats.gaussian_kde(xy_subset)(xy_stack)
     z_sort = np.argsort(z)
     x = x[z_sort]
     y = y[z_sort]
     z = z[z_sort]
-    z = np.log(z - np.min(z) + 1)  # ensure valid log domain
+    z = np.log10(z - np.min(z) + 1)  # ensure valid log domain
     return x, y, z
 
 
