@@ -26,7 +26,9 @@ if __name__ == "__main__":
     filename_pattern = settings['filename_pattern']
     cache_data = settings['cache_data']  # output
     data_filename = settings['data_filename']
-        
+    
+    energy_key = settings['energy_key']
+    force_key = settings['force_key']
     max_samples = settings['max_samples_per_file']
     min_diff = settings['min_diff']
     vasp_pressure = settings['vasp_pressure']
@@ -49,21 +51,23 @@ if __name__ == "__main__":
     if degree != 2 and degree != 3:
         raise ValueError("Degree must be 2 or 3.")
     # Parse data
-    data_coordinator = DataCoordinator()
+    data_coordinator = DataCoordinator(energy_key=energy_key,
+                                       force_key=force_key)
     data_paths = io.identify_paths(experiment_path=experiment_path,
                                    filename_pattern=filename_pattern)
     io.parse_with_subsampling(data_paths,
-                             data_coordinator,
-                             max_samples=max_samples,
-                             min_diff=min_diff,
-                             vasp_pressure=vasp_pressure,
-                             verbose=verbose)
+                              data_coordinator,
+                              max_samples=max_samples,
+                              min_diff=min_diff,
+                              energy_key=energy_key,
+                              vasp_pressure=vasp_pressure,
+                              verbose=verbose)
     if cache_data:
         if os.path.isfile(data_filename):
             if verbose >= 1:
                 print("Overwriting...")
             os.remove(data_filename)
-        io.cache_data(data_coordinator, data_filename)
+        io.cache_data(data_coordinator, data_filename, energy_key=energy_key)
         if verbose >= 1:
             print("Cached data:", data_filename)
     df_data = data_coordinator.consolidate()
@@ -91,7 +95,12 @@ if __name__ == "__main__":
 
         bar_width = histograms[1][1] - histograms[1][0]
         pairs = chemical_system.interactions_map[2]
-        fig, ax = plt.subplots(1, len(pairs), figsize=(len(pairs)*2, 2))
+        fig, ax = plt.subplots(1, 
+                               len(pairs), 
+                               figsize=(len(pairs)*2, 2),
+                               dpi=150)
+        if len(pairs) == 1:
+            ax = [ax]
         for i, pair in enumerate(pairs):
             ax[i].bar(histograms[1][:-1],
                       histograms[0][pair],

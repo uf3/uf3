@@ -12,8 +12,8 @@ from uf3.representation import process
 from uf3.forcefield import lammps
 from uf3.data.io import DataCoordinator
 from uf3.data.composition import ChemicalSystem
-from uf3.representation.bspline import BSplineConfig
-from uf3.representation.process import BasisProcessor
+from uf3.representation.bspline import BSplineBasis
+from uf3.representation.process import BasisFeaturizer
 from uf3.regression.least_squares import WeightedLinearModel
 
 
@@ -90,11 +90,11 @@ if __name__ == "__main__":
     data_coordinator.dataframe_from_trajectory(data_filename, load=True)
     df_data = data_coordinator.consolidate()
     df_features = process.load_feature_db(features_filename)
-    bspline_config = BSplineConfig(chemical_system,
-                                   knots_map=knots_map,
-                                   knot_spacing='custom')
-    representation = BasisProcessor(chemical_system,
-                                    bspline_config)
+    bspline_config = BSplineBasis(chemical_system,
+                                  knots_map=knots_map,
+                                  knot_spacing='custom')
+    representation = BasisFeaturizer(chemical_system,
+                                     bspline_config)
     model = WeightedLinearModel(bspline_config)
     model.load(coefficients)
     with open(os.path.join(output_directory, training_filename), 'r') as f:
@@ -163,10 +163,8 @@ if __name__ == "__main__":
 
             plotting.visualize_splines(coef_vector,
                                        knot_sequence,
-                                       ax=ax,
-                                       s_min=y_min,
-                                       s_max=y_max,
-                                       linewidth=1)
+                                       ax=ax)
+            ax.set_ylim(y_min, y_max)
             ax.set_ylabel('B-Spline Value')
             ax.set_xlabel('$\mathrm{r_{ij}~~(\AA)}$')
             ax.set_title(pair_string)

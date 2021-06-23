@@ -1,15 +1,16 @@
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
+# from concurrent.futures import ProcessPoolExecutor
+from dask import distributed
 import numpy as np
-from uf3.representation import knots
+from uf3.representation import bspline
 from uf3.representation import process
 from uf3.util import user_config
 from uf3.util import json_io
 from uf3.data.io import DataCoordinator
 from uf3.data.composition import ChemicalSystem
-from uf3.representation.bspline import BSplineConfig
-from uf3.representation.process import BasisProcessor
+from uf3.representation.bspline import BSplineBasis
+from uf3.representation.process import BasisFeaturizer
 
 
 if __name__ == "__main__":
@@ -26,6 +27,7 @@ if __name__ == "__main__":
     data_filename = settings['data_filename']  # input
     cache_features = settings['cache_features']
     features_filename = settings['features_filename']  # output
+    energy_key = settings['energy_key']
     
     verbose = settings['verbose']
     random_seed = settings['random_seed']
@@ -43,7 +45,7 @@ if __name__ == "__main__":
         n_jobs = 1
     
     # Initialize handlers
-    data_coordinator = DataCoordinator()
+    data_coordinator = DataCoordinator(energy_key=energy_key)
     chemical_system = ChemicalSystem(element_list=element_list,
                                      degree=degree)
     # handle knots
@@ -51,7 +53,7 @@ if __name__ == "__main__":
     write_knots = settings["write_knots"]
     knots_file = settings.get("knots_file", None)
     if knots_file is not None and os.path.isfile(knots_file) and read_knots:
-        knots_map = knots.parse_knots_file(knots_file, chemical_system)
+        knots_map = bspline.parse_knots_file(knots_file, chemical_system)
     else:
         knots_map = {}
     if knots_map:  # successful loading of knots_file
@@ -72,17 +74,18 @@ if __name__ == "__main__":
         if resolution_map is not None:
             resolution_map = {user_config.get_element_tuple(key): value
                               for key, value in resolution_map.items()}
-        bspline_config = BSplineConfig(chemical_system,
-                                       r_min_map=r_min_map,
-                                       r_max_map=r_max_map,
-                                       resolution_map=resolution_map,
-                                       knot_spacing=knot_spacing)
+        bspline_config = BSplineBasis(chemical_system,
+                                      r_min_map=r_min_map,
+                                      r_max_map=r_max_map,
+                                      resolution_map=resolution_map,
+                                      knot_spacing=knot_spacing)
     # Load data
     data_coordinator.dataframe_from_trajectory(data_filename, load=True)
     df_data = data_coordinator.consolidate()
+    
     # Initialize representation, regularizer, and model
-    representation = BasisProcessor(chemical_system,
-                                    bspline_config)
+    representation = BasisFeaturizer(chemical_system,
+                                     bspline_config)
     knots_file = knots_file or "knots.json"
     if write_knots:
         if os.path.isfile(knots_file) and verbose >= 1:
@@ -92,14 +95,19 @@ if __name__ == "__main__":
                                      write=True)
         if verbose >=1:
             print("Wrote knots:", knots_file)
-    client = ProcessPoolExecutor(max_workers=n_jobs)
+#    client = ProcessPoolExecutor(max_workers=n_jobs)
+    
+    cluster = distributed.LocalCluster(n_jobs)
+    client = distributed.Client(cluster)
+
     # Compute representations
     if n_jobs == 1:
         n_batches = 1
     else:
         n_batches = 8  # added granularity for more progress bar updates.
+    
+
     df_features = representation.evaluate_parallel(df_data,
-                                                   data_coordinator,
                                                    client,
                                                    n_jobs=n_jobs * n_batches,
                                                    progress_bar=progress_bars)

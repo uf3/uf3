@@ -468,4 +468,4 @@ def get_symmetry_weights(symmetry, l_space, m_space, n_space):
             template[i, j, k] = 0
         elif m_space[j + 4] + n_space[k + 4] <= l_space[i]:
             template[i, j, k] = 0
-    return template
+    return template
