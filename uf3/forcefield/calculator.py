@@ -280,11 +280,12 @@ def coefficients_by_interaction(element_list,
     Returns:
         solutions (dict)
     """
+    n_elements = len(element_list)
     split_indices = np.cumsum(partition_sizes)[:-1]
     solutions_list = np.array_split(coefficients,
                                     split_indices)
     solutions = {element: value for element, value
-                 in zip(element_list, solutions_list[0])}
+                 in zip(element_list, solutions_list[:n_elements])}
     n_i = len (element_list)
     keys = interactions_map[2] + interactions_map.get(3, [])
     for idx, key in enumerate(keys):
