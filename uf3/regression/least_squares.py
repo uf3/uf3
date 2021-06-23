@@ -360,7 +360,9 @@ def arrange_coefficients(coefficients, bspline_config):
     return solutions
 
   
-def postprocess_coefficients(coefficients, core_hardness=2.0):
+def postprocess_coefficients(coefficients,
+                             core_hardness=2.0,
+                             smooth_cutoff=False):
     """
     Postprocess 2B coefficients to enforce repulsive core.
 
@@ -395,4 +397,6 @@ def postprocess_coefficients(coefficients, core_hardness=2.0):
         for i in np.arange(max_coeff)[::-1]:
             right = coefficients[i + 1]
             coefficients[i] = right - slope * core_hardness
+    if smooth_cutoff:
+        coefficients[-2:] = 0
     return coefficients
