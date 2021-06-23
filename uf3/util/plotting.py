@@ -51,10 +51,10 @@ def density_scatter(references,
                     subset_threshold=1000,
                     cmap=None,
                     metrics=True,
-                    text_size=8,
+                    text_size=10,
                     units=None,
                     labels=True,
-                    label_size=8,
+                    label_size=10,
                     **scatter_kwargs):
     """
     Plot regression performance with a scatter plot of predictions vs.
@@ -188,21 +188,17 @@ def get_subsets(subset_threshold, *args):
 def visualize_splines(coefficients,
                       knot_sequence,
                       ax=None,
-                      r_min=None,
-                      r_max=None,
-                      s_min=-1,
-                      s_max=2,
-                      color='gray',
-                      **kwargs):
-    if r_min is None:
-        r_min = knot_sequence[0]
-    if r_max is None:
-        r_max = knot_sequence[-1]
+                      cmap=None,
+                      show_total=True):
+    r_min = knot_sequence[0]
+    r_max = knot_sequence[-1]
     if ax is None:
         fig, ax = plt.subplots()
     else:
         fig = ax.get_figure()
-    colors = cm.rainbow(np.linspace(0, 1, len(coefficients)))
+    if cmap is None:
+        cmap = cm.gnuplot
+    colors = cmap(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
     for i, c in enumerate(coefficients):
         kn = knot_sequence[i:i + 5]
@@ -214,13 +210,25 @@ def visualize_splines(coefficients,
                                  3,
                                  extrapolate=False)
         y_plot = bs(x_plot)
-        ax.plot(x_plot, y_plot, color=colors[i], **kwargs)
+        ax.plot(x_plot,
+                y_plot,
+                color=colors[i],
+                linewidth=1)
         y_plot[np.isnan(y_plot)] = 0
     bs_t = interpolate.BSpline(knot_sequence,
                                coefficients,
                                3,
                                extrapolate=False)
-    ax.plot(x_plot, bs_t(x_plot), c=color, **kwargs)
-    ax.set_xlim(r_min - 0.1, r_max + 0.1)
+    y_total = bs_t(x_plot)
+    s_min = np.min(y_total)
+    s_max = np.max(y_total)
+    if show_total:
+        ax.plot(x_plot, bs_t(x_plot),
+                c='k',
+                linewidth=2,
+                linestyle=(0, (1, 1)))
+    ax.set_xlim(r_min, r_max)
     ax.set_ylim(s_min, s_max)
+    ax.set_xlabel("r")
+    ax.set_ylabel("B(r)")
     return fig, ax

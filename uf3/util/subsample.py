@@ -10,7 +10,7 @@ def farthest_point_sampling(data, max_samples=None, min_diff=0):
         Two stopping criteria
 
     Args:
-        data (list, np.ndarray)
+        data (np.ndarray)
         max_samples (int)
         min_diff (float): minimum distance between samples.
 
