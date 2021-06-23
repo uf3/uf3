@@ -2,15 +2,16 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
+
+import uf3.representation.bspline
 from uf3.util import user_config
 from uf3.util import json_io
-from uf3.representation import knots
 from uf3.representation import process
 from uf3.regression import least_squares
 from uf3.data.io import DataCoordinator
 from uf3.data.composition import ChemicalSystem
-from uf3.representation.bspline import BSplineConfig
-from uf3.representation.process import BasisProcessor
+from uf3.representation.bspline import BSplineBasis
+from uf3.representation.process import BasisFeaturizer
 from uf3.regression.least_squares import WeightedLinearModel
 
 
@@ -56,16 +57,16 @@ if __name__ == "__main__":
                                      degree=degree)
     # Load BSpline config
     knots_file = settings.get("knots_file", None)
-    knots_map = knots.parse_knots_file(knots_file, chemical_system)
-    bspline_config = BSplineConfig(chemical_system,
-                                   knots_map=knots_map,
-                                   knot_spacing='custom')
+    knots_map = uf3.representation.bspline.parse_knots_file(knots_file, chemical_system)
+    bspline_config = BSplineBasis(chemical_system,
+                                  knots_map=knots_map,
+                                  knot_spacing='custom')
     # Load data
     data_coordinator.dataframe_from_trajectory(data_filename, load=True)
     df_data = data_coordinator.consolidate()
     df_features = process.load_feature_db(features_filename)
-    representation = BasisProcessor(chemical_system,
-                                    bspline_config)
+    representation = BasisFeaturizer(chemical_system,
+                                     bspline_config)
     regularizer = bspline_config.get_regularization_matrix(
         **regularization_params)
     fixed = bspline_config.get_fixed_tuples(values=0,
@@ -104,20 +105,26 @@ if __name__ == "__main__":
     x_val, y_val, w_cond = validation_tuples
     # slice entries corresponding to energies per atom
     s_e = df_data.loc[training_keys][data_coordinator.size_key]
-    x_e = np.divide(x_val[w_cond == 0].T, s_e.values).T
-    y_e = y_val[w_cond == 0] / s_e.values
-    # slice entries corresponding to forces
-    x_f = x_val[w_cond > 0]
-    y_f = y_val[w_cond > 0]
-    # predict with solution
-    p_e = model.predict(x_e)  # energy per atom
-    p_f = model.predict(x_f)
-
-    # Compute root-mean-square error
-    rmse_e = np.sqrt(np.mean(np.subtract(y_e, p_e)**2))
-    rmse_f = np.sqrt(np.mean(np.subtract(y_f, p_f)**2))
-    print("Training RMSE (Energy):", rmse_e, "eV/atom")
-    print("Training RMSE (Forces):", rmse_f, "eV/angstrom")
+    
+    mask_e = (w_cond == 0)  # energy entries
+    mask_f = np.logical_not(mask_e)  # force entries
+    if np.any(mask_e):
+        x_e = np.divide(x_val[mask_e].T, s_e.values).T
+        y_e = y_val[mask_e] / s_e.values
+        # predict with solution
+        p_e = model.predict(x_e)  # energy per atom
+        # Compute root-mean-square error
+        rmse_e = np.sqrt(np.mean(np.subtract(y_e, p_e)**2))
+        print("Training RMSE (Energy):", rmse_e, "eV/atom")
+    
+    if np.any(mask_f):
+        # slice entries corresponding to forces
+        x_f = x_val[w_cond > 0]
+        y_f = y_val[w_cond > 0]
+        p_f = model.predict(x_f)
+        # Compute root-mean-square error
+        rmse_f = np.sqrt(np.mean(np.subtract(y_f, p_f)**2))
+        print("Training RMSE (Forces):", rmse_f, "eV/angstrom")
     
     # Arrange solution into pair-interaction potentials
     solutions = least_squares.arrange_coefficients(model.coefficients,
