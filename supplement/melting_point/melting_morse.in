@@ -1,0 +1,42 @@
+variable	T equal 3695
+units           metal
+boundary        p p p
+
+atom_style      atomic
+
+lattice         bcc 3.206
+region          box block -30 30  -10 10 -10 10
+create_box      1 box
+create_atoms    1 region box	
+
+mass            1  180.95 
+
+pair_style      morse 5.5
+pair_coeff      * * 0.4206 1.4025 3.055
+
+region          1 block INF -0.01  -11 11  -11 11
+group           left region 1
+region          2 block -0.01 INF  -11 11 -11 11
+group           right region 2
+
+timestep        0.002
+velocity        all create 2000.0 4928459 dist gaussian
+fix             1 all npt temp $T $T  0.1 iso 0 0 0.2
+
+dump            melt all atom 10000 dump.dat
+
+thermo          100
+run             20000
+
+unfix   1
+fix             1 right npt temp $T 5000 0.1 x 0 0   1.0
+run             20000
+
+unfix   1
+fix             1 right npt temp 5000 $T 0.1 x 0 0   1.0
+
+run             20000
+
+unfix           1
+fix 1 		all nph iso 0.0 0.0 0.2  
+run             1000000

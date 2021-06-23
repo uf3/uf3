@@ -1,0 +1,2 @@
+pair_style      morse 5.5
+pair_coeff      * * 0.4206 1.4025 3.055
