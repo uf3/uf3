@@ -1,3 +1,4 @@
+from typing import List
 import warnings
 import ase
 from ase import units
@@ -11,7 +12,9 @@ except ImportError:
     USE_ELASTIC = False
 
 
-def get_elastic_constants(geom, calc):
+def get_elastic_constants(geom: ase.Atoms,
+                          calc: ase_calc.Calculator
+                          ) -> List:
     """
     Args:
         geom (ase.Atoms)
