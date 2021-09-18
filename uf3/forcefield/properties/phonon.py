@@ -1,11 +1,11 @@
 import warnings
 import ase
-import seekpath
 import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 try:
     import phonopy
+    import seekpath
     from phonopy.structure import atoms as phonopy_atoms
     USE_PHONOPY = True
 except ImportError:
