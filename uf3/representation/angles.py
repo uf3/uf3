@@ -1,3 +1,4 @@
+from typing import List, Dict, Tuple
 import numpy as np
 from numba import jit
 import ase
@@ -82,7 +83,12 @@ def coefficient_counts_from_knots(knot_sets: List[List[np.ndarray]],
 
 
 @jit(nopython=True, nogil=True)
-def arrange_3b(triangle_values, idx_lmn, L, M, N):
+def arrange_3b(triangle_values: np.ndarray,
+               idx_lmn: np.ndarray,
+               L: int,
+               M: int,
+               N: int
+               ) -> np.ndarray:
     """
     Args:
         triangle_values (np.ndarray): array of shape (n_triangles * 4, 3)
@@ -193,14 +199,15 @@ def featurize_force_3b(geom: ase.Atoms,
 
 
 @jit(nopython=True, nogil=True)
-def arrange_deriv_3b(triangle_values,
-                     idx_lmn,
-                     drij_dr,
-                     drik_dr,
-                     drjk_dr,
-                     L,
-                     M,
-                     N):
+def arrange_deriv_3b(triangle_values: np.ndarray,
+                     idx_lmn: np.ndarray,
+                     drij_dr: np.ndarray,
+                     drik_dr: np.ndarray,
+                     drjk_dr: np.ndarray,
+                     L: int,
+                     M: int,
+                     N: int
+                     ) -> List[List[np.ndarray]]:
     """
     Args:
         triangle_values (np.ndarray): array of shape (n_triangles * 4, 3)
@@ -523,29 +530,10 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
     return values_3b, idx_lmn
 
 
-def unflatten_3B(coefficients, trio, bspline_config):
+def symmetrize_3B(grid_3b: np.ndarray, symmetry: int = 2) -> np.ndarray:
     """
-    Unflatten 3b coefficient vector into 3D array.
-
-    Args:
-        coefficients (np.ndarray): vector of flattened coefficients.
-        trio (tuple): 3b interaction tuple.
-        bspline_config (bspline.BSplineBasis)
-
-    Returns:
-        unflattened (np.ndarray): 3D array.
-    """
-    mask = bspline_config.unflatten_mask[trio]
-    unflattened = np.zeros_like(mask, dtype=float)
-    unflattened[mask] = coefficients
-    unflattened = symmetrize_3B(unflattened)
-    return unflattened
-
-
-def symmetrize_3B(grid_3b, symmetry=2):
-    """
-        Symmetrize 3D array with mirror planes, enforcing permutational
-            invariance with respect to i, j , and k indices.
+        Symmetrize 3D array with mirror plane(s), enforcing permutational
+            invariance with respect to j and k indices.
             This allows us to avoid sorting, which is slow.
     """
     template = np.ones_like(grid_3b)
@@ -574,13 +562,30 @@ def symmetrize_3B(grid_3b, symmetry=2):
     return grid_3b
 
 
-def get_symmetry_weights(symmetry, l_space, m_space, n_space):
+def get_symmetry_weights(symmetry: int,
+                         l_space: np.ndarray,
+                         m_space: np.ndarray,
+                         n_space: np.ndarray,
+                         trailing_trim: int = 3,
+                         ) -> np.ndarray:
+    """
+    Args:
+        symmetry (int): Symmetry considered in system. Default is 2, resulting
+            in one mirror plane along the l=m plane.
+        {l, m, n}_space (np.ndarray): knot sequences along three dimensions.
+        trailing_trim (int): number of basis functions at trailing edge
+            to suppress. Useful for ensuring smooth cutoffs.
+
+    Returns:
+        template (np.ndarray): array of weights for basis functions,
+            shaped in three dimensions.
+    """
     L = len(l_space) - 4
     M = len(m_space) - 4
     N = len(n_space) - 4
 
     template = np.ones((L, M, N))
-    if symmetry == 2:  # one mirror plane (i and j interchangeable)
+    if symmetry == 2:  # one mirror plane (j and k interchangeable)
         for i, j, k in np.ndindex(*template.shape):
             if (i > j):
                 template[i, j, k] = 0
