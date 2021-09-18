@@ -6,15 +6,12 @@ import pandas as pd
 from concurrent import futures
 
 try:
-    import tqdm
-    ProgressBar = tqdm.tqdm
-
+    from tqdm.auto import tqdm
+    ProgressBar = tqdm
     def progress_iter(iterable, **kwargs):
-        tqdm.tqdm._instances.clear()
-        return tqdm.tqdm(iterable, **kwargs)
+        return tqdm(iterable, **kwargs)
 except ImportError:  # optional import
     tqdm = None
-
     def progress_iter(iterable, **kwargs):
         return iterable
 
