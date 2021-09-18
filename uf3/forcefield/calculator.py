@@ -209,8 +209,24 @@ class UFCalculator(ase_calc.Calculator):
             return True
         return False
 
-    def get_elastic_constants(self, atoms: ase.Atoms) -> np.ndarray:
-        results = elastic.get_elastic_constants(atoms, self)
+    def get_elastic_constants(self,
+                              atoms: ase.Atoms,
+                              n: int = 5,
+                              d: float = 1.0
+                              ) -> List:
+        """
+        Compute elastic constants.
+        Args:
+            atoms (ase.Atoms)
+            n (int): number of distortions to sample for fitting.
+            d (float): maximum displacement in percent.
+        Returns:
+            results (list): elastic constants.
+        """
+        results = elastic.get_elastic_constants(atoms,
+                                                self,
+                                                n=n,
+                                                d=d)
         return results
 
     def get_phonon_data(self,
