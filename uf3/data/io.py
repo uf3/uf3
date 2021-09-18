@@ -838,7 +838,7 @@ def parse_with_subsampling(data_paths: List[str],
             continue
         if len(df) == 0:
             continue
-        energy_list = df[energy_key].values
+        energy_list = df[energy_key].values / df["size"].values
 
         if max_samples > 0:
             subsamples = subsample.farthest_point_sampling(energy_list,
