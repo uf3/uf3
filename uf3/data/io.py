@@ -907,6 +907,28 @@ def cache_data(data_coordinator: DataCoordinator,
                            row_name=name)
 
 
+def analyze_hdf_tables(filename: str) -> Tuple[int, int, List, Dict]:
+    """Read hdf5 file and analyze table names and lengths"""
+    with tables.open_file(filename, mode="r") as h5file:
+        chunk_lengths = {}
+        paths = [group._v_name
+                 for group in h5file.list_nodes("/")]
+
+        for path in paths:
+            table = h5file.get_node("/" + path, "axis0")
+            chunk_lengths[path] = table.nrows
+    n_chunks = len(chunk_lengths)
+    n_entries = int(np.sum([v for v in chunk_lengths.values()]))
+    chunk_names = sorted(paths)
+    return n_chunks, n_entries, chunk_names, chunk_lengths
+
+
+def dataframe_batch_loader(filename, table_names):
+    for table_name in table_names:
+        df = pd.read_hdf(filename, table_name)
+        yield df
+
+
 def resolve_name_conflict(path: str) -> int:
     """Simple renaming by incrementing an integer preceding file extension."""
     if os.path.isfile(path):
