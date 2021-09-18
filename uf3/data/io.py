@@ -121,17 +121,27 @@ class DataCoordinator:
                                   filename,
                                   prefix=None,
                                   load=True,
+                                  energy_key=None,
+                                  force_key=None,
                                   **kwargs):
         """Wrapper for parse_trajectory"""
         if prefix is None:
             prefix = len(self.data)
+        if energy_key is None:
+            energy_key = self.energy_key
+        if force_key is None:
+            force_key = self.force_key
         df = parse_trajectory(filename,
                               prefix=prefix,
                               atoms_key=self.atoms_key,
-                              energy_key=self.energy_key,
-                              force_key=self.force_key,
+                              energy_key=energy_key,
+                              force_key=force_key,
                               size_key=self.size_key,
                               **kwargs)
+
+        if energy_key != self.energy_key:
+            df.rename(columns={energy_key: self.energy_key},
+                      inplace=True)
         if load:
             self.load_dataframe(df, prefix=prefix)
         else:
