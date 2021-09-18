@@ -1,9 +1,8 @@
-from typing import List, Dict, Iterable, Tuple, Any
-
+from typing import List, Dict, Collection, Tuple, Any
 import itertools
+import numpy as np
 import ase
 from ase import symbols as ase_symbols
-import numpy as np
 
 
 reference_X = dict(X=0, H=2.2, He=0, Li=0.98, Be=1.57, B=2.04, C=2.55, N=3.04,
@@ -28,13 +27,16 @@ reference_X = dict(X=0, H=2.2, He=0, Li=0.98, Be=1.57, B=2.04, C=2.55, N=3.04,
 class ChemicalSystem:
     """Manage quantities related to elements and composition."""
     degree: int
-    element_list: Iterable[str]
+    element_list: Collection[str]
     numbers: List[int]
     interactions: List[Tuple[str]]
     interactions_map: Dict[int, Tuple[str]]
     interaction_hashes: Dict[Tuple[str], int]
 
-    def __init__(self, element_list: Iterable[str], degree: int = 2) -> None:
+    def __init__(self,
+                 element_list: Collection[str],
+                 degree: int = 2
+                 ) -> None:
         """
         Args:
             element_list (list): set of elements in chemical system
@@ -51,13 +53,10 @@ class ChemicalSystem:
         self.interaction_hashes = self.get_interaction_hashes()
 
     @staticmethod
-    def from_config(config: Dict[Any]):
+    def from_config(config: Dict[Any, Any]):
         """Instantiate from configuration dictionary"""
         keys = ['element_list',
-                'degree',
-                'r_min_map',
-                'r_max_map',
-                'resolution_map']
+                'degree']
         config = {k: v for k, v in config.items() if k in keys}
         return ChemicalSystem(**config)
 
@@ -120,11 +119,11 @@ class ChemicalSystem:
         return interaction_hashes
 
 
-def sort_interaction_map(map):
-    return {sort_interaction_symbols(k): v for k, v in map.items()}
+def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
+    return {sort_interaction_symbols(k): v for k, v in imap.items()}
 
 
-def sort_interaction_symbols(symbols: Iterable[str]) -> Tuple[str]:
+def sort_interaction_symbols(symbols: Collection[str]) -> Tuple[str]:
     """
     Sort interaction tuple by electronegativities.
     For consistency, many-body interactions (i.e. >2) are sorted while fixing
@@ -138,7 +137,7 @@ def sort_interaction_symbols(symbols: Iterable[str]) -> Tuple[str]:
         return tuple(sorted(symbols, key=lambda el: reference_X[el]))
 
 
-def get_electronegativity_sort(numbers: Iterable[int]) -> np.ndarray:
+def get_electronegativity_sort(numbers: Collection[int]) -> np.ndarray:
     """Query electronegativities given element number(s)."""
     symbols = np.array(ase_symbols.chemical_symbols)[np.array(numbers)]
     array = np.zeros_like(symbols, dtype=float)
@@ -147,7 +146,9 @@ def get_electronegativity_sort(numbers: Iterable[int]) -> np.ndarray:
     return array
 
 
-def get_element_combinations(element_list: Iterable[str], n: int = 3) -> List[Tuple[str]]:
+def get_element_combinations(element_list: Collection[str],
+                             n: int = 3
+                             ) -> List[Tuple[str]]:
     """
     Find chemical interactions from element list based on
         combinations (choose n). First column corresponds to the "center" atom,

@@ -2,14 +2,17 @@ import os
 import re
 import io
 import fnmatch
+from typing import List, Dict, Collection, Tuple, Any, Union
 import numpy as np
 import pandas as pd
+import tables
 import ase
 from ase import io as ase_io
 from ase import db as ase_db
 from ase.db import core as db_core
 from ase.io import lammpsrun as ase_lammpsrun
 from ase.calculators import singlepoint
+from ase.calculators import calculator as ase_calc
 from uf3.util import subsample
 
 
@@ -23,7 +26,8 @@ class DataCoordinator:
                  energy_key='energy',
                  force_key='force',
                  size_key='size',
-                 overwrite=False):
+                 overwrite=False
+                 ):
         """
         Args:
             atoms_key (str): column name for geometries, default "geometry".
@@ -163,9 +167,10 @@ class DataCoordinator:
             return df
 
 
-def concat_dataframes(dataframes,
-                      remove_duplicates=True,
-                      keep='first'):
+def concat_dataframes(dataframes: List[pd.DataFrame],
+                      remove_duplicates: bool = True,
+                      keep: str = 'first'
+                      ) -> pd.DataFrame:
     """
     Concatenate list of dataframes with optional removal of duplicate keys.
 
@@ -188,15 +193,16 @@ def concat_dataframes(dataframes,
     return df
 
 
-def prepare_dataframe_from_lists(geometries,
-                                 prefix=None,
-                                 energies=None,
-                                 forces=None,
-                                 atoms_key='geometry',
-                                 energy_key='energy',
-                                 force_key='force',
-                                 size_key='size',
-                                 copy=True):
+def prepare_dataframe_from_lists(geometries: List[ase.Atoms],
+                                 prefix: str = None,
+                                 energies: List[float] = None,
+                                 forces: List[np.ndarray] = None,
+                                 atoms_key: str = 'geometry',
+                                 energy_key: str = 'energy',
+                                 force_key: str = 'force',
+                                 size_key: str = 'size',
+                                 copy: bool = True
+                                 ) -> pd.DataFrame:
     """
     Convenience function for arranging data into pandas DataFrame
         with expected column names. Extracts energies and forces from
@@ -269,14 +275,14 @@ def prepare_dataframe_from_lists(geometries,
     return df
 
 
-def parse_trajectory(fname,
-                     scalar_keys=(),
-                     array_keys=(),
-                     prefix=None,
-                     atoms_key="geometry",
-                     energy_key="energy",
-                     force_key='force',
-                     size_key='size'):
+def parse_trajectory(fname: str,
+                     scalar_keys: List[str] = (),
+                     array_keys: List[str] = (),
+                     prefix: str = None,
+                     atoms_key: str = "geometry",
+                     energy_key: str = "energy",
+                     force_key: str = 'force',
+                     size_key: str = 'size'):
     """
     Wrapper for ase.io.read, which is compatible with
     many file formats (notably VASP's vasprun.xml and extended xyz).
@@ -346,7 +352,7 @@ def parse_trajectory(fname,
     return df
 
 
-def read_database(filename, index=None, **kwargs):
+def read_database(filename: str, index: bool = None, **kwargs):
     """
     Args:
         filename (str)
@@ -372,15 +378,16 @@ def read_database(filename, index=None, **kwargs):
     return geometries
 
 
-def parse_lammps_outputs(path,
-                         lammps_aliases,
-                         prefix=None,
-                         column_subs={"PotEng": "energy"},
-                         log_fname="log.lammps",
-                         dump_fname="dump.lammpstrj",
-                         atoms_key="geometry",
-                         size_key='size',
-                         log_regex=None):
+def parse_lammps_outputs(path: str,
+                         lammps_aliases: Dict[int, str],
+                         prefix: str = None,
+                         column_subs: Dict[str, str] = {"PotEng": "energy"},
+                         log_fname: str = "log.lammps",
+                         dump_fname: str = "dump.lammpstrj",
+                         atoms_key: str = "geometry",
+                         size_key: str = 'size',
+                         log_regex: str = None
+                         ) -> pd.DataFrame:
     """
     Convenience wrapper for parsing both LAMMPS log and dump
     in a run directory.
@@ -448,12 +455,13 @@ def parse_lammps_outputs(path,
     return df
 
 
-def update_dataframe_from_geometries(df,
-                                     scalar_keys=(),
-                                     array_keys=(),
-                                     atoms_key='geometry',
-                                     size_key='size',
-                                     inplace=True):
+def update_dataframe_from_geometries(df: pd.DataFrame,
+                                     scalar_keys: List[str] = (),
+                                     array_keys: List[str] = (),
+                                     atoms_key: str = 'geometry',
+                                     size_key: str = 'size',
+                                     inplace: bool = True
+                                     ) -> pd.DataFrame:
     """Intermediate function for object-dataframe consistency"""
     if not inplace:
         df = df.copy()
@@ -486,19 +494,20 @@ def update_dataframe_from_geometries(df,
     return df
 
 
-def update_geometries_from_calc(geometries,
-                                energy_key='energy',
-                                force_key='force'):
+def update_geometries_from_calc(geometries: List[ase.Atoms],
+                                energy_key: str = 'energy',
+                                force_key: str = 'force'
+                                ) -> List[ase.Atoms]:
     """Query attached calculators for energy and forces."""
     for idx, geom in enumerate(geometries):
         try:
             geom.info[energy_key] = geom.calc.get_potential_energy()
-        except (ase.calculators.calculator.PropertyNotImplementedError,
+        except (ase_calc.PropertyNotImplementedError,
                 AttributeError):
             pass  # no energy
         try:
             forces = geom.calc.get_forces()
-        except (ase.calculators.calculator.PropertyNotImplementedError,
+        except (ase_calc.PropertyNotImplementedError,
                 AttributeError):
             if force_key in geom.arrays:
                 forces = geom.arrays[force_key]
@@ -515,11 +524,12 @@ def update_geometries_from_calc(geometries,
     return geometries
 
 
-def update_geometries_from_dataframe(df,
-                                     scalar_keys=(),
-                                     array_keys=(),
-                                     atoms_key='geometry',
-                                     inplace=True):
+def update_geometries_from_dataframe(df: pd.DataFrame,
+                                     scalar_keys: List[str] = (),
+                                     array_keys: List[str] = (),
+                                     atoms_key: str = 'geometry',
+                                     inplace: bool = True
+                                     ) -> List[ase.Atoms]:
     """Intermediate function for object-dataframe consistency"""
     geometries = df[atoms_key]
     if not inplace:
@@ -539,7 +549,7 @@ def update_geometries_from_dataframe(df,
     return geometries
 
 
-def df_from_tsv_text(text):
+def df_from_tsv_text(text: str) -> pd.DataFrame:
     """Convenience function for converting
         tab-separated values (text) into DataFrame."""
     buffer = io.StringIO(text)  # pandas expects file buffer
@@ -548,11 +558,12 @@ def df_from_tsv_text(text):
     return df
 
 
-def atoms_from_df(df,
-                  element_key='element',
-                  lammps_aliases=None,
-                  info=None,
-                  **atom_kwargs):
+def atoms_from_df(df: pd.DataFrame,
+                  element_key: str = 'element',
+                  lammps_aliases: Dict[int, str] = None,
+                  info: Dict[str, float] = None,
+                  **atom_kwargs
+                  ) -> ase.Atoms:
     """
     Create ase.Atoms from DataFrame. Minimum required columns include:
         x, y, z, [element_key]
@@ -584,7 +595,7 @@ def atoms_from_df(df,
     return atoms
 
 
-def parse_lammps_log(fname, log_regex=None):
+def parse_lammps_log(fname: str, log_regex: str = None) -> pd.DataFrame:
     """
     Args:
         fname (str): filename of log file.
@@ -607,7 +618,10 @@ def parse_lammps_log(fname, log_regex=None):
     return df_log
 
 
-def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
+def parse_lammps_dump(fname: str,
+                      lammps_aliases: Dict[int, str],
+                      timesteps: List[int] = None
+                      ) -> pd.Series:
     """
     Read LAMMPS text dump file. Expects the following items in the
     thermo_style: id type x y z
@@ -617,6 +631,8 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
 
     Compatible with large files because the function reads line-by-line
     and, optionally, saves only specified timesteps.
+
+    TODO: refactor to break up into smaller, reusable functions
 
     Args:
         fname (str): filename of dump file.
@@ -704,7 +720,7 @@ def parse_lammps_dump(fname, lammps_aliases, timesteps=None):
     return snapshots
 
 
-def read_vasp_pressure(path):
+def read_vasp_pressure(path: str) -> float:
     """Utility for reading external pressure (kbar) from PSTRESS INCAR tag.
     Used for extracting energy from VASP enthalpy (H = E + PV)"""
     fname_incar = os.path.join(path, "INCAR")
@@ -731,9 +747,10 @@ def read_vasp_pressure(path):
         return external_pressure
 
 
-def identify_paths(experiment_path=".",
-                   filename=None,
-                   filename_pattern=None):
+def identify_paths(experiment_path: str = ".",
+                   filename: str = None,
+                   filename_pattern:str = None
+                   ) -> List[str]:
     """
     Args:
         experiment_path (str): directory in which to search, recursively.
@@ -759,16 +776,18 @@ def identify_paths(experiment_path=".",
     return data_paths
 
 
-def parse_with_subsampling(data_paths,
-                           data_coordinator,
-                           max_samples=100,
-                           min_diff=1e-3,
-                           energy_key='energy',
-                           vasp_pressure=False,
-                           lammps_log=None,
-                           lammps_aliases=None,
-                           verbose=True):
+def parse_with_subsampling(data_paths: List[str],
+                           data_coordinator: DataCoordinator,
+                           max_samples: int = 100,
+                           min_diff: float = 1e-3,
+                           energy_key: str = 'energy',
+                           vasp_pressure: bool = False,
+                           lammps_log: str = None,
+                           lammps_aliases: Dict[int, str] = None,
+                           verbose: bool = True):
     """
+    TODO: refactor to break up into smaller, reusable functions
+
     Args:
         data_paths (list)
         data_coordinator (DataCoordinator)
@@ -839,7 +858,10 @@ def parse_with_subsampling(data_paths,
         data_coordinator.load_dataframe(df, prefix=prefix)
 
 
-def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
+def cache_data(data_coordinator: DataCoordinator,
+               filename: str,
+               energy_key: str = 'energy',
+               serial: bool = False):
     """
     Save dataframe from data_coordinator as ase Database.
 
@@ -875,7 +897,7 @@ def cache_data(data_coordinator, filename, energy_key='energy', serial=False):
                            row_name=name)
 
 
-def resolve_name_conflict(path):
+def resolve_name_conflict(path: str) -> int:
     """Simple renaming by incrementing an integer preceding file extension."""
     if os.path.isfile(path):
         i = 0
@@ -886,3 +908,4 @@ def resolve_name_conflict(path):
                 os.rename(path, backup_path)
                 break
             i += 1
+    return i
