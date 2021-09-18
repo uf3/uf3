@@ -222,7 +222,7 @@ def derivatives_by_interaction(geom: ase.Atoms,
     distance_map = {}
     derivative_map = {}
     for pair in pair_tuples:
-        pair_numbers = ase.symbols.symbols2numbers(pair)
+        pair_numbers = ase_symbols.symbols2numbers(pair)
         r_min = r_min_map[pair]
         r_max = r_max_map[pair]
         comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
@@ -400,7 +400,7 @@ def distances_from_geometry(geom: ase.Atoms,
     return distances
 
 
-@nb.njit(nb.float64[:, :](nb.int64[:], nb.int64[:], nb.int64[:]))
+@nb.njit(nb.float64[:, :](nb.int32[:], nb.int64[:], nb.int64[:]))
 def kronecker_delta(m_range, i_where, j_where):
     n_atoms = len(m_range)
     n_pairs = len(i_where)
@@ -447,16 +447,14 @@ def compute_direction_cosines(sup_positions: np.ndarray,
             and the second dimension corresponds to x, y, and z directions.
             Used to evaluate forces.
     """
-    kronecker = kronecker_delta(np.arange(n_atoms), i_where, j_where)
-    # m_range = np.arange(n_atoms)
-    # im = m_range[:, None] == i_where[None, :]
-    # jm = m_range[:, None] == j_where[None, :]
-    # kronecker = jm.astype(int) - im.astype(int)  # n_atoms x n_distances
-
-    delta_r = sup_positions[j_where, :] - sup_positions[i_where, :]
+    # n_atoms x n_distances
+    kronecker = kronecker_delta(np.arange(n_atoms, dtype=np.int32),
+                                i_where,
+                                j_where)
     # n_distances x 3
-    rij = distance_matrix[i_where, j_where]  # n_distances
-
+    delta_r = sup_positions[j_where, :] - sup_positions[i_where, :]
+    # n_distances
+    rij = distance_matrix[i_where, j_where]
     drij_dr = (kronecker[:, None, :]
                * delta_r.T[None, :, :]
                / rij[None, None, :])
