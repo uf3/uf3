@@ -345,7 +345,7 @@ def construct_pair_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
 
 
 def regenerate_coefficients(x: np.ndarray,
-                            y: np.darray,
+                            y: np.ndarray,
                             knot_sequence: np.ndarray,
                             dy: np.ndarray = None
                             ) -> np.ndarray:
