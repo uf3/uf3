@@ -30,8 +30,8 @@ class ChemicalSystem:
     element_list: Collection[str]
     numbers: List[int]
     interactions: List[Tuple[str]]
-    interactions_map: Dict[int, Tuple[str]]
-    interaction_hashes: Dict[Tuple[str], int]
+    interactions_map: Dict[int, Collection[Tuple[str]]]
+    interaction_hashes: Dict[int, np.ndarray]
 
     def __init__(self,
                  element_list: Collection[str],
@@ -75,13 +75,13 @@ class ChemicalSystem:
             composition_vector[i] = np.sum(numbers == element)
         return composition_vector
 
-    def get_interactions_map(self) -> Dict[int, Tuple[str]]:
+    def get_interactions_map(self) -> Dict[int, Collection[Tuple[str]]]:
         """
         Returns:
             interactions_map: tuples of element symbols, grouped by degree
                 up to self.degree, e.g. two-body (2) and three-body (3).
         """
-        interactions_map = {}
+        interactions_map = dict()
         interactions_map[1] = self.element_list
         cwr = itertools.combinations_with_replacement(self.element_list, 2)
         cwr = [sort_interaction_symbols(symbols) for symbols in cwr]
@@ -103,7 +103,7 @@ class ChemicalSystem:
             interactions_list.extend(list(self.interactions_map[i]))
         return interactions_list
 
-    def get_interaction_hashes(self) -> Dict[Tuple[str], int]:
+    def get_interaction_hashes(self) -> Dict[int, np.ndarray]:
         """
         Returns:
             interaction_hashes: mapping of interaction tuples to integer
@@ -112,7 +112,7 @@ class ChemicalSystem:
         interaction_hashes = {}
         for n in range(2, self.degree + 1):
             element_combinations = self.interactions_map[n]
-            numbers = np.array([ase.symbols.symbols2numbers(el_tuple)
+            numbers = np.array([ase_symbols.symbols2numbers(el_tuple)
                                 for el_tuple in element_combinations])
             hash_list = get_szudzik_hash(numbers)
             interaction_hashes[n] = hash_list
