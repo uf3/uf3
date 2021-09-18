@@ -1,3 +1,4 @@
+from typing import List, Dict, Collection, Tuple, Any, Union, Iterable
 import numpy as np
 import numba as nb
 from scipy import spatial
@@ -8,11 +9,12 @@ from uf3.data import geometry
 from uf3.util import parallel
 
 
-def get_unit_cell_distances(geom,
-                            pair_tuples,
-                            r_min_map,
-                            r_max_map,
-                            supercell=None):
+def get_unit_cell_distances(geom: ase.Atoms,
+                            pair_tuples: List[Tuple[str]],
+                            r_min_map: Dict[Tuple[str], float],
+                            r_max_map: Dict[Tuple[str], float],
+                            supercell: ase.Atoms = None,
+                            ) -> Tuple[np.ndarray, Dict, Dict]:
     """
     Identify pair distances within an entry (or between an entry and its
     supercell), subject to lower and upper bounds given by r_min_map
@@ -29,6 +31,7 @@ def get_unit_cell_distances(geom,
             used to account for atoms in periodic images.
 
     Returns:
+        distance_matrix
         distances_map (dict): for each interaction key (A-A, A-B, ...),
             flattened np.ndarray of pair distances within range
             or list of flattened np.ndarray if atomic is True.
@@ -48,11 +51,12 @@ def get_unit_cell_distances(geom,
     return distance_matrix, distances_map, mask_map
 
 
-def get_supercell_distances(geom,
-                            pair_tuples,
-                            r_min_map,
-                            r_max_map,
-                            supercell=None):
+def get_supercell_distances(geom: ase.Atoms,
+                            pair_tuples: List[Tuple[str]],
+                            r_min_map: Dict[Tuple[str], float],
+                            r_max_map: Dict[Tuple[str], float],
+                            supercell: ase.Atoms = None,
+                            ) -> Tuple[np.ndarray, Dict, Dict]:
     """
     Identify pair distances across a supercell, subject to lower and upper
         bounds given by r_min_map and r_max_map, per pair interaction
@@ -69,6 +73,7 @@ def get_supercell_distances(geom,
             used to account for atoms in periodic images.
 
     Returns:
+        distance_matrix
         distances_map (dict): for each interaction key (A-A, A-B, ...),
             flattened np.ndarray of pair distances within range
             or list of flattened np.ndarray if atomic is True.
@@ -91,9 +96,13 @@ def get_supercell_distances(geom,
     return distance_matrix, distances_map, mask_map
 
 
-def partition_distances_by_comp(distance_matrix, pair_tuples,
-                                geo_composition, sup_composition,
-                                r_max_map, r_min_map):
+def partition_distances_by_comp(distance_matrix: np.ndarray,
+                                pair_tuples: List[Tuple[str]],
+                                geo_composition: np.ndarray,
+                                sup_composition: np.ndarray,
+                                r_max_map: Dict[Tuple[str], float],
+                                r_min_map: Dict[Tuple[str], float],
+                                ) -> Tuple[Dict, Dict]:
     distances_map = {}
     mask_map = {}
     for pair in pair_tuples:
@@ -111,12 +120,13 @@ def partition_distances_by_comp(distance_matrix, pair_tuples,
     return distances_map, mask_map
 
 
-def distances_by_interaction(geom,
-                             pair_tuples,
-                             r_min_map,
-                             r_max_map,
-                             supercell=None,
-                             atomic=False):
+def distances_by_interaction(geom: ase.Atoms,
+                             pair_tuples: List[Tuple[str]],
+                             r_min_map: Dict[Tuple[str], float],
+                             r_max_map: Dict[Tuple[str], float],
+                             supercell: ase.Atoms = None,
+                             atomic: bool = False,
+                             ) -> Dict[Tuple[str], np.ndarray]:
     """
     Identify pair distances within an entry (or between an entry and its
     supercell), subject to lower and upper bounds given by r_min_map
@@ -169,10 +179,13 @@ def distances_by_interaction(geom,
     return distances_map
 
 
-def derivatives_by_interaction(geom, pair_tuples,
-                               r_cut,
-                               r_min_map, r_max_map,
-                               supercell=None):
+def derivatives_by_interaction(geom: ase.Atoms,
+                               pair_tuples: List[Tuple[str]],
+                               r_cut: float,
+                               r_min_map: Dict[Tuple[str], float],
+                               r_max_map: Dict[Tuple[str], float],
+                               supercell: ase.Atoms = None,
+                               ) -> Tuple[Dict, Dict]:
     """
     Identify pair distances within a supercell and derivatives for evaluating
     forces, subject to lower and upper bounds given by r_min_map
@@ -182,6 +195,7 @@ def derivatives_by_interaction(geom, pair_tuples,
         geom (ase.Atoms): unit cell ase.Atoms.
         pair_tuples (list): list of pair interactions.
             e.g. [(A-A), (A-B), (A-C), (B-B), ...)]
+        r_cut (float): cutoff radius (angstroms).
         r_min_map (dict): map of minimum pair distance per interaction.
             e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
         r_max_map (dict): map of maximum pair distance per interaction.
@@ -226,7 +240,10 @@ def derivatives_by_interaction(geom, pair_tuples,
     return distance_map, derivative_map
 
 
-def mask_supercell_with_radius(geom, supercell, r_max):
+def mask_supercell_with_radius(geom: ase.Atoms,
+                               supercell: ase.Atoms,
+                               r_max: float,
+                               ) -> ase.Atoms:
     """
     Makes a copy of supercell and deletes atoms that are further than
     r_max away from any atom in the unit cell geometry.
@@ -249,9 +266,10 @@ def mask_supercell_with_radius(geom, supercell, r_max):
     return supercell
 
 
-def mask_matrix_by_pair_interaction(pair,
-                                    geo_composition,
-                                    sup_composition=None):
+def mask_matrix_by_pair_interaction(pair: Union[List, Tuple],
+                                    geo_composition: np.ndarray,
+                                    sup_composition: np.ndarray = None
+                                    ) -> np.ndarray:
     """
     Generates boolean mask for the distance matrix based on composition
         vectors i.e. from ase.Atoms.get_atomic_numbers()
@@ -288,7 +306,9 @@ def mask_matrix_by_pair_interaction(pair,
     return comp_mask
 
 
-def get_distance_matrix(geom, supercell=None):
+def get_distance_matrix(geom: ase.Atoms,
+                        supercell: ase.Atoms = None,
+                        ) -> np.ndarray:
     """
     Get distance matrix from geometry and, optionally,
     supercell including atoms from adjacent images.
@@ -312,7 +332,11 @@ def get_distance_matrix(geom, supercell=None):
     return distance_matrix
 
 
-def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
+def get_distance_derivatives(geom: ase.Atoms,
+                             supercell: ase.Atoms,
+                             r_min: float = 0.0,
+                             r_max: float = 10.0,
+                             ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Identify pair distances within a supercell, subject to r_min < r < r_max,
     along with derivatives for evaluating forces. Legacy function
@@ -343,16 +367,18 @@ def get_distance_derivatives(geom, supercell, r_min=0, r_max=10):
     n_atoms = len(geo_positions)
 
     cut_mask = (distance_matrix >= r_min) & (distance_matrix <= r_max)
-
     i_where, j_where = np.where(cut_mask)
-
     drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
                                         i_where, j_where, n_atoms)
     distances = distance_matrix[cut_mask]
     return distances, drij_dr
 
 
-def distances_from_geometry(geom, supercell=None, r_min=0, r_max=10):
+def distances_from_geometry(geom: ase.Atoms,
+                            supercell: ase.Atoms = None,
+                            r_min: float = 0.0,
+                            r_max: float = 10.0,
+                            ) -> np.ndarray:
     """
     Identify pair distances within a geometry (or between a geometry and its
     supercell), subject to r_min < r < r_max. Legacy function
@@ -388,11 +414,23 @@ def kronecker_delta(m_range, i_where, j_where):
     return kronecker
 
 
-def compute_direction_cosines(sup_positions,
-                              distance_matrix,
-                              i_where,
-                              j_where,
-                              n_atoms):
+def kronecker_vectorized(n_atoms: int,
+                         i_where: np.ndarray,
+                         j_where: np.ndarray
+                         ) -> np.ndarray:
+    m_range = np.arange(n_atoms)
+    im = m_range[:, None] == i_where[None, :]
+    jm = m_range[:, None] == j_where[None, :]
+    kronecker = jm.astype(int) - im.astype(int)
+    return kronecker
+
+
+def compute_direction_cosines(sup_positions: np.ndarray,
+                              distance_matrix: np.ndarray,
+                              i_where: np.ndarray,
+                              j_where: np.ndarray,
+                              n_atoms: int
+                              ) -> np.ndarray:
     """
     Intermediate function for computing derivatives for forces.
 
@@ -436,6 +474,8 @@ def summarize_distances(geometries,
     Construct histogram of distances per pair interaction across
         list of geometries. Useful for optimizing the lower- and upper-
         bounds of knot sequences.
+
+    TODO: refactor to break up into smaller, reusable functions
 
     Args:
         geometries (list): list of ase.Atoms configuration.
