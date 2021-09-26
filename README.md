@@ -38,11 +38,12 @@ pip install "phonopy>=2.6.0"
 
 LAMMPS interface:
 ```
-conda install -c anaconda -c conda-forge lammps
+conda install numpy==1.20.3 --force-reinstall
+conda install -c conda-forge lammps --no-update-deps
 ```
 
 ## Dependencies
-We rely on ase to handle parsing outputs from atomistic codes like LAMMPS, VASP, and C2PK. We use Pandas to keep track of atomic configurations and their energies/forces as well as organizing data for featurization and training. B-spline evaluations use scipy, numba, and ndsplines.
+We rely on ase to handle parsing outputs from atomistic codes like LAMMPS, VASP, and C2PK. We use Pandas to keep track of atomic configurations and their energies/forces as well as organizing data for featurization and training. PyTables is used for reading/writing HDF5 files. B-spline evaluations use scipy, numba, and ndsplines.
 
 ## Citing This Work
 The manuscript is still in preparation.

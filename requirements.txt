@@ -8,3 +8,4 @@ pytest
 pyyaml
 matplotlib
 ndsplines
+tables
