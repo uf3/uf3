@@ -2,7 +2,7 @@
 
 ## Dataset
 
-The Tungsten dataset is available at [qmml.org](https://qmml.org/datasets.html), maintained by Dr. Matthias Rupp.
+The Tungsten dataset (```w-14.xyz```) is available at [qmml.org](https://qmml.org/datasets.html), maintained by Dr. Matthias Rupp.
 
 It was originally available at [libatoms.org](http://www.libatoms.org/Home/DataRepository), maintained by Dr. Gábor Csányi.
 
