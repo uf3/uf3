@@ -154,11 +154,11 @@ class UFCalculator(ase_calc.Calculator):
         if self.degree >= 3:
             knot_sequences = self.bspline_config.knots_map[self.trio]
             c_grid = self.coefficients_3b
-            forces += evaluate_forces_3b(atoms,
+            forces -= evaluate_forces_3b(atoms,
                                          knot_sequences,
                                          c_grid,
                                          supercell)
-        return -forces
+        return forces
 
     def get_stress(self,
                    atoms: ase.Atoms = None,
@@ -305,7 +305,7 @@ def evaluate_forces_3b(geom: ase.Atoms,
         f_accumulate += np.dot(drij_dr, val_l)
         f_accumulate += np.dot(drik_dr, val_m)
         f_accumulate += np.dot(drjk_dr, val_n)
-    return -f_accumulate
+    return f_accumulate
 
 
 def coefficients_by_interaction(element_list: List,
