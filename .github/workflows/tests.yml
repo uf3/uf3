@@ -5,9 +5,13 @@ on:
     paths:
       - '**.py'
       - '**.yml'
+      - 'requirements.txt'
+    paths-ignore:
+      - 'docs/**'
   pull_request:
     paths:
       - '**.py'
+  workflow_dispatch:
 
 jobs:
   tests:
