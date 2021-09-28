@@ -19,13 +19,24 @@ from uf3.forcefield.properties import elastic
 from uf3.forcefield.properties import phonon
 import ndsplines
 
+try:
+    import phonopy
+    _use_phon = True
+except ImportError:
+    _use_phon = False
+
+try:
+    import elastic
+    _use_elastic = True
+except ImportError:
+    _use_elastic = False
+
 
 class UFCalculator(ase_calc.Calculator):
     def __init__(self,
-                 bspline_config: bspline.BSplineBasis,
                  model: least_squares.WeightedLinearModel):
         # super().__init__()  # TODO: improve compatibility with ASE protocol
-        self.bspline_config = bspline_config
+        self.bspline_config = model.bspline_config
         self.model = model
         self.solutions = coefficients_by_interaction(self.element_list,
                                                      self.interactions_map,
@@ -38,9 +49,23 @@ class UFCalculator(ase_calc.Calculator):
                 raise ValueError("Multicomponent 3B is not yet implemented.")
             self.trio = self.bspline_config.interactions_map[3][0]
             c_compressed = self.solutions[self.trio]
-            c_decompressed = bspline_config.decompress_3B(c_compressed,
-                                                          self.trio)
+            c_decompressed = self.bspline_config.decompress_3B(c_compressed,
+                                                               self.trio)
             self.coefficients_3b = angles.symmetrize_3B(c_decompressed)
+
+    def __repr__(self):
+        summary = ["UFCalculator:",
+                   # f"    Energies enabled: {True}",
+                   # f"    Forces enabled: {True}",
+                   # f"    Stresses enabled: {True}",
+                   f"    Elastic enabled: {_use_elastic}",
+                   f"    Phonopy enabled: {_use_phon}",
+                   self.model.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
 
     @property
     def degree(self):

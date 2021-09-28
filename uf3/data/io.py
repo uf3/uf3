@@ -59,6 +59,18 @@ class DataCoordinator:
         config = {k: v for k, v in config.items() if k in keys}
         return DataCoordinator(**config)
 
+    def __repr__(self):
+        summary = ["DataCoordinator:",
+                   ]
+        if len(self.keys) == 0:
+            summary.append(f"    Datasets: None")
+        else:
+            summary.append(f"    Datasets: {len(self.keys)} ({self.keys})")
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
     def consolidate(self, remove_duplicates=True, keep='first'):
         """Wrapper for concat_dataframes"""
         dataframes = [self.data[k] for k in self.keys]

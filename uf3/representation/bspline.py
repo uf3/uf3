@@ -88,6 +88,16 @@ class BSplineBasis:
     def n_feats(self) -> int:
         return int(np.sum(self.get_feature_partition_sizes()))
 
+    def __repr__(self):
+        summary = ["BSplineBasis:",
+                   f"    Basis functions: {self.n_feats}",
+                   self.chemical_system.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
     def get_cutoff(self):
         values = []
         for interaction in self.r_max_map:

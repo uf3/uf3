@@ -117,6 +117,20 @@ class WeightedLinearModel(BasicLinearModel):
     def mask(self):
         return get_freezing_mask(self.n_feats, self.col_idx)
 
+    def __repr__(self):
+        if self.coefficients is None:
+            fit = "False"
+        else:
+            fit = "True"
+        summary = ["WeightedLinearModel:",
+                   f"    Fit: {fit}",
+                   self.bspline_config.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
     def fit_with_gram(self, gram, ordinate):
         regularizer = freeze_regularizer(self.regularizer, self.mask)
         regularizer = np.dot(regularizer.T, regularizer)
@@ -290,6 +304,11 @@ class WeightedLinearModel(BasicLinearModel):
                                           knots=knots_map),
                                      filename=filename,
                                      write=True)
+
+    def dump(self):
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        knots_map = self.bspline_config.knots_map
+        return dict(solution=solution, knots=knots_map)
 
     def load(self,
              solution: Dict[Tuple[str], np.ndarray] = None,

@@ -60,6 +60,19 @@ class ChemicalSystem:
         config = {k: v for k, v in config.items() if k in keys}
         return ChemicalSystem(**config)
 
+    def __repr__(self):
+        summary = ["ChemicalSystem:",
+                   f"    Elements: {self.element_list}",
+                   f"    Degree: {self.degree}",
+                   f"    Pairs: {self.interactions_map[2]}",
+                   ]
+        if self.degree > 2:
+            summary.append(f"    Trios: {self.interactions_map[3]}")
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
     def get_composition_tuple(self, geometry: ase.Atoms) -> np.ndarray:
         """
         Args:
