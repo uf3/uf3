@@ -27,7 +27,7 @@ class TestCalculator:
                                                    knot_sequence)
         coefficient_vector = np.insert(coefficient_vector, 0, 0)
         model.coefficients = coefficient_vector
-        calc = calculator.UFCalculator(bspline_config, model)
+        calc = calculator.UFCalculator(model)
         assert len(calc.solutions) == 2
         assert len(calc.pair_potentials) == 1
         geom = ase.Atoms('W2',
