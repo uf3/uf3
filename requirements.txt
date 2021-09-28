@@ -3,8 +3,6 @@ scipy
 tqdm
 ase
 pandas
-scikit_learn
-pytest
 pyyaml
 matplotlib
 ndsplines
