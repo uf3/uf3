@@ -1,8 +1,10 @@
+from typing import List, Dict, Union, Tuple, Any
 import re
 import warnings
 import numpy as np
 from scipy import interpolate
 
+from uf3.data import composition
 from uf3.representation import angles
 from uf3.regression import regularize
 from uf3.util import json_io
@@ -35,13 +37,19 @@ class BSplineBasis:
             resolution_map (dict): map of resolution (number of knot intervals)
                 per interaction. If unspecified, defaults to 20 for all two-
                 body interactions and 5 for three-body interactions.
-            knot_spacing (str): "linear" for uniform spacing
+            knot_strategy (str): "linear" for uniform spacing
                 or "lammps" for knot spacing by r^2.
             knots_map (dict): pre-generated map of knots.
                 Overrides other settings.
         """
         self.chemical_system = chemical_system
-        self.knot_spacing = knot_spacing
+        self.knot_strategy = knot_strategy
+        self.offset_1b = offset_1b
+        self.trailing_trim = trailing_trim
+        self.mask_trim = mask_trim
+        self.r_min_map = {}
+        self.r_max_map = {}
+        self.resolution_map = {}
         self.knots_map = {}
         self.knot_subintervals = {}
         self.basis_functions = {}
@@ -49,88 +57,13 @@ class BSplineBasis:
         self.flat_weights = {}
         self.template_mask = {}
         self.templates = {}
-        # lower and upper distance cutoffs
-        if r_min_map is None:
-            r_min_map = {}
-        self.r_min_map = r_min_map
-        if r_max_map is None:
-            r_max_map = {}
-        self.r_max_map = r_max_map
-        if resolution_map is None:
-            resolution_map = {}
-        self.resolution_map = resolution_map
-        # Update with pregenerated knots_map
-        if knots_map is not None:
-            self.update_knots_from_dict(knots_map)
-        # Update with provided and default values
-        for pair in self.interactions_map.get(2, []):
-            self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
-            self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
-            self.resolution_map[pair] = self.resolution_map.get(pair, 20)
-        for trio in self.interactions_map.get(3, []):
-            self.r_min_map[trio] = self.r_min_map.get(trio, [1.0, 1.0, 1.0])
-            self.r_max_map[trio] = self.r_max_map.get(trio, [6.0, 6.0, 12.0])
-            self.resolution_map[trio] = self.resolution_map.get(trio,
-                                                                [5, 5, 5])
-            min_set = len(set(self.r_min_map[trio]))
-            max_set = len(set(self.r_max_map[trio]))
-            res_set = len(set(self.resolution_map[trio]))
-            if min_set == 1 and max_set == 1 and res_set == 1:
-                self.symmetry[trio] = 3
-            elif min_set <= 2 and max_set <= 2 and res_set <= 2:
-                self.symmetry[trio] = 2
-            else:
-                self.symmetry[trio] = 1
-        # supercell cutoff
-        self.r_cut = self.get_cutoff()
-        # select knot spacing option
-        if self.knot_spacing == 'lammps':
-            knot_function = generate_lammps_knots
-        elif self.knot_spacing == 'linear':
-            knot_function = generate_uniform_knots
-        elif self.knot_spacing == 'geometric':
-            knot_function = generate_geometric_knots
-        elif self.knot_spacing == 'inverse':
-            knot_function = generate_inv_knots
-        elif self.knot_spacing == 'custom':
-            pass
-        else:
-            raise ValueError('Invalid value of knot_spacing:', knot_spacing)
-        # Generate subintervals and basis functions
-        for pair in self.interactions_map.get(2, []):
-            if pair not in self.knots_map:  # compute knots if not provided
-                r_min = self.r_min_map[pair]
-                r_max = self.r_max_map[pair]
-                n_intervals = self.resolution_map[pair]
-                self.knots_map[pair] = knot_function(r_min, r_max, n_intervals)
-            subintervals = get_knot_subintervals(self.knots_map[pair])
-            self.knot_subintervals[pair] = subintervals
-            self.basis_functions[pair] = generate_basis_functions(subintervals)
-        # Generate knots. Maps must contain three entries each.
-        for trio in self.interactions_map.get(3, []):
-            if trio not in self.knots_map:
-                r_min = self.r_min_map[trio]
-                r_max = self.r_max_map[trio]
-                r_resolution = self.resolution_map[trio]
-                knot_sequences = []
-                for i in range(3):  # ij, ik, jk dimensions.
-                    knot_sequence = knot_function(r_min[i],
-                                                  r_max[i],
-                                                  r_resolution[i])
-                    knot_sequences.append(knot_sequence)
-                self.knots_map[trio] = knot_sequences
-            subintervals = []
-            basis_functions = []
-            for knot_sequence in self.knots_map[trio]:
-                subinterval = get_knot_subintervals(knot_sequence)
-                basis_set = generate_basis_functions(subinterval)
-                subintervals.append(subinterval)
-                basis_functions.append(basis_set)
-            self.knot_subintervals[trio] = subintervals
-            self.basis_functions[trio] = basis_functions
-        if self.degree > 2:
-            self.set_flatten_template_3B()
-        self.partition_sizes = self.get_feature_partition_sizes()
+        self.partition_sizes = []
+        self.frozen_c = []
+        self.col_idx = []
+        self.r_cut = 0.0
+        self.update_knots(r_max_map, r_min_map, resolution_map, knots_map)
+        self.knot_spacer = get_knot_spacer(self.knot_strategy)
+        self.update_basis_functions()
 
     @property
     def degree(self):
@@ -144,15 +77,62 @@ class BSplineBasis:
     def interactions_map(self):
         return self.chemical_system.interactions_map
 
+    @property
+    def interactions(self):
+        return self.chemical_system.interactions
+
+    @property
+    def n_feats(self) -> int:
+        return int(np.sum(self.get_feature_partition_sizes()))
+
     def get_cutoff(self):
         values = []
         for interaction in self.r_max_map:
             r_max = self.r_max_map[interaction]
-            if isinstance(r_max, (float, np.floating)):
+            if isinstance(r_max, (float, np.floating, int)):
                 values.append(r_max)
             else:
                 values.append(r_max[0])
         return max(values)
+
+    def update_knots(self,
+                     r_max_map: Dict[Tuple, Any] = None,
+                     r_min_map: Dict[Tuple, Any] = None,
+                     resolution_map: Dict[Tuple, Any] = None,
+                     knots_map: Dict[Tuple, Any] = None):
+        # lower and upper distance cutoffs
+        if r_min_map is not None:
+            r_min_map = composition.sort_interaction_map(r_min_map)
+            self.r_min_map.update(r_min_map)
+        if r_max_map is not None:
+            r_max_map = composition.sort_interaction_map(r_max_map)
+            self.r_max_map.update(r_max_map)
+        if resolution_map is not None:
+            resolution_map = composition.sort_interaction_map(resolution_map)
+            self.resolution_map.update(resolution_map)
+        # Update with pregenerated knots_map
+        if knots_map is not None:
+            self.update_knots_from_dict(knots_map)
+        # Update with provided and default values
+        for pair in self.interactions_map.get(2, []):
+            self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
+            self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
+            self.resolution_map[pair] = self.resolution_map.get(pair, 20)
+        for trio in self.interactions_map.get(3, []):
+            self.r_min_map[trio] = self.r_min_map.get(trio, [1.0, 1.0, 1.0])
+            self.r_max_map[trio] = self.r_max_map.get(trio, [4.0, 4.0, 8.0])
+            self.resolution_map[trio] = self.resolution_map.get(trio,
+                                                                [5, 5, 10])
+            min_set = len(set(self.r_min_map[trio]))
+            max_set = len(set(self.r_max_map[trio]))
+            res_set = len(set(self.resolution_map[trio]))
+            if min_set == 1 and max_set == 1 and res_set == 1:
+                self.symmetry[trio] = 3
+            elif min_set <= 2 and max_set <= 2 and res_set <= 2:
+                self.symmetry[trio] = 2
+            else:
+                self.symmetry[trio] = 1
+        self.r_cut = self.get_cutoff()
 
     def update_knots_from_dict(self, knots_map):
         for pair in self.interactions_map.get(2, []):
@@ -201,6 +181,50 @@ class BSplineBasis:
                                              len(m_sequence) - 7,
                                              len(n_sequence) - 7]
 
+    def update_basis_functions(self):
+        # Generate subintervals and basis functions for two-body
+        for pair in self.interactions_map.get(2, []):
+            if pair not in self.knots_map:  # compute knots if not provided
+                r_min = self.r_min_map[pair]
+                r_max = self.r_max_map[pair]
+                n_intervals = self.resolution_map[pair]
+                knot_sequence = self.knot_spacer(r_min, r_max, n_intervals)
+                knot_sequence[knot_sequence == 0] = 1e-6
+                self.knots_map[pair] = knot_sequence
+            subintervals = get_knot_subintervals(self.knots_map[pair])
+            self.knot_subintervals[pair] = subintervals
+            self.basis_functions[pair] = generate_basis_functions(subintervals)
+        # Generate subintervals and basis functions for two-body
+        # Maps must contain three entries each.
+        if self.degree > 2:
+            for trio in self.interactions_map.get(3, []):
+                if trio not in self.knots_map:
+                    r_min = self.r_min_map[trio]
+                    r_max = self.r_max_map[trio]
+                    r_resolution = self.resolution_map[trio]
+                    knot_sequences = []
+                    for i in range(3):  # ij, ik, jk dimensions.
+                        knot_sequence = self.knot_spacer(r_min[i],
+                                                         r_max[i],
+                                                         r_resolution[i])
+                        knot_sequence[knot_sequence == 0] = 1e-6
+                        knot_sequences.append(knot_sequence)
+                    self.knots_map[trio] = knot_sequences
+                subintervals = []
+                basis_functions = []
+                for knot_sequence in self.knots_map[trio]:
+                    subinterval = get_knot_subintervals(knot_sequence)
+                    basis_set = generate_basis_functions(subinterval)
+                    subintervals.append(subinterval)
+                    basis_functions.append(basis_set)
+                self.knot_subintervals[trio] = subintervals
+                self.basis_functions[trio] = basis_functions
+            self.set_flatten_template_3B()
+        self.partition_sizes = self.get_feature_partition_sizes()
+        self.col_idx, self.frozen_c = self.generate_frozen_indices(
+            offset_1b=self.offset_1b,
+            n_trim=self.trailing_trim)
+
     def get_regularization_matrix(self,
                                   ridge_map={},
                                   curvature_map={},
@@ -211,6 +235,8 @@ class BSplineBasis:
                 default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
             curvature_map (dict): n-body term curvature regularizer strengths.
                 default: {1: 0.0, 2: 1e-5, 3: 1e-5}
+
+        TODO: refactor to break up into smaller, reusable functions
 
         Returns:
             combined_matrix (np.ndarray): regularization matrix made up of
@@ -255,7 +281,7 @@ class BSplineBasis:
         combined_matrix = regularize.combine_regularizer_matrices(matrices)
         return combined_matrix
 
-    def get_feature_partition_sizes(self):
+    def get_feature_partition_sizes(self) -> List:
         """Get partition sizes: one-body, two-body, and three-body terms."""
         partition_sizes = [1] * len(self.chemical_system.element_list)
         for degree in range(2, self.chemical_system.degree + 1):
@@ -271,43 +297,55 @@ class BSplineBasis:
                 else:
                     raise ValueError(
                         "Four-body terms and beyond are not yet implemented.")
+        self.partition_sizes = partition_sizes
         return partition_sizes
 
-    def get_fixed_tuples(self,
-                         values=0,
-                         one_body=True,
-                         upper_bounds=True,
-                         lower_bounds=False):
-        """
-        Args:
-            values (float, np.ndarray): value or values of fixed coefficients.
-            one_body (bool): whether to return tuples for one-body terms.
-            upper_bounds (bool): whether to return tuples for trailing
-                coefficient of each interaction.
-            lower_bounds (bool): whether to return tuples for leading
-                coefficient of each interaction.
-
-        Returns:
-            fixed (list): list of tuples of indices and coefficients to fix
-                before fitting. Useful for ensuring smooth cutoffs or
-                fixing multiplicative coefficients.
-                e.g. fix=[(0, 10), (15, 0)] fixes the first coefficient (idx=0)
-                to 10 and the sixteenth coefficient (idx=15) to 0.
-        """
+    def get_interaction_partitions(self):
+        interactions_list = self.interactions
         partition_sizes = self.get_feature_partition_sizes()
-        indices = []
-        if one_body:
-            indices = list(range(len(self.element_list)))
-        lower_idxs = np.cumsum(partition_sizes)[:-1] + 1
-        upper_idxs = np.cumsum(partition_sizes)[1:] - 1
-        if lower_bounds:
-            indices.extend(lower_idxs)
-        if upper_bounds:
-            indices.extend(upper_idxs)
-        if np.array(values).ndim == 0:
-            values = np.ones(len(indices)) * values
-        fixed = np.vstack([indices, values]).T
-        return fixed
+        offsets = np.cumsum(partition_sizes)
+        offsets = np.insert(offsets, 0, 0)
+        component_sizes = {}
+        component_offsets = {}
+        for j in range(len(interactions_list)):
+            interaction = interactions_list[j]
+            component_sizes[interaction] = partition_sizes[j]
+            component_offsets[interaction] = offsets[j]
+        return component_sizes, component_offsets
+
+    def generate_frozen_indices(self,
+                                offset_1b: bool = True,
+                                n_trim: int = 3,
+                                value: float = 0.0):
+        pairs = self.interactions_map.get(2, [])
+        trios = self.interactions_map.get(3, [])
+        component_sizes, component_offsets = self.get_interaction_partitions()
+        col_idx = []
+        frozen_c = []
+        for pair in pairs:
+            offset = component_offsets[pair]
+            size = component_sizes[pair]
+            for trim_idx in range(1, n_trim + 1):
+                idx = offset + size - trim_idx
+                col_idx.append(idx)
+                frozen_c.append(value)
+        for trio in trios:
+            template = np.zeros_like(self.templates[trio])
+            for trim_idx in range(1, n_trim + 1):
+                template[-trim_idx, :, :] = 1
+                template[:, -trim_idx, :] = 1
+                template[:, :, -trim_idx] = 1
+            template = self.compress_3B(template, trio)
+            mask = np.where(template > 0)[0]
+            for idx in mask:
+                col_idx.append(idx)
+                frozen_c.append(value)
+        if not offset_1b:
+            col_idx.insert(0, 0)
+            frozen_c.insert(0, 0)
+        col_idx = np.array(col_idx, dtype=int)
+        frozen_c = np.array(frozen_c)
+        return col_idx, frozen_c
 
     def set_flatten_template_3B(self):
         """
@@ -362,40 +400,22 @@ class BSplineBasis:
         grid.flat[self.template_mask[interaction]] = vec
         return grid
 
-    # def set_flatten_template_3B(self):
-    #     """
-    #     Compute masks for flattening and unflattening 3B grid. The 3B BSpline
-    #         set has three planes of symmetry corresponding to permutation
-    #         of i, j, and k indices. Training is therefore performed with
-    #         only the subset of basis functions corresponding to i < j < k.
-    #         Basis functions on planes of symmetry have reduced weight.
-    #
-    #     Returns:
-    #         flat_weights (np.ndarray): vector of subset indices to use.
-    #         unflatten_mask (np.ndarray): L x L x L boolean array for
-    #             regenerating full basis function set.
-    #     """
-    #     for trio in self.interactions_map[3]:
-    #         n = self.resolution_map[trio]
-    #         r_space = self.knots_map[trio]
-    #         template = np.ones((n + 3, n + 3, n + 3))
-    #         for i, j, k in np.ndindex(*template.shape):
-    #             if i == j and i == k:
-    #                 template[i, j, k] = 1 / 6
-    #             elif i > j or j > k:
-    #                 template[i, j, k] = 0
-    #             elif (i == k) or (i == j) or (j == k):
-    #                 template[i, j, k] = 0.5
-    #
-    #             if r_space[i + 4] + r_space[j + 4] < r_space[k]:
-    #                 template[i, j, k] = 0
-    #             elif r_space[i + 4] + r_space[k + 4] < r_space[j]:
-    #                 template[i, j, k] = 0
-    #             elif r_space[j + 4] + r_space[k + 4] < r_space[i]:
-    #                 template[i, j, k] = 0
-    #         self.flat_weights[trio] = template.flatten()
-    #         self.unflatten_mask[trio] = np.zeros_like(template, dtype=bool)
-    #         self.unflatten_mask[trio][template > 0] = True
+
+def get_knot_spacer(knot_strategy):
+    # select knot spacing option
+    if knot_strategy == 'lammps':
+        spacing_function = generate_lammps_knots
+    elif knot_strategy == 'linear':
+        spacing_function = generate_uniform_knots
+    elif knot_strategy == 'geometric':
+        spacing_function = generate_geometric_knots
+    elif knot_strategy == 'inverse':
+        spacing_function = generate_inv_knots
+    elif knot_strategy == 'custom':
+        pass
+    else:
+        raise ValueError('Invalid value of knot_strategy:', knot_strategy)
+    return spacing_function
 
 
 def generate_basis_functions(knot_subintervals):
@@ -417,7 +437,12 @@ def generate_basis_functions(knot_subintervals):
     return basis_functions
 
 
-def evaluate_basis_functions(points, basis_functions, nu=0, flatten=True):
+def evaluate_basis_functions(points,
+                             basis_functions,
+                             nu=0,
+                             trailing_trim=0,
+                             flatten=True,
+                             ):
     """
     Evaluate basis functions.
 
@@ -451,7 +476,12 @@ def evaluate_basis_functions(points, basis_functions, nu=0, flatten=True):
     return value_per_spline
 
 
-def featurize_force_2B(basis_functions, distances, drij_dR, knot_sequence):
+def featurize_force_2B(basis_functions,
+                       distances,
+                       drij_dR,
+                       knot_sequence,
+                       trailing_trim=0,
+                       ):
     """
     Args:
         drij_dR (np.ndarray): distance-derivatives, e.g. from

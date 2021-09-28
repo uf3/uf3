@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import numpy as np
 from numba import jit
 import ase
