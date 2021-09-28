@@ -115,7 +115,7 @@ class TestBasis:
         df_features = bspline_handler.evaluate(df,
                                                atoms_key,
                                                energy_key,
-                                               progress_bar=False)
+                                               progress=False)
         assert len(df_features) == 2 + 6 * 3  # energy and 3 forces per atom
         assert len(df_features.columns) == 1 + 23 + 1
         x, y, w = bspline_handler.get_training_tuples(df_features,
@@ -148,7 +148,7 @@ class TestBasis:
         df_feats = bspline_handler.evaluate(df,
                                             atoms_key,
                                             energy_key,
-                                            progress_bar=False)
+                                            progress=False)
         assert len(df_feats) == 2 * (1 + 3 * 3)  # energy and 3 forces per atom
         assert len(df_feats.columns) == 1 + 2 + 23 * 3
         # energy, 23 features per interaction, two 1-body terms
