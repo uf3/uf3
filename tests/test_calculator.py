@@ -38,10 +38,10 @@ class TestCalculator:
         assert np.isclose(energy, -1.21578)
         geom.calc = calc
         forces = geom.get_forces()
-        assert np.allclose(forces, [[3.96244881, 3.96244881, 3.96244881],
-                                    [-3.96244881, -3.96244881, -3.96244881]])
+        assert np.allclose(forces, [[-3.96244881, -3.96244881, -3.96244881],
+                                    [3.96244881, 3.96244881, 3.96244881]])
         geom.set_pbc([True, True, True])
         geom.set_cell([[3, 0, 0], [3, 5, 0], [0, 0, 3]])
         assert np.isclose(geom.get_potential_energy(), -15.33335)
         forces = geom.get_forces()
-        assert np.allclose(forces, [[0, 17.3656864, 0], [0, -17.3656864, 0]])
+        assert np.allclose(forces, [[0, -17.3656864, 0], [0, 17.3656864, 0]])
