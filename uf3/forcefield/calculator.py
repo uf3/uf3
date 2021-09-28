@@ -20,13 +20,13 @@ from uf3.forcefield.properties import phonon
 import ndsplines
 
 try:
-    import phonopy
+    import phonopy as phonopy_check
     _use_phon = True
 except ImportError:
     _use_phon = False
 
 try:
-    import elastic
+    import elastic as elastic_check
     _use_elastic = True
 except ImportError:
     _use_elastic = False
