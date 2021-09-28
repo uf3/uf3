@@ -21,7 +21,12 @@ pip install -e .
 
 ## Getting Started
 
-Please see the examples in uf3/examples/W for basic usage (WIP).
+Please see the examples in uf3/examples/tungsten_extxyz for basic usage. 
+
+Overviews for individual modules can be found in uf3/examples/modules (WIP).
+
+Standalone scripts and configuration generators/parsers are in development.
+
 
 ## Optional Dependencies
 Elastic constants:
@@ -32,6 +37,7 @@ pip install "elastic>=5.1.0.17"
 
 Phonon spectra:
 ```
+pip install spglib
 pip install seekpath
 pip install "phonopy>=2.6.0"
 ```
@@ -43,7 +49,10 @@ conda install -c conda-forge lammps --no-update-deps
 ```
 
 ## Dependencies
-We rely on ase to handle parsing outputs from atomistic codes like LAMMPS, VASP, and C2PK. We use Pandas to keep track of atomic configurations and their energies/forces as well as organizing data for featurization and training. PyTables is used for reading/writing HDF5 files. B-spline evaluations use scipy, numba, and ndsplines.
+- We rely on ase to handle parsing outputs from atomistic codes like LAMMPS, VASP, and C2PK. 
+- We use Pandas to keep track of atomic configurations and their energies/forces as well as organizing data for featurization and training. 
+- B-spline evaluations use scipy, numba, and ndsplines.
+- PyTables is used for reading/writing HDF5 files. 
 
 ## Citing This Work
 The manuscript is still in preparation.
