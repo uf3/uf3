@@ -16,46 +16,32 @@ DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
 
 class BasicLinearModel:
     def __init__(self,
-                 regularizer: np.ndarray = None,
-                 **params):
+                 regularizer: np.ndarray = None):
         """
         Args:
             regularizer (np.ndarray): regularization matrix.
-            params: arguments to generate regularizer matrix.
         """
         self.coefficients = None
         self.regularizer = regularizer
 
-        if self.regularizer is None:
-            # initialize regularizer matrix if unspecified.
-            self.set_params(**params)
-
-    def set_params(self, **params):
-        """Set parameters from keyword arguments. Initializes
-            regularizer with default parameters if unspecified."""
-        if "bspline_config" in params:
-            self.bspline_config = params["bspline_config"]
-        if "fixed_tuples" in params:
-            self.fixed_tuples = params["fixed_tuples"]
-        if "regularizer" in params:
-            self.regularizer = params["regularizer"]
-        elif self.regularizer is None:
-            params = {k: v for k, v in params.items()
-                      if k in DEFAULT_REGULARIZER_GRID}
-            reg = self.bspline_config.get_regularization_matrix(**params)
-            self.regularizer = reg
-
     def fit(self,
             x: np.ndarray,
             y: np.ndarray,
+            ridge_penalty: float = 1e-8,
             ):
         """
         Args:
             x (np.ndarray): input matrix of shape (n_samples, n_features).
             y (np.ndarray): output vector of length n_samples.
+            ridge_penalty (float): magnitude of ridge penalty. Ignored
+                if self.regularizer is set at initialization.
         """
         gram, ordinate = moore_penrose_components(x, y)
-        regularizer = np.dot(self.regularizer.T, self.regularizer)
+        if self.regularizer is None:
+            regularizer = np.eye(len(gram)) * ridge_penalty
+        else:
+            regularizer = self.regularizer
+        regularizer = np.dot(regularizer.T, regularizer)
         coefficients = lu_factorization(gram + regularizer, ordinate)
         self.coefficients = coefficients
 
@@ -94,17 +80,19 @@ class BasicLinearModel:
 
 
 class WeightedLinearModel(BasicLinearModel):
-    def __init__(self, bspline_config, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, bspline_config, regularizer=None, **params):
+        super().__init__(regularizer)
         self.bspline_config = bspline_config
+
+        if self.regularizer is None:
+            # initialize regularizer matrix if unspecified.
+            self.set_params(**params)
 
     def set_params(self, **params):
         """Set parameters from keyword arguments. Initializes
             regularizer with default parameters if unspecified."""
         if "bspline_config" in params:
             self.bspline_config = params["bspline_config"]
-        if "fixed_tuples" in params:
-            self.fixed_tuples = params["fixed_tuples"]
         if "regularizer" in params:
             self.regularizer = params["regularizer"]
         elif self.regularizer is None:
