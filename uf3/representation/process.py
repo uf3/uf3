@@ -100,7 +100,7 @@ class BasisFeaturizer:
                  df_data,
                  atoms_key="geometry",
                  energy_key="energy",
-                 progress_bar=True):
+                 progress="bar"):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -108,7 +108,9 @@ class BasisFeaturizer:
         Args:
             df_data (pd.DataFrame): standard dataframe with columns
                 [atoms_key, energy_key, fx, fy, fz]
-            progress_bar (bool)
+            atoms_key (str)
+            energy_key (str)
+            progress (str, None): style of progress counter.
 
         Returns:
             df_features (pd.DataFrame): processed dataframe with columns
@@ -123,11 +125,9 @@ class BasisFeaturizer:
             if key in header:
                 column_positions[key] = header.get_loc(key) + 1
 
-        if progress_bar:
-            row_gener = parallel.progress_iter(df_data.itertuples(name=None),
-                                               total=len(df_data))
-        else:
-            row_gener = df_data.itertuples(name=None)
+        row_gener = parallel.progress_iter(df_data.itertuples(name=None),
+                                           total=len(df_data),
+                                           style=progress)
 
         for row in row_gener:
             # iterate over rows without modification.
@@ -156,7 +156,7 @@ class BasisFeaturizer:
                           energy_key="energy",
                           n_jobs=2,
                           shuffle=True,
-                          progress_bar=True):
+                          progress="bar"):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -196,11 +196,11 @@ class BasisFeaturizer:
                                             client,
                                             atoms_key=atoms_key,
                                             energy_key=energy_key,
-                                            progress_bar=False)
+                                            progress=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
                                                 cancel=True,
-                                                progress_bar=progress_bar)
+                                                progress=progress)
         df_features = df_features.loc[df_data.index, :]
         try:
             for batch in batches:

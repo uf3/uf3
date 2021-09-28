@@ -1,39 +1,12 @@
+import datetime
 import time
 import warnings
-
 import numpy as np
 import pandas as pd
 from concurrent import futures
+from tqdm.auto import tqdm
 
-try:
-    from tqdm.auto import tqdm
-    ProgressBar = tqdm
-    def progress_iter(iterable, **kwargs):
-        return tqdm(iterable, **kwargs)
-except ImportError:  # optional import
-    tqdm = None
-    def progress_iter(iterable, **kwargs):
-        return iterable
 
-    class ProgressBar:
-        """Makeshift progress counter."""
-        def __init__(self, total=None):
-            if total is None:
-                self.total = "?"
-                self.pad = 6
-            else:
-                self.total = str(total)
-                self.pad = len(self.total)
-            self.counter = 0
-
-        def update(self, i=1):
-            self.counter += i
-            print(str(self.counter).ljust(self.pad),
-                  "/",
-                  self.total.ljust(self.pad), end='\r')
-
-        def close(self):
-            pass
 
 try:
     from dask import distributed
@@ -43,7 +16,66 @@ except ImportError:
     USE_DASK = False
 
 
-def wait_progress(future_list, timeout=None):
+class ProgressText:
+    """Makeshift progress counter."""
+    def __init__(self, iterable=None, total=None):
+        self.iterable = iterable
+        self.start_time = datetime.datetime.now()
+        start_str = self.start_time.strftime("%H:%M:%S")
+        print(start_str, "START")
+
+        try:
+            self.total = len(iterable)
+            self.pad = len(str(self.total))
+        except (TypeError, AttributeError):
+            if total is None:
+                self.total = "?"
+                self.pad = 6
+            else:
+                self.total = total
+                self.pad = len(str(self.total))
+        self.counter = 0
+
+    def __iter__(self):
+        iterable = self.iterable
+        try:
+            for obj in iterable:
+                yield obj
+                self.update(1)
+        finally:
+            self.close()
+
+    def update(self, i=1):
+        self.counter += i
+        elapsed = datetime.datetime.now() - self.start_time
+        if self.total != "?":
+            progress = f"{100 * self.counter / self.total:.2f}%"
+        else:
+            progress = ""
+        print(f"{elapsed}    "
+              f"{self.counter:>{self.pad}} / "
+              f"{self.total:>{self.pad}}    {progress}")
+
+    def close(self):
+        end_time = datetime.datetime.now()
+        print(end_time.strftime("%H:%M:%S"), "END")
+        pass
+
+
+def progress_iter(iterable=None,
+                  style="bar",
+                  total=None,
+                  leave=True,
+                  ):
+    if style == "bar" or style is True:
+        return tqdm(iterable, total=total, leave=leave,)
+    elif style == "text" or style == "str" or style == str:
+        return ProgressText(iterable, total=total)
+    else:
+        return iterable
+
+
+def wait_progress(future_list, timeout=None, leave=True, style="bar"):
     """
     Visualize progress while waiting for futures to complete.
 
@@ -54,7 +86,7 @@ def wait_progress(future_list, timeout=None):
     t0 = time.time()
 
     n = len(future_list)
-    future_progress = ProgressBar(total=n)
+    future_progress = progress_iter(total=n, leave=leave, style=style)
     last = 0
 
     wait = select_wait_function(future_list)
@@ -150,8 +182,11 @@ def batch_submit(func, batches, client, *args, **kwargs):
     return future_list
 
 
-def gather_and_merge(
-        future_list, client=None, cancel=False, progress_bar=True, asynchronous=True):
+def gather_and_merge(future_list,
+                     client=None,
+                     cancel=False,
+                     progress="bar",
+                     asynchronous=True):
     """
     Args:
         future_list (list): list of futures.
@@ -164,22 +199,23 @@ def gather_and_merge(
 
     if asynchronous:
         item_list = []
-        if progress_bar:
-            pbar = ProgressBar(total=len(future_list))
+        pbar = progress_iter(total=len(future_list), style=progress)
         if USE_DASK and isinstance(client, distributed.Client):
             for future, result in distributed.as_completed(
                     future_list, with_results=True):
                 item_list.append(result)
                 client.cancel(future)
-                if progress_bar:
+                if progress:
                     pbar.update()
         else:
             for future in futures.as_completed(future_list):
                 item_list.append(future.result())
-                if progress_bar:
+                if progress:
                     pbar.update()
+        if progress:
+            pbar.close()
     else:
-        if progress_bar:
+        if progress:
             wait_progress(future_list)
         else:
             wait = select_wait_function(future_list)

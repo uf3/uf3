@@ -483,7 +483,7 @@ def summarize_distances(geometries,
         print_stats (bool): print minimum distance and identified peaks.
         min_peak_width (float): minimum peak with in angstroms for
             peak-finding algorithm.
-        progress_bar (bool): whether to display progress bar.
+        progress: style of progress bar.
 
     Returns:
         histogram_map (dict): for each interaction key (A-A, A-B, ...),
@@ -495,10 +495,7 @@ def summarize_distances(geometries,
     bin_edges = np.linspace(0, r_cut, n_bins + 1)
     histogram_values = {pair: np.zeros(n_bins) for pair in pair_tuples}
     n_entries = len(geometries)
-    if progress_bar:
-        iterable = parallel.ProgressBar(geometries)
-    else:
-        iterable = geometries
+    iterable = parallel.progress_iter(geometries, style=progress)
     for geom in iterable:
         if any(geom.pbc):
             supercell = geometry.get_supercell(geom, r_cut=r_cut)
