@@ -87,6 +87,17 @@ class BasisFeaturizer:
     def partition_sizes(self):
         return self.bspline_config.partition_sizes
 
+    @property
+    def interaction_hashes(self):
+        return self.chemical_system.interaction_hashes
+
+    @property
+    def trailing_trim(self):
+        if self.bspline_config.mask_trim:
+            return self.bspline_config.trailing_trim
+        else:
+            return 0
+
     @staticmethod
     def from_config(chemical_system, config):
         """Instantiate from configuration dictionary"""
@@ -368,8 +379,10 @@ class BasisFeaturizer:
         feature_map = {}
         for pair in pair_tuples:
             basis_function = self.basis_functions[pair]
-            features = evaluate_basis_functions(distances_map[pair],
-                                                basis_function)
+            features = bspline.evaluate_basis_functions(
+                distances_map[pair],
+                basis_function,
+                trailing_trim=self.trailing_trim)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -401,10 +414,12 @@ class BasisFeaturizer:
         for pair in pair_tuples:
             basis_functions = self.basis_functions[pair]
             knot_sequence = self.knots_map[pair]
-            features = featurize_force_2B(basis_functions,
-                                          distance_map[pair],
-                                          derivative_map[pair],
-                                          knot_sequence)
+            features = bspline.featurize_force_2B(
+                basis_functions,
+                distance_map[pair],
+                derivative_map[pair],
+                knot_sequence,
+                trailing_trim=self.trailing_trim)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)

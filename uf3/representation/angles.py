@@ -13,6 +13,7 @@ def featurize_energy_3b(geom: ase.Atoms,
                         basis_functions: List,
                         hashes: List,
                         supercell: ase.Atoms = None,
+                        trailing_trim: int = 0,
                         ) -> List[np.ndarray]:
     """
     Args:
@@ -51,8 +52,13 @@ def featurize_energy_3b(geom: ase.Atoms,
             if interaction_data is None:
                 continue
             i, r_l, r_m, r_n, ituples = interaction_data
-            tuples_3b, idx_lmn = evaluate_triplet_distances(r_l, r_m, r_n,
-                basis_functions[interaction_idx], knot_sets[interaction_idx])
+            tuples_3b, idx_lmn = evaluate_triplet_distances(
+                r_l,
+                r_m,
+                r_n,
+                basis_functions[interaction_idx],
+                knot_sets[interaction_idx],
+                trailing_trim=trailing_trim)
             grids[interaction_idx] += arrange_3b(tuples_3b,
                                                  idx_lmn,
                                                  L[interaction_idx],
@@ -121,6 +127,7 @@ def featurize_force_3b(geom: ase.Atoms,
                        basis_functions: List[List],
                        trio_hashes: Dict[int, np.ndarray],
                        supercell: ase.Atoms = None,
+                       trailing_trim: int = 0,
                        ) -> List[List[List[np.ndarray]]]:
     """
     Args:
@@ -166,8 +173,13 @@ def featurize_force_3b(geom: ase.Atoms,
                 continue
             i, r_l, r_m, r_n, ituples = interaction_data
 
-            tuples_3b, idx_lmn = evaluate_triplet_derivatives(r_l, r_m, r_n,
-                basis_functions[interaction_idx], knot_sets[interaction_idx])
+            tuples_3b, idx_lmn = evaluate_triplet_derivatives(
+                r_l,
+                r_m,
+                r_n,
+                basis_functions[interaction_idx],
+                knot_sets[interaction_idx],
+                trailing_trim=trailing_trim)
 
             drij_dr = distances.compute_direction_cosines(coords,
                                                           matrix,
@@ -427,7 +439,8 @@ def evaluate_triplet_distances(r_l: np.ndarray,
                                r_n: np.ndarray,
                                basis_functions: List[List],
                                knot_sequences: List[np.ndarray],
-                               trailing_trim: int = 3):
+                               trailing_trim: int = 0,
+                               ):
     """
     Identify non-zero basis functions for each point and call functions.
 
@@ -470,6 +483,13 @@ def evaluate_triplet_distances(r_l: np.ndarray,
         points = r_n[mask]
         values_3b[mask, 2] = basis_functions[2][n_idx](points)
     idx_lmn = np.vstack([idx_rl, idx_rm, idx_rn]).T
+    # if trailing_trim > 0:
+    #     trim_mask = np.logical_or.reduce([idx_rl <= L,
+    #                                       idx_rm <= M,
+    #                                       idx_rn <= N])
+    #     print("E", np.sum(trim_mask), len(values_3b))
+    #     values_3b = values_3b[trim_mask]
+    #     idx_lmn = idx_lmn[trim_mask]
     return values_3b, idx_lmn
 
 
@@ -478,7 +498,7 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
                                  r_n: np.ndarray,
                                  basis_functions: List[List],
                                  knot_sequences: List[np.ndarray],
-                                 trailing_trim: int = 3
+                                 trailing_trim: int = 0,
                                  ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Identify non-zero basis functions for each point and call functions.
@@ -528,6 +548,16 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
         values_3b[mask, 5] = basis_functions[2][n_idx](points, nu=1)
     idx_lmn = np.vstack([idx_rl, idx_rm, idx_rn]).T
     return values_3b, idx_lmn
+    # if trailing_trim > 0:
+    #     trim_mask = np.logical_or.reduce([idx_rl <= L,
+    #                                       idx_rm <= M,
+    #                                       idx_rn <= N])
+    #     print("F", np.sum(trim_mask), len(values_3b))
+    #     values_3b = values_3b[trim_mask]
+    #     idx_lmn = idx_lmn[trim_mask]
+    # else:
+    #     trim_mask = None
+    # return values_3b, idx_lmn, trim_mask
 
 
 def symmetrize_3B(grid_3b: np.ndarray, symmetry: int = 2) -> np.ndarray:
@@ -607,4 +637,10 @@ def get_symmetry_weights(symmetry: int,
             template[i, j, k] = 0
         elif m_space[j + 4] + n_space[k + 4] <= l_space[i]:
             template[i, j, k] = 0
+
+    if trailing_trim > 0:
+        for trim_idx in range(1, trailing_trim + 1):
+            template[-trim_idx, :, :] = 0
+            template[:, -trim_idx, :] = 0
+            template[:, :, -trim_idx] = 0
     return template

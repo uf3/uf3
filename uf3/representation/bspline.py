@@ -23,7 +23,10 @@ class BSplineBasis:
                  r_min_map=None,
                  r_max_map=None,
                  resolution_map=None,
-                 knot_spacing='linear',
+                 knot_strategy='linear',
+                 offset_1b=True,
+                 trailing_trim=3,
+                 mask_trim=True,
                  knots_map=None):
         """
         Args:
@@ -360,13 +363,17 @@ class BSplineBasis:
             unflatten_mask (np.ndarray): L x L x L boolean array for
                 regenerating full basis function set.
         """
+        if self.mask_trim:
+            trailing_trim = self.trailing_trim
+        else:
+            trailing_trim = 0
         for trio in self.interactions_map[3]:
             l_space, m_space, n_space = self.knots_map[trio]
-
             template = angles.get_symmetry_weights(self.symmetry[trio],
                                                    l_space,
                                                    m_space,
-                                                   n_space)
+                                                   n_space,
+                                                   trailing_trim,)
             template_flat = template.flatten()
             template_mask, = np.where(template_flat > 0)
             self.template_mask[trio] = template_mask
@@ -463,12 +470,12 @@ def evaluate_basis_functions(points,
                 evaluations for each knot subinterval.
     """
     n_splines = len(basis_functions)
-    values_per_spline = []
-    for idx in range(n_splines):
+    values_per_spline = [0] * n_splines
+    for idx in range(n_splines - trailing_trim):
         # loop over number of basis functions
         bspline_values = basis_functions[idx](points, nu=nu)
         bspline_values[np.isnan(bspline_values)] = 0
-        values_per_spline.append(bspline_values)
+        values_per_spline[idx] = bspline_values
     if not flatten:
         return values_per_spline
     value_per_spline = np.array([np.sum(values)
@@ -500,7 +507,7 @@ def featurize_force_2B(basis_functions,
     n_splines = len(basis_functions)
     n_atoms, _, n_distances = drij_dR.shape
     x = np.zeros((n_atoms, 3, n_splines))
-    for bspline_idx in np.arange(n_splines):
+    for bspline_idx in np.arange(n_splines - trailing_trim):
         # loop over number of basis functions
         basis_function = basis_functions[bspline_idx]
         b_knots = knot_sequence[bspline_idx: bspline_idx+5]
