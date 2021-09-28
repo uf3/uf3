@@ -252,12 +252,12 @@ def evaluate_energy_3b(geom: ase.Atoms,
     spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
     # identify pairs
     dist_matrix, i_where, j_where = angles.identify_ij(geom,
-                                                       knot_sequences,
+                                                       [knot_sequences],
                                                        sup_geom)
     if len(i_where) == 0:
         return 0.0
     # generate valid i, j, k triplets by joining i-j and i-j' pairs
-    triplet_groups = angles.generate_triplets(
+    triplet_groups = angles.legacy_generate_triplets(
         i_where, j_where, dist_matrix, knot_sequences)
     energy = 0
     for atom_idx, l, m, n, tuples in triplet_groups:
@@ -278,8 +278,8 @@ def evaluate_forces_3b(geom: ase.Atoms,
     spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
     # identify pairs
     coords, dist_matrix, i_where, j_where = angles.identify_ij(
-        geom, knot_sequences, sup_geom, square=True)
-    triplet_groups = angles.generate_triplets(
+        geom, [knot_sequences], sup_geom, square=True)
+    triplet_groups = angles.legacy_generate_triplets(
         i_where, j_where, dist_matrix, knot_sequences)
     f_accumulate = np.zeros((n_atoms, 3))
     for atom_idx, r_l, r_m, r_n, idx_ijk in triplet_groups:
