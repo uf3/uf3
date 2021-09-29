@@ -354,8 +354,9 @@ class BSplineBasis:
                 col_idx.append(idx)
                 frozen_c.append(value)
         if not offset_1b:
-            col_idx.insert(0, 0)
-            frozen_c.insert(0, 0)
+            for j in range(len(self.element_list)):
+                col_idx.insert(0, j)
+                frozen_c.insert(0, 0)
         col_idx = np.array(col_idx, dtype=int)
         frozen_c = np.array(frozen_c)
         return col_idx, frozen_c
