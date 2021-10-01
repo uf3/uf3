@@ -5,7 +5,7 @@ import setuptools
 
 
 module_dir = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(module_dir, 'README.md'), "r") as f:
+with open(os.path.join(module_dir, 'readme.rst'), "r") as f:
     long_description = f.read()
 
 install_requires = ['numpy',

@@ -1,3 +1,4 @@
+from typing import List
 import warnings
 import ase
 from ase import units
@@ -11,7 +12,11 @@ except ImportError:
     USE_ELASTIC = False
 
 
-def get_elastic_constants(geom, calc):
+def get_elastic_constants(geom: ase.Atoms,
+                          calc: ase_calc.Calculator,
+                          n: int = 5,
+                          d: float = 1.0,
+                          ) -> List:
     """
     Args:
         geom (ase.Atoms)
@@ -25,7 +30,7 @@ def get_elastic_constants(geom, calc):
         warnings.warn("elastic could not be imported.", RuntimeWarning)
         return None
     geom.calc = calc
-    systems = get_elementary_deformations(geom, n=5, d=2)
+    systems = get_elementary_deformations(geom, n=n, d=d)
     Cij, Bij = get_elastic_tensor(geom, systems)
     get_BM_EOS(geom, systems)
     bulk_modulus = get_bulk_modulus(geom)

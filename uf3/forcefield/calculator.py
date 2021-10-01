@@ -1,13 +1,14 @@
+from typing import List, Dict, Collection, Tuple, Any
 import os
 import time
 import warnings
 import numpy as np
 from scipy import interpolate
+import ase
 from ase import optimize as ase_optim
 from ase import constraints as ase_constraints
 from ase.calculators import calculator as ase_calc
 
-import uf3.representation.bspline
 from uf3.data import geometry
 from uf3.representation import distances
 from uf3.representation import bspline
@@ -18,16 +19,24 @@ from uf3.forcefield.properties import elastic
 from uf3.forcefield.properties import phonon
 import ndsplines
 
+try:
+    import phonopy as phonopy_check
+    _use_phon = True
+except ImportError:
+    _use_phon = False
+
+try:
+    import elastic as elastic_check
+    _use_elastic = True
+except ImportError:
+    _use_elastic = False
+
 
 class UFCalculator(ase_calc.Calculator):
-    def __init__(self, bspline_config, model):
-        """
-
-        Args:
-            bspline_config (bspline.BSplineBasis)
-            model (least_squares.WeightedLinearModel)
-        """
-        self.bspline_config = bspline_config
+    def __init__(self,
+                 model: least_squares.WeightedLinearModel):
+        # super().__init__()  # TODO: improve compatibility with ASE protocol
+        self.bspline_config = model.bspline_config
         self.model = model
         self.solutions = coefficients_by_interaction(self.element_list,
                                                      self.interactions_map,
@@ -38,13 +47,25 @@ class UFCalculator(ase_calc.Calculator):
         if self.degree > 2:
             if len(self.element_list) > 1:
                 raise ValueError("Multicomponent 3B is not yet implemented.")
-            # self.potentials_3b = construct_trio_potentials(self.solutions,
-            #                                                self.bspline_config)
             self.trio = self.bspline_config.interactions_map[3][0]
             c_compressed = self.solutions[self.trio]
-            c_decompressed = bspline_config.decompress_3B(c_compressed,
-                                                          self.trio)
+            c_decompressed = self.bspline_config.decompress_3B(c_compressed,
+                                                               self.trio)
             self.coefficients_3b = angles.symmetrize_3B(c_decompressed)
+
+    def __repr__(self):
+        summary = ["UFCalculator:",
+                   # f"    Energies enabled: {True}",
+                   # f"    Forces enabled: {True}",
+                   # f"    Stresses enabled: {True}",
+                   f"    Elastic enabled: {_use_elastic}",
+                   f"    Phonopy enabled: {_use_phon}",
+                   self.model.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
 
     @property
     def degree(self):
@@ -86,7 +107,10 @@ class UFCalculator(ase_calc.Calculator):
     def chemical_system(self):
         return self.bspline_config.chemical_system
 
-    def get_potential_energy(self, atoms=None, force_consistent=None):
+    def get_potential_energy(self,
+                             atoms: ase.Atoms = None,
+                             force_consistent: bool = None
+                             ) -> float:
         """Evaluate the total energy of a configuration."""""
         if any(atoms.pbc):
             supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
@@ -122,7 +146,7 @@ class UFCalculator(ase_calc.Calculator):
                                          supercell)
         return energy
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: ase.Atoms = None) -> np.ndarray:
         """Return the forces in a configuration."""
         n_atoms = len(atoms)
         if any(atoms.pbc):
@@ -155,27 +179,41 @@ class UFCalculator(ase_calc.Calculator):
         if self.degree >= 3:
             knot_sequences = self.bspline_config.knots_map[self.trio]
             c_grid = self.coefficients_3b
-            forces += evaluate_forces_3b(atoms,
+            forces -= evaluate_forces_3b(atoms,
                                          knot_sequences,
                                          c_grid,
                                          supercell)
-        return -forces
+        return forces
 
-    def get_stress(self, atoms=None, **kwargs):
+    def get_stress(self,
+                   atoms: ase.Atoms = None,
+                   **kwargs
+                   ) -> np.ndarray:
         """Return the (numerical) stress."""
         return self.calculate_numerical_stress(atoms, **kwargs)
 
-    def relax_fmax(self, geom, fmax=0.05, verbose=False, timeout=60, **kwargs):
+    def relax_fmax(self,
+                   geom: ase.Atoms,
+                   fmax: float = 0.05,
+                   relax_cell: bool = True,
+                   verbose: bool = False,
+                   timeout: float = 60.0,
+                   **kwargs
+                   ) -> ase.Atoms:
         """Minimize max. force using ASE's QuasiNewton optimizer."""
         geom = geom.copy()
         geom.set_calculator(self)
-        cell_filter = ase_constraints.ExpCellFilter(geom)
-        if verbose:
-            logfile = '-'
+
+        if np.all(geom.pbc) and relax_cell:  # periodic boundary conditions
+            geom_filter = ase_constraints.ExpCellFilter(geom)
         else:
-            logfile = os.devnull
+            geom_filter = geom
+        if verbose:
+            logfile = '-'  # print to stdout
+        else:
+            logfile = os.devnull  # suppress output
         t0 = time.time()
-        optimizer = ase_optim.BFGSLineSearch(cell_filter,
+        optimizer = ase_optim.BFGSLineSearch(geom_filter,
                                              logfile=logfile,
                                              force_consistent=True,
                                              **kwargs)
@@ -186,7 +224,7 @@ class UFCalculator(ase_calc.Calculator):
                 break
         return geom
 
-    def calculation_required(self, atoms, quantities):
+    def calculation_required(self, atoms: ase.Atoms, quantities: List) -> bool:
         """Check if a calculation is required."""
         if any([q in quantities for q in ['magmom', 'stress', 'charges']]):
             return True
@@ -196,11 +234,31 @@ class UFCalculator(ase_calc.Calculator):
             return True
         return False
 
-    def get_elastic_constants(self, atoms):
-        results = elastic.get_elastic_constants(atoms, self)
+    def get_elastic_constants(self,
+                              atoms: ase.Atoms,
+                              n: int = 5,
+                              d: float = 1.0
+                              ) -> List:
+        """
+        Compute elastic constants.
+        Args:
+            atoms (ase.Atoms)
+            n (int): number of distortions to sample for fitting.
+            d (float): maximum displacement in percent.
+        Returns:
+            results (list): elastic constants.
+        """
+        results = elastic.get_elastic_constants(atoms,
+                                                self,
+                                                n=n,
+                                                d=d)
         return results
 
-    def get_phonon_data(self, atoms, n_super=5, disp=0.05):
+    def get_phonon_data(self,
+                        atoms: ase.Atoms,
+                        n_super: int = 5,
+                        disp: float = 0.05,
+                        ) -> Tuple[Any, Dict, Dict]:
         results = phonon.compute_phonon_data(atoms,
                                              self,
                                              n_super=n_super,
@@ -208,18 +266,23 @@ class UFCalculator(ase_calc.Calculator):
         return results
 
 
-def evaluate_energy_3b(geom, knot_sequences, c_grid, sup_geom=None):
+def evaluate_energy_3b(geom: ase.Atoms,
+                       knot_sequences: List[np.ndarray],
+                       c_grid: np.ndarray,
+                       sup_geom: ase.Atoms = None
+                       ) -> float:
+    # TODO: multicomponent
     if sup_geom is None:
         sup_geom = geom
     spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
     # identify pairs
     dist_matrix, i_where, j_where = angles.identify_ij(geom,
-                                                       knot_sequences,
+                                                       [knot_sequences],
                                                        sup_geom)
     if len(i_where) == 0:
         return 0.0
     # generate valid i, j, k triplets by joining i-j and i-j' pairs
-    triplet_groups = angles.generate_triplets(
+    triplet_groups = angles.legacy_generate_triplets(
         i_where, j_where, dist_matrix, knot_sequences)
     energy = 0
     for atom_idx, l, m, n, tuples in triplet_groups:
@@ -228,15 +291,20 @@ def evaluate_energy_3b(geom, knot_sequences, c_grid, sup_geom=None):
     return energy
 
 
-def evaluate_forces_3b(geom, knot_sequences, c_grid, sup_geom=None):
+def evaluate_forces_3b(geom: ase.Atoms,
+                       knot_sequences: List[np.ndarray],
+                       c_grid: np.ndarray,
+                       sup_geom: ase.Atoms = None
+                       ) -> np.ndarray:
+    # TODO: multicomponent
     if sup_geom is None:
         sup_geom = geom
     n_atoms = len(geom)
     spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
     # identify pairs
     coords, dist_matrix, i_where, j_where = angles.identify_ij(
-        geom, knot_sequences, sup_geom, square=True)
-    triplet_groups = angles.generate_triplets(
+        geom, [knot_sequences], sup_geom, square=True)
+    triplet_groups = angles.legacy_generate_triplets(
         i_where, j_where, dist_matrix, knot_sequences)
     f_accumulate = np.zeros((n_atoms, 3))
     for atom_idx, r_l, r_m, r_n, idx_ijk in triplet_groups:
@@ -262,20 +330,21 @@ def evaluate_forces_3b(geom, knot_sequences, c_grid, sup_geom=None):
         f_accumulate += np.dot(drij_dr, val_l)
         f_accumulate += np.dot(drik_dr, val_m)
         f_accumulate += np.dot(drjk_dr, val_n)
-    return -f_accumulate
+    return f_accumulate
 
 
-def coefficients_by_interaction(element_list,
-                                interactions_map,
-                                partition_sizes,
-                                coefficients):
+def coefficients_by_interaction(element_list: List,
+                                interactions_map: Dict[int, List[Tuple[str]]],
+                                partition_sizes: Collection[int],
+                                coefficients: List[np.ndarray]
+                                ) -> Dict[Tuple[str], np.ndarray]:
     """
     Args:
         element_list (list)
         interactions_map (dict): map of degree to list of interactions
             e.g. {2: [('Ne', 'Ne'), ('Ne', 'Xe'), ...]}
-        partition_sizes (list, np.ndarray): number of coefficients per section.
-        coefficients (list, np.ndarray): vector of joined, fit coefficients.
+        partition_sizes (list): number of coefficients per section.
+        coefficients (list): vector of joined, fit coefficients.
 
     Returns:
         solutions (dict)
@@ -293,7 +362,9 @@ def coefficients_by_interaction(element_list,
     return solutions
 
 
-def construct_pair_potentials(coefficient_sets, bspline_config):
+def construct_pair_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
+                              bspline_config: bspline.BSplineBasis
+                              ) -> Dict[Tuple[str], interpolate.BSpline]:
     """
     Args:
         coefficient_sets (dict): map of pair tuple to coefficient vector.
@@ -314,29 +385,13 @@ def construct_pair_potentials(coefficient_sets, bspline_config):
     return potentials
 
 
-def construct_trio_potentials(coefficient_sets, bspline_config):
-    """
-    Args:
-        coefficient_sets (dict): map of pair tuple to coefficient vector.
-        bspline_config (bspline.BSplineBasis)
-
-    Returns:
-        potentials (dict): map of pair tuple to interpolate.BSpline
-    """
-    trio_tuples = bspline_config.chemical_system.interactions_map[3]
-    potentials = {}
-    for trio in trio_tuples:
-        knot_sequence = bspline_config.knots_map[trio]
-        bspline_curve = interpolate.BSpline(knot_sequence,
-                                            coefficient_sets[trio],
-                                            3,  # cubic BSpline
-                                            extrapolate=False)
-        potentials[trio] = bspline_curve
-    return potentials
-
-
-def regenerate_coefficients(x, y, knot_sequence, dy=None):
-    knot_subintervals = uf3.representation.bspline.get_knot_subintervals(knot_sequence)
+def regenerate_coefficients(x: np.ndarray,
+                            y: np.ndarray,
+                            knot_sequence: np.ndarray,
+                            dy: np.ndarray = None
+                            ) -> np.ndarray:
+    """legacy function for regenerating coefficients from LAMMPS table."""
+    knot_subintervals = bspline.get_knot_subintervals(knot_sequence)
     n_splines = len(knot_subintervals)
     y_features = []
     dy_features = []

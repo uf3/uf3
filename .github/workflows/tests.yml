@@ -5,9 +5,12 @@ on:
     paths:
       - '**.py'
       - '**.yml'
+      - 'requirements.txt'
+      - '!docs/**'
   pull_request:
     paths:
       - '**.py'
+  workflow_dispatch:
 
 jobs:
   tests:
@@ -41,6 +44,7 @@ jobs:
         pip install .
         pip install setuptools_scm
         pip install "elastic>=5.1.0.17"
+        pip install spglib
         pip install seekpath
         pip install "phonopy>=2.6.0"
     - name: Test with pytest

@@ -1,5 +1,7 @@
 # Ultra-Fast Force Fields (UF<sup>3</sup>): Interfacing with a VASP Project
 
+WIP
+
 ## Usage
 
 Add vasprun.xml files, OUTCAR files, and/or entire VASP run directories to ```data``` OR modify "experiment_path" in settings.yaml to point to a project directory e.g. GASP's garun/temp/ directory.

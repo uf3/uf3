@@ -1,11 +1,12 @@
+import os
 import warnings
 import sqlite3
 import numpy as np
 import pandas as pd
 from uf3.representation import distances
 from uf3.representation import angles
-from uf3.representation.bspline import evaluate_basis_functions
-from uf3.representation.bspline import featurize_force_2B
+from uf3.representation import bspline
+from uf3.data import io
 from uf3.data import geometry
 from uf3.util import parallel
 
@@ -86,6 +87,17 @@ class BasisFeaturizer:
     def partition_sizes(self):
         return self.bspline_config.partition_sizes
 
+    @property
+    def interaction_hashes(self):
+        return self.chemical_system.interaction_hashes
+
+    @property
+    def trailing_trim(self):
+        if self.bspline_config.mask_trim:
+            return self.bspline_config.trailing_trim
+        else:
+            return 0
+
     @staticmethod
     def from_config(chemical_system, config):
         """Instantiate from configuration dictionary"""
@@ -100,7 +112,7 @@ class BasisFeaturizer:
                  df_data,
                  atoms_key="geometry",
                  energy_key="energy",
-                 progress_bar=True):
+                 progress="bar"):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -108,7 +120,9 @@ class BasisFeaturizer:
         Args:
             df_data (pd.DataFrame): standard dataframe with columns
                 [atoms_key, energy_key, fx, fy, fz]
-            progress_bar (bool)
+            atoms_key (str)
+            energy_key (str)
+            progress (str, None): style of progress counter.
 
         Returns:
             df_features (pd.DataFrame): processed dataframe with columns
@@ -123,11 +137,9 @@ class BasisFeaturizer:
             if key in header:
                 column_positions[key] = header.get_loc(key) + 1
 
-        if progress_bar:
-            row_gener = parallel.progress_iter(df_data.itertuples(name=None),
-                                               total=len(df_data))
-        else:
-            row_gener = df_data.itertuples(name=None)
+        row_gener = parallel.progress_iter(df_data.itertuples(name=None),
+                                           total=len(df_data),
+                                           style=progress)
 
         for row in row_gener:
             # iterate over rows without modification.
@@ -140,6 +152,8 @@ class BasisFeaturizer:
             if 'fx' in column_positions and self.fit_forces:
                 forces = [row[column_positions[component]]
                           for component in ['fx', 'fy', 'fz']]
+                if np.any(np.isnan(forces)):
+                    forces = None  # invalid forces
             geom_features = self.evaluate_configuration(geom,
                                                         name,
                                                         energy,
@@ -149,6 +163,26 @@ class BasisFeaturizer:
         df_features = self.arrange_features_dataframe(eval_map)
         return df_features
 
+    def arrange_features_dataframe(self, eval_map):
+        """
+        Args:
+            eval_map (dict): map of energy/force keys to fixed-length
+                feature vectors. If forces and the energy are both provided,
+                the dictionary will contain 3N + 1 entries.
+
+        Returns:
+            df_features (pd.DataFrame): processed dataframe with columns
+                [y, {name}_0, ..., {name}_x, n_A, ..., n_Z]
+                corresponding to target vector, pair-distance representation
+                features, and composition (one-body) features.
+        """
+        df_features = pd.DataFrame.from_dict(eval_map,
+                                             orient='index',
+                                             columns=self.columns)
+        index = pd.MultiIndex.from_tuples(df_features.index)
+        df_features = df_features.set_index(index)
+        return df_features
+
     def evaluate_parallel(self,
                           df_data,
                           client,
@@ -156,7 +190,7 @@ class BasisFeaturizer:
                           energy_key="energy",
                           n_jobs=2,
                           shuffle=True,
-                          progress_bar=True):
+                          progress="bar"):
         """
         Process standard dataframe to generate representation features
         and arrange into processed dataframe. Operates in serial by default.
@@ -196,11 +230,11 @@ class BasisFeaturizer:
                                             client,
                                             atoms_key=atoms_key,
                                             energy_key=energy_key,
-                                            progress_bar=False)
+                                            progress=False)
         df_features = parallel.gather_and_merge(future_list,
                                                 client=client,
                                                 cancel=True,
-                                                progress_bar=progress_bar)
+                                                progress=progress)
         df_features = df_features.loc[df_data.index, :]
         try:
             for batch in batches:
@@ -209,51 +243,42 @@ class BasisFeaturizer:
             pass
         return df_features
 
-    def arrange_features_dataframe(self, eval_map):
-        """
-        Args:
-            eval_map (dict): map of energy/force keys to fixed-length
-                feature vectors. If forces and the energy are both provided,
-                the dictionary will contain 3N + 1 entries.
+    def batched_to_hdf(self,
+                       filename,
+                       df_data,
+                       client,
+                       n_jobs=16,
+                       batch_size=50,
+                       progress="bar",
+                       table_template="features_{}",
+                       **kwargs):
+        idx_all = np.arange(len(df_data))
+        idx_splits = idx_all[batch_size::batch_size]
+        idx_batches = np.array_split(idx_all, idx_splits)
+        n_batches = len(idx_batches)
+        idx_magnitude = np.ceil(np.log10(n_batches) + 0.1).astype(int)
+        idx_magnitude = max(idx_magnitude, 3)
 
-        Returns:
-            df_features (pd.DataFrame): processed dataframe with columns
-                [y, {name}_0, ..., {name}_x, n_A, ..., n_Z]
-                corresponding to target vector, pair-distance representation
-                features, and composition (one-body) features.
-        """
-        df_features = pd.DataFrame.from_dict(eval_map,
-                                             orient='index',
-                                             columns=self.columns)
-        index = pd.MultiIndex.from_tuples(df_features.index)
-        df_features = df_features.set_index(index)
-        return df_features
+        if os.path.isfile(filename):
+            n_chunks, _, chunk_names, _ = io.analyze_hdf_tables(filename)
+            warnings.warn(f"File already exists: contains {n_chunks} chunks.",
+                          RuntimeWarning)
+        else:
+            chunk_names = []
 
-    def get_training_tuples(self, df_features, kappa, data_coordinator):
-        """
-        Weights are generated by normalizing energy and force entries by the
-            respective sample standard deviations as well as the relative
-            number of entries per type. Weights are further modified by kappa,
-            which controls the relative weighting between energy and force
-            errors. A value of 0 corresponds to force-training,
-            while a value of 1 corresponds to energy-training.
-
-        Args:
-            df_features (pd.DataFrame): dataframe with target vector (y) as the
-                first column and feature vectors (x) as remaining columns.
-            kappa (float): energy-force weighting parameter between 0 and 1.
-            data_coordinator (uf3.data.io.DataCoordinator)
-
-        Returns:
-            x (np.ndarray): features for machine learning.
-            y (np.ndarray): target vector.
-            w (np.ndarray): weight vector for machine learning.
-        """
-        energy_key = data_coordinator.energy_key
-        x, y, w = dataframe_to_training_tuples(df_features,
-                                               kappa=kappa,
-                                               energy_key=energy_key)
-        return x, y, w
+        for j, idx_batch in parallel.progress_iter(enumerate(idx_batches),
+                                                   total=len(idx_batches),
+                                                   style=progress):
+            table_name = table_template.format(str(j).rjust(idx_magnitude,
+                                                            "0"))
+            if table_name in chunk_names:
+                continue
+            kwargs["progress"] = False
+            kwargs["n_jobs"] = n_jobs
+            df_features = self.evaluate_parallel(df_data.iloc[idx_batch],
+                                                 client,
+                                                 **kwargs)
+            save_feature_db(df_features, filename, table_name=table_name)
 
     def evaluate_configuration(self,
                                geom,
@@ -264,6 +289,8 @@ class BasisFeaturizer:
         """
         Generate feature vector(s) for learning energy and/or forces
             of one configuration.
+
+        TODO: refactor to break up into smaller, reusable functions
 
         Args:
             geom (ase.Atoms): configuration of interest.
@@ -352,8 +379,10 @@ class BasisFeaturizer:
         feature_map = {}
         for pair in pair_tuples:
             basis_function = self.basis_functions[pair]
-            features = evaluate_basis_functions(distances_map[pair],
-                                                basis_function)
+            features = bspline.evaluate_basis_functions(
+                distances_map[pair],
+                basis_function,
+                trailing_trim=self.trailing_trim)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -385,10 +414,12 @@ class BasisFeaturizer:
         for pair in pair_tuples:
             basis_functions = self.basis_functions[pair]
             knot_sequence = self.knots_map[pair]
-            features = featurize_force_2B(basis_functions,
-                                          distance_map[pair],
-                                          derivative_map[pair],
-                                          knot_sequence)
+            features = bspline.featurize_force_2B(
+                basis_functions,
+                distance_map[pair],
+                derivative_map[pair],
+                knot_sequence,
+                trailing_trim=self.trailing_trim)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -408,14 +439,22 @@ class BasisFeaturizer:
         """
         if supercell is None:
             supercell = geom
-        trio = self.interactions_map[3][0]  # TODO: Multicomponent
-        knot_sequences = self.knots_map[trio]
-        basis_functions = self.basis_functions[trio]
-        value_grid = angles.featurize_energy_3b(geom,
-                                                supercell,
-                                                knot_sequences,
-                                                basis_functions)
-        vector = self.bspline_config.compress_3B(value_grid, trio)
+        trio_list = self.interactions_map[3]
+        knot_sets = [self.knots_map[trio] for trio in trio_list]
+        basis_functions = [self.basis_functions[trio] for trio in trio_list]
+        hashes = self.interaction_hashes[3]
+        grids = angles.featurize_energy_3b(geom,
+                                           knot_sets,
+                                           basis_functions,
+                                           hashes,
+                                           supercell=supercell,
+                                           trailing_trim=self.trailing_trim)
+        vectors = []
+        for i, trio in enumerate(trio_list):
+            value_grid = grids[i]
+            vector = self.bspline_config.compress_3B(value_grid, trio)
+            vectors.append(vector)
+        vector = np.concatenate(vectors)
         return vector
 
     def featurize_force_3B(self, geom, supercell=None):
@@ -433,20 +472,55 @@ class BasisFeaturizer:
         """
         if supercell is None:
             supercell = geom
-        trio = self.interactions_map[3][0]  # TODO: Multicomponent
-        knot_sequences = self.knots_map[trio]
-        basis_functions = self.basis_functions[trio]
-        values = angles.featurize_force_3b(geom,
-                                           supercell,
-                                           knot_sequences,
-                                           basis_functions)
-        values = np.array([[self.bspline_config.compress_3B(grid, trio)
-                            for grid in atom_set]
-                           for atom_set in values])
-        return values
+        trio_list = self.interactions_map[3]
+        knot_sets = [self.knots_map[trio] for trio in trio_list]
+        basis_functions = [self.basis_functions[trio] for trio in trio_list]
+        hashes = self.interaction_hashes[3]
+        grids = angles.featurize_force_3b(geom,
+                                          knot_sets,
+                                          basis_functions,
+                                          hashes,
+                                          supercell=supercell,
+                                          trailing_trim=self.trailing_trim)
+        blocks = []
+        for i, trio in enumerate(trio_list):
+            values = grids[i]
+            block = [[self.bspline_config.compress_3B(grid, trio)
+                      for grid in atom_set]
+                     for atom_set in values]
+            blocks.append(block)
+        return np.concatenate(blocks, axis=-1)
+
+    def get_training_tuples(self, df_features, kappa, data_coordinator):
+        """
+        TODO: Remove (deprecated)
+
+        Weights are generated by normalizing energy and force entries by the
+            respective sample standard deviations as well as the relative
+            number of entries per type. Weights are further modified by kappa,
+            which controls the relative weighting between energy and force
+            errors. A value of 0 corresponds to force-training,
+            while a value of 1 corresponds to energy-training.
+
+        Args:
+            df_features (pd.DataFrame): dataframe with target vector (y) as the
+                first column and feature vectors (x) as remaining columns.
+            kappa (float): energy-force weighting parameter between 0 and 1.
+            data_coordinator (uf3.data.io.DataCoordinator)
+
+        Returns:
+            x (np.ndarray): features for machine learning.
+            y (np.ndarray): target vector.
+            w (np.ndarray): weight vector for machine learning.
+        """
+        energy_key = data_coordinator.energy_key
+        x, y, w = dataframe_to_training_tuples(df_features,
+                                               kappa=kappa,
+                                               energy_key=energy_key)
+        return x, y, w
 
 
-def save_feature_db(dataframe, filename, table_name='features', chunksize=100):
+def save_feature_db(dataframe, filename, table_name='features'):
     """
     Save dataframe with sqlite.
 
@@ -454,13 +528,8 @@ def save_feature_db(dataframe, filename, table_name='features', chunksize=100):
         dataframe (pd.DataFrame)
         filename (str)
         table_name (str): default "features".
-        chunksize (int): default 100.
     """
-    dataframe.to_hdf(
-        filename, table_name, mode="a", append=True, format='table')
-    # conn = sqlite3.connect(filename)
-    # dataframe.to_sql(table_name, conn, if_exists="append", chunksize=chunksize)
-    # conn.close()
+    dataframe.to_hdf(filename, table_name, mode="a", format='fixed')
 
 
 def load_feature_db(filename, table_name='features'):
@@ -475,10 +544,15 @@ def load_feature_db(filename, table_name='features'):
         dataframe (pd.DataFrame)
     """
     dataframe = pd.read_hdf(filename, table_name)
-    # conn = sqlite3.connect(filename)
-    # dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
-    # dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
-    # conn.close()
+    return dataframe
+
+
+def legacy_load_feature_db(filename, table_name):
+    # deprecated
+    conn = sqlite3.connect(filename)
+    dataframe = pd.read_sql_query("SELECT * FROM {};".format(table_name), conn)
+    dataframe.set_index(keys=['level_0', 'level_1'], inplace=True)
+    conn.close()
     return dataframe
 
 
@@ -493,6 +567,8 @@ def dataframe_to_training_tuples(df_features,
         energy_key (str): key for energy samples, used to slice df_features
             into energies and forces for weight generation.
 
+    TODO: refactor to break up into smaller, reusable functions
+
     Returns:
         x (np.ndarray): features for machine learning.
         y (np.ndarray): target vector.
@@ -502,7 +578,7 @@ def dataframe_to_training_tuples(df_features,
         raise ValueError("Invalid domain for kappa weighting parameter.")
     if len(df_features) <= 1:
         raise ValueError(
-            "Not enough samples ({} provided)".format(len(df_features)))
+            f"Not enough samples ({len(df_features)} provided)")
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
     force_mask = np.logical_not(energy_mask)

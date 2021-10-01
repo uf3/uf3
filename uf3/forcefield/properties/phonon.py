@@ -1,18 +1,20 @@
+from typing import Dict, Tuple, Any
 import warnings
 import ase
-import seekpath
+from ase.calculators import calculator as ase_calc
 import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 try:
     import phonopy
+    import seekpath
     from phonopy.structure import atoms as phonopy_atoms
     USE_PHONOPY = True
 except ImportError:
     USE_PHONOPY = False
 
 
-def replace_list(text_string):
+def replace_list(text_string: str):
     """Quick formatting of Gamma point"""
     substitutions = {'GAMMA': u'$\\Gamma$'}
     for item in substitutions.items():
@@ -20,7 +22,12 @@ def replace_list(text_string):
     return text_string
 
 
-def compute_phonon_data(geom, calc, n_super=5, disp=0.05, resolution=30):
+def compute_phonon_data(geom: ase.Atoms,
+                        calc: ase_calc.Calculator,
+                        n_super: int = 5,
+                        disp: float = 0.05,
+                        resolution: int = 30
+                        ) -> Tuple[Any, Dict, Dict]:
     """
     Args:
         geom (ase.Atoms)
@@ -36,7 +43,7 @@ def compute_phonon_data(geom, calc, n_super=5, disp=0.05, resolution=30):
     """
     if not USE_PHONOPY:
         warnings.warn("Phonopy could not be imported.", RuntimeWarning)
-        return (None, None, None)
+        return None, dict(), dict()
     # generate supercells with displacements
     pbc = geom.pbc
     scaled_positions = geom.get_scaled_positions()
@@ -96,7 +103,11 @@ def compute_phonon_data(geom, calc, n_super=5, disp=0.05, resolution=30):
     return force_constants, path_data, bands_dict
 
 
-def plot_phonon_spectrum(path_data, bands_dict, ax=None, **kwargs):
+def plot_phonon_spectrum(path_data: Dict[str, np.ndarray],
+                         bands_dict: Dict[str, np.ndarray],
+                         ax: plt.Axes = None,
+                         **kwargs,
+                         ) -> Tuple[plt.Figure, plt.Axes]:
     """
     Args:
         path_data (dict)

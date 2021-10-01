@@ -1,10 +1,9 @@
-numpy
+numpy<=1.20.3
 scipy
 tqdm
 ase
 pandas
-scikit_learn
-pytest
 pyyaml
 matplotlib
 ndsplines
+tables

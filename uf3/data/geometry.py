@@ -1,10 +1,15 @@
+from typing import List, Dict, Collection, Tuple, Any, Union
 import warnings
 import numpy as np
-import ase
 from scipy import linalg
+import ase
+from ase import cell as ase_cell
 
 
-def get_supercell(geometry, r_cut=10, sort_indices=False):
+def get_supercell(geometry: ase.Atoms,
+                  r_cut: float = 10,
+                  sort_indices: bool = False
+                  ) -> ase.Atoms:
     """
     Generate supercell, centered on original unit cell, with sufficient
     number of images along each lattice vector direction to ensure that
@@ -28,7 +33,6 @@ def get_supercell(geometry, r_cut=10, sort_indices=False):
     diameter_indices = [np.repeat(v, 2)[1:] for v in radius_indices]
     for i in range(3):
         diameter_indices[i][::2] *= -1
-
     a_indices, b_indices, c_indices = diameter_indices
     if sort_indices is False:
         sup_z = []
@@ -56,7 +60,9 @@ def get_supercell(geometry, r_cut=10, sort_indices=False):
     return supercell
 
 
-def get_supercell_factors(cell, r_cut):
+def get_supercell_factors(cell: Union[ase_cell.Cell, np.ndarray],
+                          r_cut: float = 10
+                          ) -> np.ndarray:
     """
     Identify minimum number of replicas along each lattice vector direction
     to ensure that atoms within the unit cell may interact with neighbors
@@ -86,10 +92,11 @@ def get_supercell_factors(cell, r_cut):
     return supercell_factors
 
 
-def sort_image_indices(a_indices,
-                       b_indices,
-                       c_indices,
-                       cell):
+def sort_image_indices(a_indices: np.ndarray,
+                       b_indices: np.ndarray,
+                       c_indices: np.ndarray,
+                       cell: np.ndarray
+                       ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Sort image indices based on distance to origin.
 
@@ -124,8 +131,17 @@ def sort_image_indices(a_indices,
     return a_grid, b_grid, c_grid
 
 
-def energy_from_force_displacement(geom, energy, forces, d=0.01,
-                                   n=None, random=True):
+def energy_from_force_displacement(geom: ase.Atoms,
+                                   energy: float,
+                                   forces: Collection[Collection[float]],
+                                   d: float = 0.01,
+                                   n: int = None,
+                                   random: bool = True
+                                   ) -> Tuple[List[ase.Atoms], List[float]]:
+    """
+    WIP implementation of data augmentation as introduced in
+    https://doi.org/10.1038/s41524-020-0323-8
+    """
     n_atoms = len(geom)
     positions = geom.get_positions()
     if random:  # n random displacements

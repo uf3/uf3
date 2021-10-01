@@ -13,7 +13,7 @@ class TestCalculator:
         bspline_config = bspline.BSplineBasis(chemical_system,
                                               r_min_map={('W', 'W'): 2.0},
                                               r_max_map={('W', 'W'): 6.0},
-                                              knot_spacing='lammps')
+                                              knot_strategy='lammps')
         model = least_squares.WeightedLinearModel(
             bspline_config=bspline_config)
         pair = bspline_config.interactions_map[2][0]
@@ -27,7 +27,7 @@ class TestCalculator:
                                                    knot_sequence)
         coefficient_vector = np.insert(coefficient_vector, 0, 0)
         model.coefficients = coefficient_vector
-        calc = calculator.UFCalculator(bspline_config, model)
+        calc = calculator.UFCalculator(model)
         assert len(calc.solutions) == 2
         assert len(calc.pair_potentials) == 1
         geom = ase.Atoms('W2',
@@ -38,10 +38,10 @@ class TestCalculator:
         assert np.isclose(energy, -1.21578)
         geom.calc = calc
         forces = geom.get_forces()
-        assert np.allclose(forces, [[3.96244881, 3.96244881, 3.96244881],
-                                    [-3.96244881, -3.96244881, -3.96244881]])
+        assert np.allclose(forces, [[-3.96244881, -3.96244881, -3.96244881],
+                                    [3.96244881, 3.96244881, 3.96244881]])
         geom.set_pbc([True, True, True])
         geom.set_cell([[3, 0, 0], [3, 5, 0], [0, 0, 3]])
         assert np.isclose(geom.get_potential_energy(), -15.33335)
         forces = geom.get_forces()
-        assert np.allclose(forces, [[0, 17.3656864, 0], [0, -17.3656864, 0]])
+        assert np.allclose(forces, [[0, -17.3656864, 0], [0, 17.3656864, 0]])
