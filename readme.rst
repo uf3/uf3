@@ -23,7 +23,7 @@ Setup
 
    conda create --name uf3_env python=3.7
    conda activate uf3_env
-   git clone https://github.com/sxie22/uf3
+   git clone https://github.com/uf3/uf3.git
    cd uf3
    pip install wheel
    pip install -r requirements.txt
