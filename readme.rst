@@ -82,5 +82,5 @@ Citing This Work
 
 The manuscript is still in preparation.
 
-.. |Tests| image:: https://github.com/sxie22/uf3/workflows/Tests/badge.svg
-   :target: https://github.com/sxie22/uf3/actions
+.. |Tests| image:: https://github.com/uf3/uf3/workflows/Tests/badge.svg
+   :target: https://github.com/uf3/uf3/actions
