@@ -1,0 +1,26 @@
+# File: .readthedocs.yaml
+
+version: 2
+
+#conda:
+#  environment: docs/environment.yml
+
+build:
+  image: latest
+
+# Explicitly set the version of Python and its requirements
+python:
+  version: 3.7
+  install:
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .
+
+submodules:
+  include: all
+
+# Build from the docs/ directory with Sphinx
+sphinx:
+  builder: html
+  configuration: docs/conf.py
+  fail_on_warning: false
