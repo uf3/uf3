@@ -12,7 +12,8 @@
 #
 import os
 import sys
-sys.path.append(os.path.abspath('..'))
+import uf3
+sys.path.append(os.path.abspath('../../'))
 
 
 
