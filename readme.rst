@@ -13,6 +13,8 @@ regression to obtain machine-learning potentials that are physically
 interpretable, sufficiently accurate for applications, and as fast as
 the fastest traditional empirical potentials.
 
+Documentation: https://uf3.readthedocs.io/
+
 This repository is still under construction. Please feel free to open
 new issues for feature requests and bug reports.
 
