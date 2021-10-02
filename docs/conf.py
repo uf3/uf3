@@ -12,8 +12,8 @@
 #
 import os
 import sys
-import uf3
-sys.path.insert(0, os.path.abspath('..'))  # Source code dir relative to this file
+sys.path.append(os.path.abspath('..'))
+
 
 
 # -- Project information -----------------------------------------------------
@@ -39,7 +39,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',  # Link to other project's documentation (see mapping below)
     'sphinx.ext.viewcode',  # Add a link to the Python source code for classes, functions etc.
-    'sphinx_autodoc_typehints', # Automatically document param types (less noise in class signature)
+#    'sphinx_autodoc_typehints', # Automatically document param types (less noise in class signature)
     'sphinx.ext.autosummary',
 ]
 
@@ -61,7 +61,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+#html_theme = 'alabaster'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -83,8 +83,8 @@ autosummary_mock_imports = [
 
 
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = "sphinx_rtd_theme"
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+#if on_rtd:
+import sphinx_rtd_theme
+html_theme = "sphinx_rtd_theme"
+html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 html_css_files = ["readthedocs-custom.css"] # Override some CSS settings
