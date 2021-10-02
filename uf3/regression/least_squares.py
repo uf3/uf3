@@ -96,9 +96,9 @@ class WeightedLinearModel(BasicLinearModel):
         if "regularizer" in params:
             self.regularizer = params["regularizer"]
         elif self.regularizer is None:
-            params = {k: v for k, v in params.items()
-                      if k in DEFAULT_REGULARIZER_GRID}
-            reg = self.bspline_config.get_regularization_matrix(**params)
+            reg_params = {k: v for k, v in params.items()
+                          if isinstance(v, (int, float, np.floating))}
+            reg = self.bspline_config.get_regularization_matrix(**reg_params)
             self.regularizer = reg
 
     @property

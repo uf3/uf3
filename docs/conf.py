@@ -69,3 +69,8 @@ html_theme = 'alabaster'
 html_static_path = ['_static']
 
 autosummary_generate = True
+
+autosummary_mock_imports = [
+    'uf3.incremental',
+    'uf3.regression/optimize'
+]

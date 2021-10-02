@@ -1,4 +1,5 @@
 from typing import List, Dict, Union, Tuple, Any
+import os
 import re
 import warnings
 import numpy as np
@@ -67,6 +68,41 @@ class BSplineBasis:
         self.update_knots(r_max_map, r_min_map, resolution_map, knots_map)
         self.knot_spacer = get_knot_spacer(self.knot_strategy)
         self.update_basis_functions()
+
+    @staticmethod
+    def from_config(config):
+        """Instantiate from configuration dictionary"""
+        if "chemical_system" not in config:
+            raise ValueError("No chemical system specified.")
+        chemical_system = config["chemical_system"]
+        basis_settings = dict()
+        if "knots_path" in config and config["load_knots"]:
+            knots_fname = config["knots_path"]
+            if os.path.isfile(knots_fname):
+                try:
+                    knots_json = json_io.load_interaction_map(knots_fname)
+                    knots_map = knots_json["knots"]
+                except (ValueError, KeyError, IOError):
+                    knots_map = None
+                basis_settings["knots_map"] = knots_map
+        aliases = dict(r_min="r_min_map",
+                       r_max="r_max_map",
+                       resolution="resolution_map",
+                       fit_offsets="offset_1b")
+        for key, alias in aliases.items():
+            if key in config:
+                basis_settings[alias] = config[key]
+            if alias in config:  # higher priority in case of duplicate
+                basis_settings[alias] = config[alias]
+        keys = ["trailing_trim", "mask_trim", "knot_strategy"]
+        basis_settings.update({k: v for k, v in config.items() if k in keys})
+        bspline_config = BSplineBasis(chemical_system, **basis_settings)
+        if "knots_path" in config and config["dump_knots"]:
+            knots_map = bspline_config.knots_map
+            json_io.dump_interaction_map(dict(knots=knots_map),
+                                         filename=config["knots_path"],
+                                         write=True)
+        return bspline_config
 
     @property
     def degree(self):
@@ -260,8 +296,8 @@ class BSplineBasis:
                 ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
             elif k.lower()[0] == 'c':
                 curvature_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
-        ridge_map = {1: 1e-4, 2: 1e-9, 3: 1e-6, **ridge_map}
-        curvature_map = {1: 0.0, 2: 1e-9, 3: 1e-6, **curvature_map}
+        ridge_map = {1: 1e-8, 2: 0.0, 3: 0.0, **ridge_map}
+        curvature_map = {1: 0.0, 2: 1e-8, 3: 1e-8, **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
         matrix = regularize.get_regularizer_matrix(n_elements,
