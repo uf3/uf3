@@ -22,7 +22,7 @@ class BasisFeaturizer:
                  chemical_system,
                  bspline_config,
                  fit_forces=True,
-                 prefix='ij'):
+                 prefix='x'):
         """
         Args:
             chemical_system (uf3.data.composition.ChemicalSystem)
@@ -107,6 +107,17 @@ class BasisFeaturizer:
         config = {k: v for k, v in config.items() if k in keys}
         return BasisFeaturizer(chemical_system,
                                **config)
+
+    def __repr__(self):
+        summary = ["BasisFeaturizer:",
+                   f"    Fit forces: {self.fit_forces}",
+                   f"    Column prefix: {self.prefix}",
+                   self.bspline_config.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
 
     def evaluate(self,
                  df_data,
