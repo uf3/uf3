@@ -802,7 +802,6 @@ def parse_with_subsampling(data_paths: List[str],
                            data_coordinator: DataCoordinator,
                            max_samples: int = 100,
                            min_diff: float = 1e-3,
-                           energy_key: str = 'energy',
                            vasp_pressure: bool = False,
                            lammps_log: str = None,
                            lammps_aliases: Dict[int, str] = None,
@@ -827,6 +826,10 @@ def parse_with_subsampling(data_paths: List[str],
     common_prefix = os.path.commonprefix(data_paths)
     common_path = os.path.dirname(common_prefix)
     counter = 0
+
+    energy_key = data_coordinator.energy_key
+    size_key = data_coordinator.size_key
+
     for data_path in data_paths:
         prefix = data_path[len(common_path):]
         prefix = prefix.replace("/", "-")
@@ -850,7 +853,7 @@ def parse_with_subsampling(data_paths: List[str],
             continue
         if len(df) == 0:
             continue
-        energy_list = df[energy_key].values / df["size"].values
+        energy_list = df[energy_key].values / df[size_key].values
 
         if max_samples > 0:
             subsamples = subsample.farthest_point_sampling(energy_list,
