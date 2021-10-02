@@ -13,7 +13,7 @@
 import os
 import sys
 import uf3
-# sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('..'))  # Source code dir relative to this file
 
 
 # -- Project information -----------------------------------------------------
@@ -34,12 +34,12 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.napoleon',
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
-    #'sphinx_gallery.gen_gallery',
+    'sphinx.ext.intersphinx',  # Link to other project's documentation (see mapping below)
+    'sphinx.ext.viewcode',  # Add a link to the Python source code for classes, functions etc.
+    'sphinx_autodoc_typehints', # Automatically document param types (less noise in class signature)
     'sphinx.ext.autosummary',
 ]
 
@@ -69,8 +69,22 @@ html_theme = 'alabaster'
 html_static_path = ['_static']
 
 autosummary_generate = True
+autoclass_content = "both"  # Add __init__ doc (ie. params) to class summaries
+html_show_sourcelink = False  # Remove 'view source code' from top of page (for html, not python)
+autodoc_inherit_docstrings = True  # If no docstring, inherit from base class
+set_type_checking_flag = True  # Enable 'expensive' imports for sphinx_autodoc_typehints
+nbsphinx_allow_errors = True  # Continue through Jupyter errors
+add_module_names = False # Remove namespaces from class/method signatures
 
 autosummary_mock_imports = [
     'uf3.incremental',
     'uf3.regression/optimize'
 ]
+
+
+on_rtd = os.environ.get("READTHEDOCS", None) == "True"
+if not on_rtd:  # only import and set the theme if we're building docs locally
+    import sphinx_rtd_theme
+    html_theme = "sphinx_rtd_theme"
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+html_css_files = ["readthedocs-custom.css"] # Override some CSS settings
