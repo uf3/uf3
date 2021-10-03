@@ -1,6 +1,15 @@
+"""
+This module provides the UFLammps class for evaluating energies,
+forces, stresses, and other properties using the ASE Calculator protocol.
+
+Note: only pair interactions (degree = 2) are currently supported.
+"""
+
+from typing import List, Tuple
 from datetime import datetime
 import numpy as np
 from scipy import interpolate
+import ase
 from ase import data as ase_data
 from ase.io import lammpsdata as ase_lammpsdata
 from ase.calculators import lammps as ase_lammps
@@ -17,15 +26,14 @@ RELAX_LINES = ["fix fix_relax all box/relax iso 0.0 vmax 0.001",
 
 class UFLammps(lammpslib.LAMMPSlib):
     """
-    Function inspired by ASE.lammpslib.LAMMPSlib.propagate()
+    ASE Calculator extending ASE.lammpslib with relaxation,
+    elastic constants, and phonon properties.
     """
     def __init__(self, *args, **kwargs):
         lammpslib.LAMMPSlib.__init__(self, *args, **kwargs)
 
     def relax(self, atoms):
-        """"atoms: Atoms object
-            Contains positions, unit-cell, ...
-        """
+        """Relax with LAMMPS. TODO: Include more options."""
         if not self.started:
             self.start_lammps()
         if not self.initialized:
@@ -110,10 +118,12 @@ class UFLammps(lammpslib.LAMMPSlib):
             self.lmp.close()
 
     def get_elastic_constants(self, atoms):
+        """Compute elastic constants. TODO: include parameters."""
         results = elastic.get_elastic_constants(atoms, self)
         return results
 
     def get_phonon_data(self, atoms, n_super=5, disp=0.05):
+        """Compute phonon spectra."""
         results = phonon.compute_phonon_data(atoms,
                                              self,
                                              n_super=n_super,
@@ -140,7 +150,19 @@ def batched_energy_and_forces(geometries, lmpcmds, atom_types=None):
 
 
 def batch_relax(geometries,  lmpcmds, atom_types=None, names=None):
-    """Convenience function for batch relaxation of geometries."""
+    """
+    Convenience function for batch relaxation of geometries.
+
+    Args:
+        geometries (list): list of ase.Atoms objects to evaluate.
+        lmpcmds (list): list of lammps commands to run (strings).
+        atom_types (): dictionary of ``atomic_symbol :lammps_atom_type``
+            pairs, e.g. ``{'Cu':1}`` to bind copper to lammps
+            atom type 1.  If <None>, autocreated by assigning
+            lammps atom types in order that they appear in the
+            first used atoms object.
+        names (list): optional list of identifiers.
+    """
     calc = UFLammps(atom_types=atom_types,
                     lmpcmds=lmpcmds,
                     keep_alive=True)
@@ -171,12 +193,17 @@ def batch_relax(geometries,  lmpcmds, atom_types=None, names=None):
         return new_geometries, energies, forces
 
 
-def write_lammps_data(filename, geom, element_list, **kwargs):
+def write_lammps_data(filename: str,
+                      geom: ase.Atoms,
+                      element_list: List,
+                      **kwargs):
     """
+    Wrapper for ase.io.lammpsdata.write_lammps_data().
+
     Args:
-        filename (str):
-        geom (ase.Atoms):
-        element_list (list)
+        filename (str): path to lammps data.
+        geom (ase.Atoms): configuration of interest.
+        element_list (list): list of element symbols.
     """
     cell = geom.get_cell()
     prism = ase_lammps.Prism(cell)
@@ -188,20 +215,23 @@ def write_lammps_data(filename, geom, element_list, **kwargs):
                                      **kwargs)
 
 
-def export_tabulated_potential(knot_sequence,
-                               coefficients,
-                               interaction,
-                               grid=None,
+def export_tabulated_potential(knot_sequence: np.ndarray,
+                               coefficients: np.ndarray,
+                               interaction: Tuple[str],
+                               grid: int = None,
                                filename=None,
                                contributor=None,
                                rounding=6):
     """
+    Export tabulated pair potential for use with LAMMPS pair_style "table".
+
     Args:
         knot_sequence (np.ndarray): knot sequence.
         coefficients (np.ndarray): spline coefficients corresponding to knots.
         interaction (tuple): tuple of elements involved e.g. ("A", "B").
-        filename (str, None)
-        contributor (str, None)
+        grid (int): number of grid points to sample potential.
+        filename (str): path to file.
+        contributor (str): name of contributor.
         rounding (int): number of decimal digits to print.
     """
     now = datetime.now()  # current date and time

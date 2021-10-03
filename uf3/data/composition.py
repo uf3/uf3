@@ -1,3 +1,8 @@
+"""
+This module provides the ChemicalSystem class for managing quantities related
+to elements, composition, and element-element interactions.
+"""
+
 from typing import List, Dict, Collection, Tuple, Any
 import itertools
 import numpy as np
@@ -25,7 +30,10 @@ reference_X = dict(X=0, H=2.2, He=0, Li=0.98, Be=1.57, B=2.04, C=2.55, N=3.04,
 
 
 class ChemicalSystem:
-    """Manage quantities related to elements and composition."""
+    """
+    Handler class for managing quantities related to elements, composition,
+    and element-element interactions.
+    """
     degree: int
     element_list: Collection[str]
     numbers: List[int]
@@ -75,6 +83,8 @@ class ChemicalSystem:
 
     def get_composition_tuple(self, geometry: ase.Atoms) -> np.ndarray:
         """
+        Extract composition vector from ase.Atoms object.
+
         Args:
             geometry (ase.Atoms)
 
@@ -90,6 +100,9 @@ class ChemicalSystem:
 
     def get_interactions_map(self) -> Dict[int, Collection[Tuple[str]]]:
         """
+        Compute interactions map from combinations of elements with
+        replacement.
+
         Returns:
             interactions_map: tuples of element symbols, grouped by degree
                 up to self.degree, e.g. two-body (2) and three-body (3).
@@ -106,6 +119,8 @@ class ChemicalSystem:
 
     def get_interactions_list(self) -> List[Tuple[str]]:
         """
+        Return flattened list of interactions from interactions map.
+
         Returns:
             interactions_list: list of tuples of element symbols,
                 in order of degree.
@@ -118,6 +133,8 @@ class ChemicalSystem:
 
     def get_interaction_hashes(self) -> Dict[int, np.ndarray]:
         """
+        Compute integer hashes for element-element interactions.
+
         Returns:
             interaction_hashes: mapping of interaction tuples to integer
                 hashes based on element numbers, sorted by electronegativity.
@@ -133,6 +150,7 @@ class ChemicalSystem:
 
 
 def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
+    """Apply sort_interaction_symbols() to each key in a dictionary."""
     return {sort_interaction_symbols(k): v for k, v in imap.items()}
 
 

@@ -1,7 +1,15 @@
+"""
+This module provides functions for generating regularizer matrices
+for regularized least squares.
+"""
+from typing import List
 import numpy as np
 
 
-def get_regularizer_matrix(n_features, ridge=0, curvature=1):
+def get_regularizer_matrix(n_features: int,
+                           ridge: float = 0.0,
+                           curvature: float = 1.0
+                           ) -> np.ndarray:
     """
     Generates additive regularization matrix for linear regression
         using curvature penalty and/or L2 (ridge) penalty.
@@ -31,7 +39,7 @@ def get_regularizer_matrix(n_features, ridge=0, curvature=1):
     return matrix
 
 
-def combine_regularizer_matrices(matrices):
+def combine_regularizer_matrices(matrices: List) -> np.ndarray:
     """
     Combine square penalty matrices.
         Example:
@@ -63,7 +71,11 @@ def combine_regularizer_matrices(matrices):
     return full_matrix
 
 
-def get_penalty_matrix_2D(L, M, ridge=0, curvature=1):
+def get_penalty_matrix_2D(L: int,
+                          M: int,
+                          ridge: float = 0.0,
+                          curvature: float = 1.0
+                          ) -> np.ndarray:
     """
     Generates additive regularization matrix for linear regression
         using curvature penalty and/or L2 (ridge) penalty.
@@ -75,6 +87,7 @@ def get_penalty_matrix_2D(L, M, ridge=0, curvature=1):
         L (int): length of coefficient matrix before flattening.
         M (int): width of coefficient matrix before flattening.
         ridge (float): L2 (ridge) regularization strength.
+        curvature (float): Local curvature regularization strength.
 
     Returns:
         matrix_2d (numpy.ndarray): square penalty matrix for linear
@@ -104,12 +117,13 @@ def get_penalty_matrix_2D(L, M, ridge=0, curvature=1):
     return matrix_2d
 
 
-def get_penalty_matrix_3D(L,
-                          M,
-                          N,
-                          ridge=0,
-                          curvature=1,
-                          periodic=(False, False, True)):
+def get_penalty_matrix_3D(L: int,
+                          M: int,
+                          N: int,
+                          ridge: float = 0.0,
+                          curvature: float = 1.0,
+                          periodic=(False, False, True),
+                          ) -> np.ndarray:
     """
     Generates additive regularization matrix for linear regression
         using curvature penalty and/or L2 (ridge) penalty.
@@ -122,6 +136,7 @@ def get_penalty_matrix_3D(L,
         M (int): width of coefficient matrix before flattening.
         N (int): depth of coefficient matrix before flattening.
         ridge (float): L2 (ridge) regularization strength.
+        curvature (float): Local curvature regularization strength.
         periodic (list): periodicity in regularization for three dimensions.
             Default (False, False, True) for periodicity in angular space.
 

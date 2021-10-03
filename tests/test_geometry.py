@@ -51,17 +51,17 @@ class TestGeometry:
         energy = 1
         forces = np.array([[0.1, 0.2, 0.3],
                            [-0.11, -0.22, -0.33]])
-        snapshots, energies = energy_from_force_displacement(simple_structure,
-                                                             energy,
-                                                             forces,
-                                                             d=0.01,
-                                                             random=False)
+        snapshots, energies = generate_displacements_from_forces(simple_structure,
+                                                                 energy,
+                                                                 forces,
+                                                                 d=0.01,
+                                                                 random=False)
         assert len(snapshots) == 6
         assert len(energies) == 6
-        snapshots, energies = energy_from_force_displacement(simple_structure,
-                                                             energy,
-                                                             forces,
-                                                             d=0.01,
-                                                             n=7)
+        snapshots, energies = generate_displacements_from_forces(simple_structure,
+                                                                 energy,
+                                                                 forces,
+                                                                 d=0.01,
+                                                                 n=7)
         assert len(snapshots) == 7
         assert len(energies) == 7

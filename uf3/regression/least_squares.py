@@ -1,3 +1,8 @@
+"""
+This module provides the WeightedLinearModel class for fitting UF potentials
+from featurized DataFrames using regularized least squares.
+"""
+
 from typing import List, Dict, Collection, Tuple
 import os
 import numpy as np
@@ -12,347 +17,6 @@ DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
                                 ridge_3b=0,
                                 curve_2b=1e-8,
                                 curve_3b=1e-8)
-
-
-class BasicLinearModel:
-    def __init__(self,
-                 regularizer: np.ndarray = None):
-        """
-        Args:
-            regularizer (np.ndarray): regularization matrix.
-        """
-        self.coefficients = None
-        self.regularizer = regularizer
-
-    def fit(self,
-            x: np.ndarray,
-            y: np.ndarray,
-            ridge_penalty: float = 1e-8,
-            ):
-        """
-        Args:
-            x (np.ndarray): input matrix of shape (n_samples, n_features).
-            y (np.ndarray): output vector of length n_samples.
-            ridge_penalty (float): magnitude of ridge penalty. Ignored
-                if self.regularizer is set at initialization.
-        """
-        gram, ordinate = moore_penrose_components(x, y)
-        if self.regularizer is None:
-            regularizer = np.eye(len(gram)) * ridge_penalty
-        else:
-            regularizer = self.regularizer
-        regularizer = np.dot(regularizer.T, regularizer)
-        coefficients = lu_factorization(gram + regularizer, ordinate)
-        self.coefficients = coefficients
-
-    def predict(self, x: np.ndarray):
-        """
-        Args:
-            x (np.ndarray): input matrix of shape (n_samples, n_features).
-
-        Returns:
-            predictions (np.ndarray): vector of predictions.
-        """
-        predictions = np.dot(x, self.coefficients)
-        return predictions
-
-    def score(self, x, y, weights=None, normalize=True):
-        """
-        Args:
-            x (np.ndarray): input matrix of shape (n_samples, n_features).
-            y (np.ndarray): output vector of length n_samples.
-            weights (np.ndarray): sample weights (optional).
-            normalize (bool): whether to normalize by the std of y.
-
-        Returns:
-            score (float): negative weighted root-mean-square-error.
-        """
-        n_features = len(x[0])
-        if weights is not None:
-            w_matrix = np.eye(n_features) * np.sqrt(weights)
-            x = np.dot(w_matrix, x)
-            y = np.dot(w_matrix, y)
-        predictions = self.predict(x)
-        score = -rmse_metric(y, predictions)
-        if normalize:
-            score /= np.std(y)
-        return score
-
-
-class WeightedLinearModel(BasicLinearModel):
-    def __init__(self, bspline_config, regularizer=None, **params):
-        super().__init__(regularizer)
-        self.bspline_config = bspline_config
-
-        if self.regularizer is None:
-            # initialize regularizer matrix if unspecified.
-            self.set_params(**params)
-
-    def set_params(self, **params):
-        """Set parameters from keyword arguments. Initializes
-            regularizer with default parameters if unspecified."""
-        if "bspline_config" in params:
-            self.bspline_config = params["bspline_config"]
-        if "regularizer" in params:
-            self.regularizer = params["regularizer"]
-        elif self.regularizer is None:
-            reg_params = {k: v for k, v in params.items()
-                          if isinstance(v, (int, float, np.floating))}
-            reg = self.bspline_config.get_regularization_matrix(**reg_params)
-            self.regularizer = reg
-
-    @property
-    def n_feats(self):
-        return self.bspline_config.n_feats
-
-    @property
-    def frozen_c(self):
-        return self.bspline_config.frozen_c
-
-    @property
-    def col_idx(self):
-        return self.bspline_config.col_idx
-
-    @property
-    def mask(self):
-        return get_freezing_mask(self.n_feats, self.col_idx)
-
-    def __repr__(self):
-        if self.coefficients is None:
-            fit = "False"
-        else:
-            fit = "True"
-        summary = ["WeightedLinearModel:",
-                   f"    Fit: {fit}",
-                   self.bspline_config.__repr__()
-                   ]
-        return "\n".join(summary)
-
-    def __str__(self):
-        return self.__repr__()
-
-    def fit_with_gram(self, gram, ordinate):
-        regularizer = freeze_regularizer(self.regularizer, self.mask)
-        regularizer = np.dot(regularizer.T, regularizer)
-        coefficients = lu_factorization(gram + regularizer, ordinate)
-        coefficients = revert_frozen_coefficients(coefficients,
-                                                  self.n_feats,
-                                                  self.mask,
-                                                  self.frozen_c,
-                                                  self.col_idx)
-        self.coefficients = coefficients
-
-    def fit(self,
-            x_e: np.ndarray,
-            y_e: np.ndarray,
-            x_f: np.ndarray = None,
-            y_f: np.ndarray = None,
-            weight: float = 0.5,
-            batch_size=2500,
-            ):
-        """
-        Args:
-            x_e (np.ndarray): input matrix of shape (n_samples, n_features).
-            y_e (np.ndarray): output vector of length n_samples.
-            x_f (np.ndarray): input matrix corresponding to forces.
-            y_f (np.ndarray): output vector corresponding to forces.
-            weight (float): parameter balancing contribution from energies
-                vs. forces. Higher values favor energies; defaults to 0.5.
-            batch_size: maximum batch size for gram matrix construction.
-        """
-        x_e, y_e = freeze_columns(x_e,
-                                  y_e,
-                                  self.mask,
-                                  self.frozen_c,
-                                  self.col_idx)
-        gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
-        if x_f is not None:
-            energy_weight = 1 / len(y_e) / np.std(y_e)
-            force_weight = 1 / len(y_f) / np.std(y_f)
-            x_f, y_f = freeze_columns(x_f,
-                                      y_f,
-                                      self.mask,
-                                      self.frozen_c,
-                                      self.col_idx)
-            gram_f, ord_f = batched_moore_penrose(x_f,
-                                                  y_f,
-                                                  batch_size=batch_size)
-            gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
-                                                        ord_f, energy_weight,
-                                                        force_weight, weight)
-        else:
-            gram = gram_e
-            ordinate = ord_e
-        self.fit_with_gram(gram, ordinate)
-
-    def combine_weighted_gram(self, gram_e, gram_f, ord_e, ord_f,
-                              energy_weight, force_weight, weight):
-        gram = (((weight * energy_weight) ** 2 * gram_e)
-                + (((1 - weight) * force_weight) ** 2 * gram_f))
-        ordinate = (((weight * energy_weight) ** 2 * ord_e)
-                    + (((1 - weight) * force_weight) ** 2 * ord_f))
-        return gram, ordinate
-
-    def fit_from_file(self,
-                      filename: str,
-                      subset: Collection,
-                      index: Collection,
-                      weight: float = 0.5,
-                      batch_size=2500,
-                      energy_key="energy",
-                      progress: str = "bar"):
-        if not os.path.isfile(filename):
-            raise FileNotFoundError(filename)
-        n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
-        subset_keys = index[subset]
-        gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
-        e_variance = VarianceRecorder()
-        f_variance = VarianceRecorder()
-        table_iterator = parallel.progress_iter(np.arange(n_tables),
-                                                style=progress)
-        for j in table_iterator:
-            table_name = table_names[j]
-            df = process.load_feature_db(filename, table_name)
-            keys = df.index.unique(level=0).intersection(subset_keys)
-            if len(keys) == 0:
-                continue
-            g_e, g_f, o_e, o_f = self.gram_from_df(df,
-                                                   keys,
-                                                   e_variance=e_variance,
-                                                   f_variance=f_variance,
-                                                   energy_key=energy_key,
-                                                   batch_size=batch_size)
-            gram_e += g_e
-            gram_f += g_f
-            ord_e += o_e
-            ord_f += o_f
-        energy_weight = 1 / e_variance.n / e_variance.std
-        force_weight = 1 / f_variance.n / f_variance.std
-        gram, ordinate = self.combine_weighted_gram(gram_e,
-                                                    gram_f,
-                                                    ord_e,
-                                                    ord_f,
-                                                    energy_weight,
-                                                    force_weight,
-                                                    weight)
-        self.fit_with_gram(gram, ordinate)
-
-    def initialize_gram_ordinate(self):
-        n_columns = self.n_feats - len(self.col_idx)
-        gram_e = np.zeros((n_columns, n_columns))
-        ord_e = np.zeros(n_columns)
-        gram_f = np.zeros((n_columns, n_columns))
-        ord_f = np.zeros(n_columns)
-        return gram_e, gram_f, ord_e, ord_f
-
-    def gram_from_df(self,
-                     df,
-                     keys,
-                     e_variance=None,
-                     f_variance=None,
-                     energy_key="energy",
-                     batch_size=2500):
-        n_elements = len(self.bspline_config.element_list)
-        x_e, y_e, x_f, y_f = dataframe_to_tuples(df.loc[keys],
-                                                 n_elements=n_elements,
-                                                 energy_key=energy_key)
-        x_e, y_e = freeze_columns(x_e,
-                                  y_e,
-                                  self.mask,
-                                  self.frozen_c,
-                                  self.col_idx)
-        x_f, y_f = freeze_columns(x_f,
-                                  y_f,
-                                  self.mask,
-                                  self.frozen_c,
-                                  self.col_idx)
-        if e_variance is not None and f_variance is not None:
-            e_variance.update(y_e)
-            f_variance.update(y_f)
-        gram_e, ordinate_e = batched_moore_penrose(x_e,
-                                                   y_e,
-                                                   batch_size=batch_size)
-        gram_f, ordinate_f = batched_moore_penrose(x_f,
-                                                   y_f,
-                                                   batch_size=batch_size)
-        return gram_e, gram_f, ordinate_e, ordinate_f
-
-    def batched_predict(self,
-                        filename,
-                        keys=None,
-                        table_names=None,
-                        score=True):
-        n_elements = len(self.bspline_config.element_list)
-        y_e, p_e, y_f, p_f = batched_prediction(self,
-                                                filename,
-                                                table_names=table_names,
-                                                subset_keys=keys,
-                                                n_elements=n_elements)
-        if score:
-            rmse_e = rmse_metric(y_e, p_e)
-            rmse_f = rmse_metric(y_f, p_f)
-            print(f"RMSE (energy): {rmse_e:.3F}")
-            print(f"RMSE (forces): {rmse_f:.3F}")
-            return y_e, p_e, y_f, p_f, rmse_e, rmse_f
-        else:
-            return y_e, p_e, y_f, p_f
-
-    def save(self, filename: str):
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        json_io.dump_interaction_map(dict(solution=solution,
-                                          knots=knots_map),
-                                     filename=filename,
-                                     write=True)
-
-    def dump(self):
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        return dict(solution=solution, knots=knots_map)
-
-    def load(self,
-             solution: Dict[Tuple[str], np.ndarray] = None,
-             filename: str = None,
-             ):
-        """
-        Reflatten coefficients (e.g. obtained through arrange_coefficients)
-        and load into model for prediction.
-
-        Args:
-            solution (dict): dictionary of 1B, 2B, ... terms
-                organized as interaction: vector entries.
-            filename (str): filename of json dump containing solution.
-        """
-        if filename is not None:
-            dump = json_io.load_interaction_map(filename)
-            solution = dump["solution"]
-        elif solution is None:
-            raise ValueError("Neither solution nor filename were provided.")
-        flattened_coefficients = []
-        for element in self.bspline_config.element_list:
-            value = solution[element]
-            flattened_coefficients.append([value])
-        for degree in range(2, self.bspline_config.degree + 1):
-            interactions = self.bspline_config.interactions_map[degree]
-            for interaction in interactions:
-                values = solution[interaction]
-                flattened_coefficients.append(values)
-        # self-energies, pair interactions & trio interactions
-        n_interactions = len(self.bspline_config.partition_sizes)
-        # add self-energy as separate interactions
-        n_coefficients = sum(self.bspline_config.partition_sizes)
-        if len(flattened_coefficients) != n_interactions:
-            error_line = "Incorrect interactions: {} provided, {} expected."
-            error_line = error_line.format(len(flattened_coefficients),
-                                           n_interactions)
-            raise ValueError(error_line)
-        flattened_coefficients = np.concatenate(flattened_coefficients)
-        if len(flattened_coefficients) != n_coefficients:
-            error_line = "Incorrect coefficients: {} provided, {} expected."
-            error_line = error_line.format(len(flattened_coefficients),
-                                           n_coefficients)
-            raise ValueError(error_line)
-        self.coefficients = np.array(flattened_coefficients)
 
 
 class VarianceRecorder:
@@ -406,14 +70,458 @@ class VarianceRecorder:
         return self.mean, self.std, self.n
 
 
+class BasicLinearModel:
+    """
+    Base class for linear regression.
+    """
+    def __init__(self,
+                 regularizer: np.ndarray = None):
+        """
+        Args:
+            regularizer (np.ndarray): regularization matrix.
+        """
+        self.coefficients = None
+        self.regularizer = regularizer
+
+    def fit(self,
+            x: np.ndarray,
+            y: np.ndarray,
+            ridge_penalty: float = 1e-8,
+            ):
+        """
+        Direct solution to linear least squares with LU decomposition.
+
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+            y (np.ndarray): output vector of length n_samples.
+            ridge_penalty (float): magnitude of ridge penalty. Ignored
+                if self.regularizer is set at initialization.
+        """
+        gram, ordinate = moore_penrose_components(x, y)
+        if self.regularizer is None:
+            regularizer = np.eye(len(gram)) * ridge_penalty
+        else:
+            regularizer = self.regularizer
+        regularizer = np.dot(regularizer.T, regularizer)
+        coefficients = lu_factorization(gram + regularizer, ordinate)
+        self.coefficients = coefficients
+
+    def predict(self, x: np.ndarray):
+        """
+        Predict using fit coefficients.
+
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+
+        Returns:
+            predictions (np.ndarray): vector of predictions.
+        """
+        predictions = np.dot(x, self.coefficients)
+        return predictions
+
+    def score(self, x, y, weights=None, normalize=True):
+        """
+        Evaluate score (negative error metric).
+
+        Args:
+            x (np.ndarray): input matrix of shape (n_samples, n_features).
+            y (np.ndarray): output vector of length n_samples.
+            weights (np.ndarray): sample weights (optional).
+            normalize (bool): whether to normalize by the std of y.
+
+        Returns:
+            score (float): negative weighted root-mean-square-error.
+        """
+        n_features = len(x[0])
+        if weights is not None:
+            w_matrix = np.eye(n_features) * np.sqrt(weights)
+            x = np.dot(w_matrix, x)
+            y = np.dot(w_matrix, y)
+        predictions = self.predict(x)
+        score = -rmse_metric(y, predictions)
+        if normalize:
+            score /= np.std(y)
+        return score
+
+
+class WeightedLinearModel(BasicLinearModel):
+    """
+    Handler class for regularized linear least squares using energies and
+    forces and basis set provided by bspline.BsplineBasis.
+    """
+    def __init__(self, bspline_config, regularizer=None, **params):
+        super().__init__(regularizer)
+        self.bspline_config = bspline_config
+
+        if self.regularizer is None:
+            # initialize regularizer matrix if unspecified.
+            self.set_params(**params)
+
+    def set_params(self, **params):
+        """Set parameters from keyword arguments. Initializes
+            regularizer with default parameters if unspecified."""
+        if "bspline_config" in params:
+            self.bspline_config = params["bspline_config"]
+        if "regularizer" in params:
+            self.regularizer = params["regularizer"]
+        elif self.regularizer is None:
+            reg_params = {k: v for k, v in params.items()
+                          if isinstance(v, (int, float, np.floating))}
+            reg = self.bspline_config.get_regularization_matrix(**reg_params)
+            self.regularizer = reg
+
+    @property
+    def n_feats(self):
+        return self.bspline_config.n_feats
+
+    @property
+    def frozen_c(self):
+        return self.bspline_config.frozen_c
+
+    @property
+    def col_idx(self):
+        return self.bspline_config.col_idx
+
+    @property
+    def mask(self):
+        return get_freezing_mask(self.n_feats, self.col_idx)
+
+    def __repr__(self):
+        if self.coefficients is None:
+            fit = "False"
+        else:
+            fit = "True"
+        summary = ["WeightedLinearModel:",
+                   f"    Fit: {fit}",
+                   self.bspline_config.__repr__()
+                   ]
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
+    def fit_with_gram(self, gram: np.ndarray, ordinate: np.ndarray):
+        """
+        Intermediate function for direct solution using gram matrix
+        and ordinate (Moore-penrose inverse).
+
+        Args:
+            gram (np.ndarray): gram matrix (x^T x)
+            ordinate (np.ndarray: ordinate (x^T y)
+        """
+        regularizer = freeze_regularizer(self.regularizer, self.mask)
+        regularizer = np.dot(regularizer.T, regularizer)
+        coefficients = lu_factorization(gram + regularizer, ordinate)
+        coefficients = revert_frozen_coefficients(coefficients,
+                                                  self.n_feats,
+                                                  self.mask,
+                                                  self.frozen_c,
+                                                  self.col_idx)
+        self.coefficients = coefficients
+
+    def fit(self,
+            x_e: np.ndarray,
+            y_e: np.ndarray,
+            x_f: np.ndarray = None,
+            y_f: np.ndarray = None,
+            weight: float = 0.5,
+            batch_size=2500,
+            ):
+        """
+        Direct solution from input-output pairs corresponding to
+        energies and forces, with option to weigh their respective
+        contributions.
+
+        Args:
+            x_e (np.ndarray): input matrix of shape (n_samples, n_features).
+            y_e (np.ndarray): output vector of length n_samples.
+            x_f (np.ndarray): input matrix corresponding to forces.
+            y_f (np.ndarray): output vector corresponding to forces.
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
+            batch_size: maximum batch size for gram matrix construction.
+        """
+        x_e, y_e = freeze_columns(x_e,
+                                  y_e,
+                                  self.mask,
+                                  self.frozen_c,
+                                  self.col_idx)
+        gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
+        if x_f is not None:
+            energy_weight = 1 / len(y_e) / np.std(y_e)
+            force_weight = 1 / len(y_f) / np.std(y_f)
+            x_f, y_f = freeze_columns(x_f,
+                                      y_f,
+                                      self.mask,
+                                      self.frozen_c,
+                                      self.col_idx)
+            gram_f, ord_f = batched_moore_penrose(x_f,
+                                                  y_f,
+                                                  batch_size=batch_size)
+            gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
+                                                        ord_f, energy_weight,
+                                                        force_weight, weight)
+        else:
+            gram = gram_e
+            ordinate = ord_e
+        self.fit_with_gram(gram, ordinate)
+
+    def combine_weighted_gram(self,
+                              gram_e: np.ndarray,
+                              gram_f: np.ndarray,
+                              ord_e: np.ndarray,
+                              ord_f: np.ndarray,
+                              energy_weight: float,
+                              force_weight: float,
+                              weight: float):
+        """
+        Apply weighting to gram matrices and ordinates for energy and
+        force contributions to the fit.
+
+        Args:
+            gram_e (np.ndarray): gram matrix (x^T x) for energies.
+            gram_f (np.ndarray): gram matrix (x^T x) for forces.
+            ord_e (np.ndarray): ordinate (x^T y) for energies.
+            ord_f (np.ndarray): ordinate (x^T y) for forces.
+            energy_weight: 1 / (# energies * sqrt(Var(energies)))
+            force_weight: 1 / (# forces * sqrt(Var(forces)))
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
+
+        Returns:
+            gram (np.ndarray): gram matrix (x^T x) for fitting.
+            ordinate (np.ndarray): ordinate (x^T y) for fitting.
+        """
+        gram = (((weight * energy_weight) ** 2 * gram_e)
+                + (((1 - weight) * force_weight) ** 2 * gram_f))
+        ordinate = (((weight * energy_weight) ** 2 * ord_e)
+                    + (((1 - weight) * force_weight) ** 2 * ord_f))
+        return gram, ordinate
+
+    def fit_from_file(self,
+                      filename: str,
+                      subset: Collection,
+                      index: Collection,
+                      weight: float = 0.5,
+                      batch_size=2500,
+                      energy_key="energy",
+                      progress: str = "bar"):
+        """
+        Accumulate inputs and outputs from batched parsing of HDF5 file
+        and compute direct solution via LU decomposition.
+
+        Args:
+            filename (str): path to HDF5 file.
+            subset (list): list of indices for training.
+            index (list): list of keys, i.e. from df_data DataFrame.
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
+            batch_size (int): batch size, in rows, for matrix multiplication
+                operations in constructing gram matrices.
+            energy_key (str): column name for energies, default "energy".
+            progress (str): style for progress indicators.
+        """
+        if not os.path.isfile(filename):
+            raise FileNotFoundError(filename)
+        n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
+        subset_keys = index[subset]
+        gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
+        e_variance = VarianceRecorder()
+        f_variance = VarianceRecorder()
+        table_iterator = parallel.progress_iter(np.arange(n_tables),
+                                                style=progress)
+        for j in table_iterator:
+            table_name = table_names[j]
+            df = process.load_feature_db(filename, table_name)
+            keys = df.index.unique(level=0).intersection(subset_keys)
+            if len(keys) == 0:
+                continue
+            g_e, g_f, o_e, o_f = self.gram_from_df(df,
+                                                   keys,
+                                                   e_variance=e_variance,
+                                                   f_variance=f_variance,
+                                                   energy_key=energy_key,
+                                                   batch_size=batch_size)
+            gram_e += g_e
+            gram_f += g_f
+            ord_e += o_e
+            ord_f += o_f
+        energy_weight = 1 / e_variance.n / e_variance.std
+        force_weight = 1 / f_variance.n / f_variance.std
+        gram, ordinate = self.combine_weighted_gram(gram_e,
+                                                    gram_f,
+                                                    ord_e,
+                                                    ord_f,
+                                                    energy_weight,
+                                                    force_weight,
+                                                    weight)
+        self.fit_with_gram(gram, ordinate)
+
+    def initialize_gram_ordinate(self):
+        """Initialize empty matrices for gram matrices and ordinates."""
+        n_columns = self.n_feats - len(self.col_idx)
+        gram_e = np.zeros((n_columns, n_columns))
+        ord_e = np.zeros(n_columns)
+        gram_f = np.zeros((n_columns, n_columns))
+        ord_f = np.zeros(n_columns)
+        return gram_e, gram_f, ord_e, ord_f
+
+    def gram_from_df(self,
+                     df: pd.DataFrame,
+                     keys: Collection,
+                     e_variance: VarianceRecorder = None,
+                     f_variance: VarianceRecorder = None,
+                     energy_key: str = "energy",
+                     batch_size: int = 2500):
+        """
+        Extract inputs and outputs from dataframe and compute
+        moore-penrose components (gram matrices and ordinates).
+
+        Args:
+            df (pd.DataFrame): DataFrame of energy/force features.
+            keys (list): keys to query from df (e.g. training subset).
+            e_variance (VarianceRecorder): handler for accumulating
+                statistics for energies (mean and variance).
+            f_variance (VarianceRecorder): handler for accumulating
+                statistics for forces (mean and variance).
+            energy_key (str): column name for energies, default "energy".
+            batch_size (int): batch size, in rows, for matrix multiplication
+                operations in constructing gram matrices.
+        """
+        n_elements = len(self.bspline_config.element_list)
+        x_e, y_e, x_f, y_f = dataframe_to_tuples(df.loc[keys],
+                                                 n_elements=n_elements,
+                                                 energy_key=energy_key)
+        x_e, y_e = freeze_columns(x_e,
+                                  y_e,
+                                  self.mask,
+                                  self.frozen_c,
+                                  self.col_idx)
+        x_f, y_f = freeze_columns(x_f,
+                                  y_f,
+                                  self.mask,
+                                  self.frozen_c,
+                                  self.col_idx)
+        if e_variance is not None and f_variance is not None:
+            e_variance.update(y_e)
+            f_variance.update(y_f)
+        gram_e, ordinate_e = batched_moore_penrose(x_e,
+                                                   y_e,
+                                                   batch_size=batch_size)
+        gram_f, ordinate_f = batched_moore_penrose(x_f,
+                                                   y_f,
+                                                   batch_size=batch_size)
+        return gram_e, gram_f, ordinate_e, ordinate_f
+
+    def batched_predict(self,
+                        filename: str,
+                        keys: List[str] = None,
+                        table_names: List[str]=None,
+                        score: bool = True):
+        """
+        Extract inputs and outputs from HDF5 file and predict energies/forces.
+
+        Args:
+            filename: path to HDF5 file.
+            keys (list): keys to query from df (e.g. training subset).
+            table_names (list): list of table names in HDF5 to read.
+            score (bool): whether to return root mean square error metrics.
+
+        Returns:
+            y_e (np.ndarray): target values for energies.
+            p_e (np.ndarray): prediction values for forces.
+            y_f (np.ndarray): target values for energies.
+            p_f (np.ndarray): target values for forces.
+            rmse_e (np.ndarray): RMSE across energy predictions.
+            rmse_e (np.ndarray): RMSE across force predictions.
+        """
+        n_elements = len(self.bspline_config.element_list)
+        y_e, p_e, y_f, p_f = batched_prediction(self,
+                                                filename,
+                                                table_names=table_names,
+                                                subset_keys=keys,
+                                                n_elements=n_elements)
+        if score:
+            rmse_e = rmse_metric(y_e, p_e)
+            rmse_f = rmse_metric(y_f, p_f)
+            print(f"RMSE (energy): {rmse_e:.3F}")
+            print(f"RMSE (forces): {rmse_f:.3F}")
+            return y_e, p_e, y_f, p_f, rmse_e, rmse_f
+        else:
+            return y_e, p_e, y_f, p_f
+
+    def save(self, filename: str):
+        """Save model (coefficients and knots map) to file."""
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        knots_map = self.bspline_config.knots_map
+        json_io.dump_interaction_map(dict(solution=solution,
+                                          knots=knots_map),
+                                     filename=filename,
+                                     write=True)
+
+    def dump(self):
+        """Arrange coefficients/knots map into dictionary."""
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        knots_map = self.bspline_config.knots_map
+        return dict(solution=solution, knots=knots_map)
+
+    def load(self,
+             solution: Dict[Tuple[str], np.ndarray] = None,
+             filename: str = None,
+             ):
+        """
+        Reflatten coefficients (e.g. obtained through arrange_coefficients)
+        and load into model for prediction.
+
+        Args:
+            solution (dict): dictionary of 1B, 2B, ... terms
+                organized as interaction: vector entries.
+            filename (str): filename of json dump containing solution.
+        """
+        if filename is not None:
+            dump = json_io.load_interaction_map(filename)
+            solution = dump["solution"]
+        elif solution is None:
+            raise ValueError("Neither solution nor filename were provided.")
+        flattened_coefficients = []
+        for element in self.bspline_config.element_list:
+            value = solution[element]
+            flattened_coefficients.append([value])
+        for degree in range(2, self.bspline_config.degree + 1):
+            interactions = self.bspline_config.interactions_map[degree]
+            for interaction in interactions:
+                values = solution[interaction]
+                flattened_coefficients.append(values)
+        # self-energies, pair interactions & trio interactions
+        n_interactions = len(self.bspline_config.partition_sizes)
+        # add self-energy as separate interactions
+        n_coefficients = sum(self.bspline_config.partition_sizes)
+        if len(flattened_coefficients) != n_interactions:
+            error_line = "Incorrect interactions: {} provided, {} expected."
+            error_line = error_line.format(len(flattened_coefficients),
+                                           n_interactions)
+            raise ValueError(error_line)
+        flattened_coefficients = np.concatenate(flattened_coefficients)
+        if len(flattened_coefficients) != n_coefficients:
+            error_line = "Incorrect coefficients: {} provided, {} expected."
+            error_line = error_line.format(len(flattened_coefficients),
+                                           n_coefficients)
+            raise ValueError(error_line)
+        self.coefficients = np.array(flattened_coefficients)
+
+
+
 def dataframe_to_tuples(df_features,
                         n_elements=None,
                         energy_key='energy'):
     """
+    Extract energy/force inputs/outputs from DataFrame.
+
     Args:
         df_features (pd.DataFrame): dataframe with target vector (y) as the
             first column and feature vectors (x) as remaining columns.
-        n_elements (int): number of leading columns to consider for size normalization.
+        n_elements (int): number of leading columns to consider for size
+            normalization.
         energy_key (str): key for energy samples, used to slice df_features
             into energies and forces for weight generation.
 
@@ -446,6 +554,8 @@ def dataframe_to_tuples(df_features,
 
 def moore_penrose_components(x, y):
     """
+    Compute gram matrix (x^T x) and ordinate (x^T y).
+
     Args:
         x (np.ndarray): input matrix of shape (n_samples, n_features).
         y (np.ndarray): output vector of length n_samples.
@@ -460,6 +570,20 @@ def moore_penrose_components(x, y):
 
 
 def batched_moore_penrose(x, y, batch_size=2500):
+    """
+    Batched evaluation of gram matrix (x^T x) and ordinate (x^T y).
+
+    Args:
+        x (np.ndarray): input matrix of shape (n_samples, n_features).
+        y (np.ndarray): output vector of length n_samples.
+        batch_size: maximum batch size, default 2500 rows. This option
+            should be adjusted based on efficiency/memory tradeoffs.
+
+    Returns:
+        a: Gram matrix (X'X)
+        b: ordinate (X'y)
+    """
+
     n_samples, n_features = np.shape(x)
     n_batches = int(n_samples / batch_size)
     if n_batches <= 1:
@@ -477,6 +601,8 @@ def batched_moore_penrose(x, y, batch_size=2500):
 
 def lu_factorization(a, b):
     """
+    LU factorization for least-squares solution using np.linalg.solve().
+
     Args:
         a: coefficients (X) or Gram matrix (X'X)
         b: ordinate (X'y)
@@ -487,7 +613,7 @@ def lu_factorization(a, b):
 def linear_least_squares(x, y):
     """
     Solves the linear least-squares problem Ax=y. Regularizer matrix
-        should be concatenated to x and zero-values padded to y.
+    should be concatenated to x and zero-values padded to y.
 
     Args:
         x (np.ndarray): input matrix of shape (n_samples, n_features).
@@ -502,10 +628,9 @@ def linear_least_squares(x, y):
 
 def weighted_least_squares(x, y, weights=None, regularizer=None):
     """
-    TODO: Remove (deprecated)
-
     Solves the linear least-squares problem with optional Tikhonov regularizer
-        matrix and optional weighting.
+    matrix and optional weighting.
+    TODO: Remove (deprecated)
 
     Args:
         x (np.ndarray): input matrix.
@@ -529,6 +654,17 @@ def weighted_least_squares(x, y, weights=None, regularizer=None):
 
 
 def get_freezing_mask(n_feats: int, col_idx: np.ndarray) -> np.ndarray:
+    """
+    Freezing mask is the set difference between the range of feature indices
+    and the indices to be excluded (col_idx).
+
+    Args:
+        n_feats (int): number of features.
+        col_idx (list): list of indices to be masked.
+
+    Returns:
+        mask (np.ndarray): set of non-frozen indices.
+    """
     mask = np.setdiff1d(np.arange(n_feats), col_idx)
     return mask
 
@@ -539,6 +675,22 @@ def freeze_columns(x: np.ndarray,
                    frozen_c: np.ndarray,
                    col_idx: np.ndarray,
                    ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Freeze coefficients of the solution (e.g. forcing to zero) by
+    simultaneously eliminating columns of the input and their assumed
+    contribution to the output.
+
+    Args:
+        x (np.ndarray): input matrix.
+        y (np.ndarray): output vector.
+        mask (np.ndarray): set of non-frozen indices.
+        frozen_c (np.ndarray): values of coefficients to be frozen.
+        col_idx (np.ndarray): indices of coefficients to be frozen.
+
+    Returns:
+        x (np.ndarray): input matrix without frozen columns.
+        y (np.ndarray): output vector, minus frozen contributions.
+    """
     x_fixed = x[:, col_idx]
     x = x[:, mask]
     y = np.subtract(y, np.dot(x_fixed, frozen_c))
@@ -547,6 +699,7 @@ def freeze_columns(x: np.ndarray,
 
 def freeze_regularizer(regularizer: np.ndarray,
                        mask: np.ndarray) -> np.ndarray:
+    """Apply freezing mask to regularizer, eliminating masked columns."""
     regularizer = regularizer[mask, :][:, mask]
     return regularizer
 
@@ -557,6 +710,9 @@ def revert_frozen_coefficients(solution: np.ndarray,
                                frozen_c: Collection[float],
                                frozen_idx: Collection[int],) -> np.ndarray:
     """
+    Reverse freezing operations by arranging learned coefficients
+    and frozen coefficients using the mask.
+
     Args:
         solution: learned solution, excluding frozen coefficients
         n_coeff: number of columns in full (unfrozen) solution
@@ -575,12 +731,12 @@ def revert_frozen_coefficients(solution: np.ndarray,
 
 def apply_weighted_gram(gram_matrix: np.ndarray,
                         weight: float) -> np.ndarray:
-    # TODO: Remove (deprecated)
+    """Deprecated utility function for weighting gram matrix."""
     return gram_matrix * weight**2
 
 
 def apply_weights(x, y, weights):
-    # TODO: Remove (deprecated)
+    """Deprecated utility function for weighting inputs/outputs."""
     if weights is not None:
         if len(weights) != len(x):
             raise ValueError(
@@ -596,7 +752,14 @@ def apply_weights(x, y, weights):
     return x_fit, y_fit
 
 
-def validate_regularizer(regularizer, n_feats):
+def validate_regularizer(regularizer: np.ndarray, n_feats: int):
+    """
+    Check for consistency between regularizer matrix and number of features.
+
+    Args:
+        regularizer (np.ndarray): regularizer matrix.
+        n_feats (int): number of features.
+    """
     n_row, n_col = regularizer.shape
     if n_col != n_feats:
         shape_comparison = "N x {0}. Provided: {1} x {2}".format(n_feats,
@@ -611,9 +774,23 @@ def subset_prediction(df: pd.DataFrame,
                       subset_keys: Collection = None,
                       **kwargs
                       ) -> Tuple:
-    """Convenience function for optimization workflow."""
+    """
+    Convenience function for optimization workflow. Read inputs/outputs
+    from DataFrame and predict using fitted model.
+
+    Args:
+        df (pd.DataFrame): DataFrame of inputs/outputs.
+        model (WeightedLinearModel): fitted model.
+        subset_keys (list): list of keys to query from DataFrame.
+
+    Returns:
+        y_e (np.ndarray): target values for energies.
+        p_e (np.ndarray): prediction values for forces.
+        y_f (np.ndarray): target values for energies.
+        p_f (np.ndarray): target values for forces.
+    """
     if subset_keys is not None:
-        idx = df.index.levels[0].intersection(subset_keys)
+        idx = df.index.unique(level=0).intersection(subset_keys)
         if len(idx) == 0:
             return list(), list(), list(), list()
         df = df.loc[idx]
@@ -624,12 +801,27 @@ def subset_prediction(df: pd.DataFrame,
     return y_e, p_e, y_f, p_f
 
 
-def batched_prediction(model,
-                       filename,
-                       table_names=None,
-                       subset_keys=None,
+def batched_prediction(model: WeightedLinearModel,
+                       filename: str,
+                       table_names: Collection = None,
+                       subset_keys: Collection = None,
                        **kwargs):
-    """Convenience function for optimization workflow."""
+    """
+    Convenience function for optimization workflow. Read inputs/outputs
+    from HDF5 file and predict using fitted model.
+
+    Args:
+        filename (str): path to HDF5 file.
+        model (WeightedLinearModel): fitted model.
+        table_names (list): list of table names to query from HDF5 file.
+        subset_keys (list): list of keys to query from DataFrame.
+
+    Returns:
+        y_e (np.ndarray): target values for energies.
+        p_e (np.ndarray): prediction values for forces.
+        y_f (np.ndarray): target values for energies.
+        p_f (np.ndarray): target values for forces.
+    """
     if table_names is None:
         _, _, table_names, _ = io.analyze_hdf_tables(filename)
     df_batches = io.dataframe_batch_loader(filename, table_names)
@@ -653,11 +845,32 @@ def batched_prediction(model,
     return y_e, p_e, y_f, p_f
 
 
-def rmse_metric(predicted, actual):
+def rmse_metric(predicted: Collection,
+                actual: Collection) -> float:
+    """
+    Root-mean-square error metric.
+
+    Args:
+        predicted (list): prediction values.
+        actual (list): reference values.
+
+    Returns:
+        root-mean-square-error metric.
+    """
     return np.sqrt(np.mean(np.subtract(predicted, actual) ** 2))
 
 
 def mae_metric(predicted, actual):
+    """
+    Mean-absolute error metric.
+
+    Args:
+        predicted (list): prediction values.
+        actual (list): reference values.
+
+    Returns:
+        mean-absolute error metric.
+    """
     return np.mean(np.abs(np.subtract(predicted, actual)))
 
 
@@ -740,6 +953,9 @@ def postprocess_coefficients_2b(coefficients,
 
 def find_pair_potential_well(coefficients, rounding_factor):
     """
+    Identify coefficient index corresponding to possible potential well.
+    Intermediate function for postprocess_coefficients_2b().
+
     Args:
         coefficients: vector of two-body coefficients.
         rounding_factor: decimal for rounding in extrema search.

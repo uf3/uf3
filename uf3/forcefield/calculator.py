@@ -1,3 +1,8 @@
+"""
+This module provides the UFCalculator class for evaluating energies,
+forces, stresses, and other properties using the ASE Calculator protocol.
+"""
+
 from typing import List, Dict, Collection, Tuple, Any
 import os
 import time
@@ -33,6 +38,10 @@ except ImportError:
 
 
 class UFCalculator(ase_calc.Calculator):
+    """
+    ASE Calculator for energies, forces, and stresses using a fit UF potential.
+    Optionally compute elastic constants and phonon spectra.
+    """
     def __init__(self,
                  model: least_squares.WeightedLinearModel):
         # super().__init__()  # TODO: improve compatibility with ASE protocol
@@ -200,7 +209,7 @@ class UFCalculator(ase_calc.Calculator):
                    timeout: float = 60.0,
                    **kwargs
                    ) -> ase.Atoms:
-        """Minimize max. force using ASE's QuasiNewton optimizer."""
+        """Minimize maximum force using ASE's QuasiNewton optimizer."""
         geom = geom.copy()
         geom.set_calculator(self)
 
@@ -241,10 +250,12 @@ class UFCalculator(ase_calc.Calculator):
                               ) -> List:
         """
         Compute elastic constants.
+
         Args:
-            atoms (ase.Atoms)
+            atoms (ase.Atoms): configuration of interest.
             n (int): number of distortions to sample for fitting.
             d (float): maximum displacement in percent.
+
         Returns:
             results (list): elastic constants.
         """
@@ -259,6 +270,13 @@ class UFCalculator(ase_calc.Calculator):
                         n_super: int = 5,
                         disp: float = 0.05,
                         ) -> Tuple[Any, Dict, Dict]:
+        """Compute phonon spectra using Phonopy.
+
+        Args:
+            atoms (ase.Atoms): configuration of interest.
+            n_super (int): size of supercell, i.e. # images in each direction.
+            disp (float): magnitude of displacement in percent.
+        """
         results = phonon.compute_phonon_data(atoms,
                                              self,
                                              n_super=n_super,
@@ -271,6 +289,19 @@ def evaluate_energy_3b(geom: ase.Atoms,
                        c_grid: np.ndarray,
                        sup_geom: ase.Atoms = None
                        ) -> float:
+    """
+    Evaluate energy of a configuration based on knot sequences and
+    bspline coefficients.
+
+    Args:
+        geom (ase.Atoms): configuration of interest.
+        knot_sequences (list): knot sequences.
+        c_grid (np.ndarray): 3D grid of bspline coefficients.
+        sup_geom (ase.Atoms): optional supercell.
+
+    Returns:
+        energy (float): total energy of the configuration.
+    """
     # TODO: multicomponent
     if sup_geom is None:
         sup_geom = geom
@@ -296,6 +327,19 @@ def evaluate_forces_3b(geom: ase.Atoms,
                        c_grid: np.ndarray,
                        sup_geom: ase.Atoms = None
                        ) -> np.ndarray:
+    """
+    Evaluate forces of a configuration based on knot sequences and
+    bspline coefficients.
+
+    Args:
+        geom (ase.Atoms): configuration of interest.
+        knot_sequences (list): knot sequences.
+        c_grid (np.ndarray): 3D grid of bspline coefficients.
+        sup_geom (ase.Atoms): optional supercell.
+
+    Returns:
+        forces (np.ndarray): force components for each atom in configuration.
+    """
     # TODO: multicomponent
     if sup_geom is None:
         sup_geom = geom
@@ -339,6 +383,9 @@ def coefficients_by_interaction(element_list: List,
                                 coefficients: List[np.ndarray]
                                 ) -> Dict[Tuple[str], np.ndarray]:
     """
+    Arrange flattened coefficients into dictionary based on
+    interactions map and partition sizes.
+
     Args:
         element_list (list)
         interactions_map (dict): map of degree to list of interactions
@@ -366,6 +413,9 @@ def construct_pair_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
                               bspline_config: bspline.BSplineBasis
                               ) -> Dict[Tuple[str], interpolate.BSpline]:
     """
+    Construct BSpline basis functions from coefficients and
+    bspline.BSplineBasis handler.
+
     Args:
         coefficient_sets (dict): map of pair tuple to coefficient vector.
         bspline_config (bspline.BSplineBasis)

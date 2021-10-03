@@ -1,8 +1,12 @@
+"""
+This module provides the DataCoordinator class for reading data from
+atomistic codes and organizing data into DataFrames using Pandas.
+"""
 import os
 import re
-import io
+import io as pio
 import fnmatch
-from typing import List, Dict, Collection, Tuple, Any, Union
+from typing import List, Dict, Tuple
 import numpy as np
 import pandas as pd
 import tables
@@ -18,8 +22,8 @@ from uf3.util import subsample
 
 class DataCoordinator:
     """
-    -Load data from files, e.g. LAMMPS and VASP outputs
-    -Prepare standardized DataFrames for representation
+    Handler class for reading data from atomistic codes and organizing data
+    into DataFrames using Pandas.
     """
     def __init__(self,
                  atoms_key='geometry',
@@ -72,7 +76,7 @@ class DataCoordinator:
         return self.__repr__()
 
     def consolidate(self, remove_duplicates=True, keep='first'):
-        """Wrapper for concat_dataframes"""
+        """Wrapper for io.concat_dataframes()"""
         dataframes = [self.data[k] for k in self.keys]
         df = concat_dataframes(dataframes,
                                remove_duplicates=remove_duplicates,
@@ -80,7 +84,7 @@ class DataCoordinator:
         return df
 
     def load_dataframe(self, dataframe, prefix=None):
-        """Load dataframe manually."""
+        """Load existing pd.DataFrame"""
         for key in [self.atoms_key, self.energy_key, self.size_key]:
             if key not in dataframe.columns:
                 raise RuntimeError("Missing \"{}\" column.".format(key))
@@ -112,7 +116,7 @@ class DataCoordinator:
                              forces=None,
                              load=True,
                              **kwargs):
-        """Wrapper for prepare_dataframe_from_lists"""
+        """Wrapper for io.prepare_dataframe_from_lists()"""
         if prefix is None:
             prefix = len(self.data)
         df = prepare_dataframe_from_lists(geometries,
@@ -136,7 +140,7 @@ class DataCoordinator:
                                   energy_key=None,
                                   force_key=None,
                                   **kwargs):
-        """Wrapper for parse_trajectory"""
+        """Wrapper for io.parse_trajectory()"""
         if prefix is None:
             prefix = len(self.data)
         if energy_key is None:
@@ -171,7 +175,7 @@ class DataCoordinator:
                                   dump_fname="dump.lammpstrj",
                                   load=True,
                                   **kwargs):
-        """Wrapper for parse_lammps_outputs"""
+        """Wrapper for io.parse_lammps_outputs()"""
         if prefix is None:
             prefix = len(self.data)
         df = parse_lammps_outputs(path,
@@ -198,7 +202,7 @@ def concat_dataframes(dataframes: List[pd.DataFrame],
 
     Args:
         dataframes (list): list of DataFrames to merge
-        remove_duplicates (bool)
+        remove_duplicates (bool): remove duplicates.
         keep (str, bool): 'first', 'last', or False.
 
     Returns:
@@ -227,11 +231,11 @@ def prepare_dataframe_from_lists(geometries: List[ase.Atoms],
                                  ) -> pd.DataFrame:
     """
     Convenience function for arranging data into pandas DataFrame
-        with expected column names. Extracts energies and forces from
-        provided ase.Atoms objects if unspecified. If specified,
-        adds/overwrites energies and/or forces in ase.Atoms objects
-        via info and arrays attributes. Length of geometries, energies,
-        and forces must match.
+    with expected column names. Extracts energies and forces from
+    provided ase.Atoms objects if unspecified. If specified,
+    adds/overwrites energies and/or forces in ase.Atoms objects
+    via info and arrays attributes. Length of geometries, energies,
+    and forces must match.
 
     Args:
         geometries (list): list of ase.Atoms configurations.
@@ -376,8 +380,10 @@ def parse_trajectory(fname: str,
 
 def read_database(filename: str, index: bool = None, **kwargs):
     """
+    Read ase.db-type database file.
+
     Args:
-        filename (str)
+        filename (str): path to database file.
         index(slice): Default (None, None, 1)
 
     Returns:
@@ -408,7 +414,7 @@ def parse_lammps_outputs(path: str,
                          dump_fname: str = "dump.lammpstrj",
                          atoms_key: str = "geometry",
                          size_key: str = 'size',
-                         log_regex: str = None
+                         log_regex: str = None,
                          ) -> pd.DataFrame:
     """
     Convenience wrapper for parsing both LAMMPS log and dump
@@ -428,7 +434,7 @@ def parse_lammps_outputs(path: str,
         size_key (str):  column name for number of atoms per geometry,
             default "size".
         log_regex (str): Regular expression for identifying step information.
-            Defaults to '\n(Step[^\n]+\n[^A-Za-z]+)(?:Loop time of)'
+            Defaults to "\\n(Step[^\\n]+\\n[^A-Za-z]+)(?:Loop time of)"
 
     Returns:
         df (pandas.DataFrame): Indexed by timestep, containing
@@ -572,9 +578,11 @@ def update_geometries_from_dataframe(df: pd.DataFrame,
 
 
 def df_from_tsv_text(text: str) -> pd.DataFrame:
-    """Convenience function for converting
-        tab-separated values (text) into DataFrame."""
-    buffer = io.StringIO(text)  # pandas expects file buffer
+    """
+    Convenience function for converting tab-separated values (text)
+    into DataFrame.
+    """
+    buffer = pio.StringIO(text)  # pandas expects file buffer
     df = pd.read_csv(buffer, delim_whitespace=True)
     df = df.set_index("id").sort_index()
     return df
@@ -588,7 +596,7 @@ def atoms_from_df(df: pd.DataFrame,
                   ) -> ase.Atoms:
     """
     Create ase.Atoms from DataFrame. Minimum required columns include:
-        x, y, z, [element_key]
+    x, y, z, [element_key]
 
     Args:
         df (pandas.DataFrame): DataFrame of interest.
@@ -619,10 +627,12 @@ def atoms_from_df(df: pd.DataFrame,
 
 def parse_lammps_log(fname: str, log_regex: str = None) -> pd.DataFrame:
     """
+    Parse lammps log file into pd.DataFrame.
+
     Args:
         fname (str): filename of log file.
         log_regex (str): Regular expression for identifying step information.
-            Defaults to '\n(Step[^\n]+\n[^A-Z]+)(?:Loop time)'
+            Defaults to "\\n(Step[^\\n]+\\n[^A-Z]+)(?:Loop time)"
 
     Returns:
         df_log (pandas.DataFrame)
@@ -632,7 +642,7 @@ def parse_lammps_log(fname: str, log_regex: str = None) -> pd.DataFrame:
     with open(fname, 'r') as f:
         text = f.read()
         for text_block in re.compile(log_regex).findall(text):
-            buffer = io.StringIO(text_block)
+            buffer = pio.StringIO(text_block)
             df = pd.read_csv(buffer, delim_whitespace=True)
             log_blocks.append(df)
     df_log = pd.concat(log_blocks, ignore_index=True)
@@ -665,7 +675,7 @@ def parse_lammps_dump(fname: str,
             reset_timestep commands.
     Returns:
         snapshots (pandas.Series): Map of timestep to ase.Atoms, allowing
-            repeated entries in case of reset_timestep.
+        repeated entries in case of reset_timestep.
     """
     parse_subset = (timesteps is not None)
     timesteps = np.array(timesteps)
@@ -771,12 +781,15 @@ def read_vasp_pressure(path: str) -> float:
 
 def identify_paths(experiment_path: str = ".",
                    filename: str = None,
-                   filename_pattern:str = None
+                   filename_pattern: str = None
                    ) -> List[str]:
     """
+    Generate list of paths to files according to filename_pattern,
+    searching recursively from experiment_path.
+
     Args:
         experiment_path (str): directory in which to search, recursively.
-            Default "."
+            Default: "."
         filename (str): single filename.
         filename_pattern (str): glob pattern e.g. "*.xyz" to search.
 
@@ -816,7 +829,6 @@ def parse_with_subsampling(data_paths: List[str],
             Default: 100
         min_diff (float): minimum energy difference between consecutive samples
             in eV. Default: 1e-3
-        energy_key (str): column name for energies, default "energy".
         vasp_pressure (bool): whether to search for pressure and apply an
             energy correction of Pressure * Volume term (H = E + PV).
         lammps_log (str): optional name of lammps log, if applicable.
@@ -856,9 +868,10 @@ def parse_with_subsampling(data_paths: List[str],
         energy_list = df[energy_key].values / df[size_key].values
 
         if max_samples > 0:
-            subsamples = subsample.farthest_point_sampling(energy_list,
-                                                           max_samples=max_samples,
-                                                           min_diff=min_diff)
+            subsamples = subsample.farthest_point_sampling(
+                energy_list,
+                max_samples=max_samples,
+                min_diff=min_diff)
         else:
             subsamples = np.arange(len(energy_list))
         if verbose >= 2:
@@ -938,7 +951,15 @@ def analyze_hdf_tables(filename: str) -> Tuple[int, int, List, Dict]:
     return n_chunks, n_entries, chunk_names, chunk_lengths
 
 
-def dataframe_batch_loader(filename, table_names):
+def dataframe_batch_loader(filename: str, table_names: List) -> pd.DataFrame:
+    """
+    Iterator for reading DataFrames from HDF5 using a list of table names,
+    i.e. from io.analyze_hdf_tables.
+
+    Args:
+        filename (str): path to HDF5 file.
+        table_names (list): list of table names in HDF5 to read.
+    """
     for table_name in table_names:
         df = pd.read_hdf(filename, table_name)
         yield df

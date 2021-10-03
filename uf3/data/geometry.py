@@ -1,4 +1,9 @@
-from typing import List, Dict, Collection, Tuple, Any, Union
+"""
+This module provides functions for generating supercells for
+machine learning while avoiding the need for minimum-image convention.
+"""
+
+from typing import List, Collection, Tuple, Union
 import warnings
 import numpy as np
 from scipy import linalg
@@ -131,13 +136,13 @@ def sort_image_indices(a_indices: np.ndarray,
     return a_grid, b_grid, c_grid
 
 
-def energy_from_force_displacement(geom: ase.Atoms,
-                                   energy: float,
-                                   forces: Collection[Collection[float]],
-                                   d: float = 0.01,
-                                   n: int = None,
-                                   random: bool = True
-                                   ) -> Tuple[List[ase.Atoms], List[float]]:
+def generate_displacements_from_forces(geom: ase.Atoms,
+                                       energy: float,
+                                       forces: Collection[Collection[float]],
+                                       d: float = 0.01,
+                                       n: int = None,
+                                       random: bool = True
+                                       ) -> Tuple[List[ase.Atoms], List]:
     """
     WIP implementation of data augmentation as introduced in
     https://doi.org/10.1038/s41524-020-0323-8

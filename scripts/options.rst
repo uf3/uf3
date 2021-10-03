@@ -185,11 +185,11 @@ settings (per interaction) specified in ``r_min``, ``r_max``, and
 
 - Default: *“knots.json”*
 
-``load_knots`` (boolean): If enabled, read knot sequences from ```knots_path```.
+``load_knots`` (boolean): If enabled, read knot sequences from ``knots_path``.
 
 - Default: *False*
 
-``dump_knots`` (boolean): If enabled, write knot sequences to ```knots_path```, overwriting existing files.
+``dump_knots`` (boolean): If enabled, write knot sequences to ``knots_path``, overwriting existing files.
 
 - Default: *False*
 
