@@ -1,3 +1,9 @@
+"""
+This module provides functions for computing neighbor lists, evaluating
+pair distances, computing direction cosines for force components, and
+fitting/evaluating one-dimensional BSplines.
+"""
+
 from typing import List, Dict, Tuple, Union, Any
 import numpy as np
 import numba as nb

@@ -156,7 +156,7 @@ def batch_relax(geometries,  lmpcmds, atom_types=None, names=None):
     Args:
         geometries (list): list of ase.Atoms objects to evaluate.
         lmpcmds (list): list of lammps commands to run (strings).
-        atom_types (): dictionary of ``atomic_symbol :lammps_atom_type``
+        atom_types (dict): dictionary of ``atomic_symbol :lammps_atom_type``
             pairs, e.g. ``{'Cu':1}`` to bind copper to lammps
             atom type 1.  If <None>, autocreated by assigning
             lammps atom types in order that they appear in the

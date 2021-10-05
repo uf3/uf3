@@ -1,3 +1,9 @@
+"""
+This module provides the BasisFeaturizer class for computing
+energy and force features, using bspline.BsplineBasis, from DataFrames
+containing ase.Atoms configurations.
+"""
+
 import os
 import warnings
 import sqlite3

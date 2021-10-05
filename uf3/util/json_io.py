@@ -1,3 +1,8 @@
+"""
+This module provides functions for serializing and loading nested dictionaries
+with JSON files.
+"""
+
 import json
 from typing import Union
 import numpy as np

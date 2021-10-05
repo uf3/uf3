@@ -1,4 +1,9 @@
-from typing import List, Dict, Tuple, Any
+"""
+This module provides functions for computing three-atom neighbor list tuples
+ and fitting/evaluating 3D tensor product BSplines.
+"""
+
+from typing import List, Dict, Tuple
 import numpy as np
 from numba import jit
 import ase
@@ -17,12 +22,14 @@ def featurize_energy_3b(geom: ase.Atoms,
                         ) -> List[np.ndarray]:
     """
     Args:
-        geom (ase.Atoms)
+        geom (ase.Atoms): configuration of interest
         knot_sets (np.ndarray): list of lists of knot sequences per interaction
         basis_functions (list): list of lists of callable basis functions
             for each interaction
         hashes (list): list of three-body hashes.
-        supercell (ase.Atoms)
+        supercell (ase.Atoms): optional supercell.
+        trailing_trim (int): number of basis functions at trailing edge
+            to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
         grid_3b (List of np.ndarray): feature grid per interaction.
@@ -70,12 +77,14 @@ def featurize_energy_3b(geom: ase.Atoms,
 def coefficient_counts_from_knots(knot_sets: List[List[np.ndarray]],
                                   ) -> Tuple[List[int], List[int], List[int]]:
     """
+    Count number of basis functions per dimension from knot sequences.
+
     Args:
         knot_sets (list): list of three-body knot sequences
             per chemical interation
 
     Returns:
-        L, M, N: lists of number of basis functions per dimension (3).
+        L, M, N (list): lists of number of basis functions per dimension (3).
     """
     L = []
     M = []
@@ -96,10 +105,14 @@ def arrange_3b(triangle_values: np.ndarray,
                N: int
                ) -> np.ndarray:
     """
+    Arrange contributions per basis function in L x M x N grid.
+
     Args:
         triangle_values (np.ndarray): array of shape (n_triangles * 4, 3)
         idx_lmn (np.ndarray): array of shape (n_triangles * 4, 3)
-        L (int): number of basis functions.
+        L (int): number of basis functions in first dimension of tensor.
+        M (int): number of basis functions in second dimension of tensor.
+        N (int): number of basis functions in third dimension of tensor.
 
     Returns:
         grid (np.ndarray)
@@ -130,13 +143,16 @@ def featurize_force_3b(geom: ase.Atoms,
                        trailing_trim: int = 0,
                        ) -> List[List[List[np.ndarray]]]:
     """
+    Generate features per force component per atom for a configuration.
+
     Args:
-        geom (ase.Atoms)
+        geom (ase.Atoms): configuration of interest.
         knot_sets (np.ndarray): list of lists of knot sequences per interaction
         basis_functions (list): list of lists of callable basis functions
             for each chemical interaction
-        trio_hashes (list)
-        supercell (ase.Atoms)
+        trio_hashes (dict): map of interaction to integer hashes.
+        supercell (ase.Atoms): optional supercell.
+        trailing_trim (int): number of
 
     Returns:
         grid_3b (list): array-like list of shape
@@ -381,9 +397,8 @@ def generate_triplets(i_where: np.ndarray,
         j_where (np.ndarray): sorted "j" indices
         sup_composition (np.ndarray): composition given by atomic numbers.
         hashes (np.ndarray): array of unique integer hashes for interactions.
-        distance_matrix (np.ndarray)
+        distance_matrix (np.ndarray): pair distance matrix.
         knot_sets (np.ndarray): list of lists of knot sequences per interaction
-        knot_sequences (list of np.ndarray)
 
     Returns:
         tuples_idx (np.ndarray): array of shape (n_triangles, 3)
@@ -451,7 +466,7 @@ def evaluate_triplet_distances(r_l: np.ndarray,
         r_m (np.ndarray): vector of i-k distances.
         r_n (np.ndarray): vector of j-k distances.
         basis_functions (list): list of lists of of callable basis functions.
-        knot_sequences (list of np.ndarray)
+        knot_sequences (list of np.ndarray): list of knot sequences.
         trailing_trim (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 

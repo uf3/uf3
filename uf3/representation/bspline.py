@@ -1,4 +1,9 @@
-from typing import List, Dict, Union, Tuple, Any
+"""
+This module provides the BSplineBasis class for defining BSpline basis sets
+from knots and/or pair distance constraints.
+"""
+
+from typing import List, Dict, Tuple, Any, Collection
 import os
 import re
 import warnings
@@ -13,11 +18,9 @@ from uf3.util import json_io
 
 class BSplineBasis:
     """
-    -Manage knot resolutions and cutoffs
-    -Manage basis functions
-    -Manage regularization parameters and generate matrices for regression
-    -Arrange matrices by chemical interaction
-    -Manage feature indices for fixed coefficients
+    Handler class for BSpline basis sets defined using knot sequences and/or
+    pair distance constraints. Functions include generating regularizer
+    matrices and masking basis functions with symmetry.
     """
     def __init__(self,
                  chemical_system,
@@ -43,6 +46,9 @@ class BSplineBasis:
                 body interactions and 5 for three-body interactions.
             knot_strategy (str): "linear" for uniform spacing
                 or "lammps" for knot spacing by r^2.
+
+            trailing_trim (int): number of basis functions at trailing edge
+                to suppress. Useful for ensuring smooth cutoffs.
             knots_map (dict): pre-generated map of knots.
                 Overrides other settings.
         """
@@ -279,6 +285,8 @@ class BSplineBasis:
                                   curvature_map={},
                                   **kwargs):
         """
+
+
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
                 default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
@@ -504,6 +512,8 @@ def evaluate_basis_functions(points,
         points (np.ndarray): vector of points to sample, e.g. pair distances
         basis_functions (list): list of callable basis functions.
         nu (int): compute n-th derivative of basis function. Default 0.
+        trailing_trim (int): number of basis functions at trailing edge
+            to suppress. Useful for ensuring smooth cutoffs.
         flatten (bool): whether to flatten values per spline.
 
     Returns:
@@ -538,12 +548,15 @@ def featurize_force_2B(basis_functions,
                        ):
     """
     Args:
+        basis_functions (list): list of callable basis functions.
+        distances (np.ndarray): vector of distances of the same length as
+            the last dimension of drij_dR.
         drij_dR (np.ndarray): distance-derivatives, e.g. from
             ufpotential.data.two_body.derivatives_by_interaction.
             Shape is (n_atoms, 3, n_distances).
-        distances (np.ndarray): vector of distances of the same length as
-            the last dimension of drij_dR.
-        basis_functions (list): list of callable basis functions.
+        knot_sequence (np.ndarray): list of knot positions.
+        trailing_trim (int): number of basis functions at trailing edge
+            to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
         x (np.ndarray): rotation-invariant representations generated
@@ -580,8 +593,7 @@ def fit_spline_1d(x, y, knot_sequence):
     Args:
         x (np.ndarray): vector of function inputs.
         y (np.ndarray): vector of corresponding function outputs.
-        knot_sequence (np.ndarray): knot sequence,
-            e.g. from ufpotential.knots.generate_lammps_knots
+        knot_sequence (np.ndarray): list of knot positions.
 
     Returns:
         coefficients (np.ndarray): vector of cubic B-spline coefficients.
@@ -625,13 +637,15 @@ def fit_spline_1d(x, y, knot_sequence):
     return coefficients
 
 
-def find_spline_indices(points, knot_sequence):
+def find_spline_indices(points: np.ndarray,
+                        knot_sequence: np.ndarray
+                        ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Identify basis functions indices that are non-zero at each point.
 
     Args:
         points (np.ndarray): list of points.
-        knot_sequence (np.ndarray): knot sequence vector.
+        knot_sequence (np.ndarray): list of knot positions.
 
     Returns:
         points (np.ndarray): array of points repeated four times
@@ -647,10 +661,10 @@ def find_spline_indices(points, knot_sequence):
     return points, idx
 
 
-def knot_sequence_from_points(knot_points):
+def knot_sequence_from_points(knot_points: Collection) -> np.ndarray:
     """
     Repeat endpoints to satisfy knot sequence requirements (i.e. fixing first
-        and second derivatives to zero).
+    and second derivatives to zero).
 
     Args:
         knot_points (list or np.ndarray): sorted knot points in
@@ -665,10 +679,10 @@ def knot_sequence_from_points(knot_points):
     return knots
 
 
-def get_knot_subintervals(knots):
+def get_knot_subintervals(knots: np.ndarray) -> List:
     """
     Generate 5-knot subintervals for individual basis functions
-        from specified knot sequence.
+    from specified knot sequence.
 
     Args:
         knots (np.ndarray): knot sequence with repeated ends.
@@ -681,7 +695,11 @@ def get_knot_subintervals(knots):
     return subintervals
 
 
-def generate_uniform_knots(r_min, r_max, n_intervals, sequence=True):
+def generate_uniform_knots(r_min: float,
+                           r_max: float,
+                           n_intervals: int,
+                           sequence: bool = True
+                           ) -> np.ndarray:
     """
     Generate evenly-spaced knot points or knot sequence.
 
@@ -701,7 +719,11 @@ def generate_uniform_knots(r_min, r_max, n_intervals, sequence=True):
     return knots
 
 
-def generate_inv_knots(r_min, r_max, n_intervals, sequence=True):
+def generate_inv_knots(r_min: float,
+                       r_max: float,
+                       n_intervals: int,
+                       sequence: bool = True
+                       ) -> np.ndarray:
     """
     Generate knot points or knot sequence using an inverse transformation.
     This scheme yields higher resolution at smaller distances.
@@ -722,7 +744,11 @@ def generate_inv_knots(r_min, r_max, n_intervals, sequence=True):
     return knots
 
 
-def generate_geometric_knots(r_min, r_max, n_intervals, sequence=True):
+def generate_geometric_knots(r_min: float,
+                             r_max: float,
+                             n_intervals: int,
+                             sequence: bool = True
+                             ) -> np.ndarray:
     """
     Generate knot points or knot sequence using a geometric progression.
     Points are evenly spaced on a log scale. This scheme yields higher
@@ -744,7 +770,11 @@ def generate_geometric_knots(r_min, r_max, n_intervals, sequence=True):
     return knots
 
 
-def generate_lammps_knots(r_min, r_max, n_intervals, sequence=True):
+def generate_lammps_knots(r_min: float,
+                          r_max: float,
+                          n_intervals: int,
+                          sequence: bool = True
+                          ) -> np.ndarray:
     """
     Generate knot points or knot sequence using LAMMPS convention of
     distance^2. This scheme yields somewhat higher resolution at larger
@@ -769,11 +799,14 @@ def generate_lammps_knots(r_min, r_max, n_intervals, sequence=True):
     return knots
 
 
-def parse_knots_file(filename, chemical_system):
+def parse_knots_file(filename: str,
+                     chemical_system: composition.ChemicalSystem) -> Dict:
     """
+    Parse a nested dictionary of knot sequences from JSON file.
+
     Args:
-        filename (str)
-        chemical_system (composition.ChemicalSystem)
+        filename (str): path to file.
+        chemical_system (composition.ChemicalSystem): chemical system.
 
     Returns:
         knots_map (dict): map of knots per chemical interaction.

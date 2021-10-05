@@ -1,3 +1,7 @@
+"""
+This module provides functions for splitting/merging collections,
+handling parallel tasks, and managing progress indicators.
+"""
 import datetime
 import time
 import warnings
@@ -5,8 +9,6 @@ import numpy as np
 import pandas as pd
 from concurrent import futures
 from tqdm.auto import tqdm
-
-
 
 try:
     from dask import distributed
@@ -243,7 +245,7 @@ def gather_and_merge(future_list,
     if cancel:
         try:  # more efficient but not implemented in concurrent.futures
             client.cancel(future_list)
-        except:
+        except AttributeError:
             for future in future_list:
                 future.cancel()
     return result

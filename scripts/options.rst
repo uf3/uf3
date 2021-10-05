@@ -167,12 +167,18 @@ greatly reduces filesize.
 - Default: *True*
 
 ``knot_strategy`` (string): spacing scheme for placing knots, given a
-fixed resolution. LAMMPS-style spacing is based on r2, resulting in
-higher resolution at longer distances and lower resolution and smaller
-distances. When ``read_knots`` is *True* and ``knots_file`` is
+fixed resolution. When ``read_knots`` is *True* and ``knots_file`` is
 provided, this setting is ignored. 
 
-- Options: *{“linear”, “lammps”}* 
+- Options: *{“linear”, “lammps”, “geometric”, “inverse”, }* 
+
+    * ``= linear``: uniform spacing of knots.
+
+    * ``= lammps``: LAMMPS-style r^2 spacing, resulting in higher resolution at longer distances and lower resolution and smaller distances. 
+
+    * ``= geometric``: log(r) spacing, yielding higher resolution at smaller distances.
+
+    * ``= inverse``: 1/r spacing, yielding higher resolution at smaller distances.
 
 - Default: *“linear”*
 
