@@ -18,6 +18,7 @@ from ase.io import lammpsrun as ase_lammpsrun
 from ase.calculators import singlepoint
 from ase.calculators import calculator as ase_calc
 from uf3.util import subsample
+from uf3.util import parallel
 
 
 class DataCoordinator:
@@ -360,6 +361,7 @@ def parse_trajectory(fname: str,
     columns = default_columns + scalar_keys + array_keys
     df = pd.DataFrame(columns=columns)
     df[atoms_key] = geometries
+    df[energy_key] = 0.0
     # object-dataframe consistency
     scalar_keys = scalar_keys + [energy_key]
     array_keys = array_keys + ["fx", "fy", "fz"]
@@ -498,7 +500,7 @@ def update_dataframe_from_geometries(df: pd.DataFrame,
     array_idxs = []
     for scalar in scalar_keys:
         if scalar not in df.columns:
-            df[scalar] = pd.Series(dtype=object)
+            df[scalar] = pd.Series(dtype=float)
         scalar_idxs.append(df.columns.get_loc(scalar))
     if size_key not in df.columns:
         df[size_key] = pd.Series(dtype=int)
@@ -818,7 +820,8 @@ def parse_with_subsampling(data_paths: List[str],
                            vasp_pressure: bool = False,
                            lammps_log: str = None,
                            lammps_aliases: Dict[int, str] = None,
-                           verbose: bool = True):
+                           style:str = "text",
+                           verbose: bool = False):
     """
     TODO: refactor to break up into smaller, reusable functions
 
@@ -833,7 +836,8 @@ def parse_with_subsampling(data_paths: List[str],
             energy correction of Pressure * Volume term (H = E + PV).
         lammps_log (str): optional name of lammps log, if applicable.
         lammps_aliases (dict): map of LAMMPS type to species.
-        verbose (bool, int): verbosity level.
+        style (str): style for printing progress. Default: text.
+        verbose (bool): whether to report number of samples taken per entry.
     """
     common_prefix = os.path.commonprefix(data_paths)
     common_path = os.path.dirname(common_prefix)
@@ -842,7 +846,7 @@ def parse_with_subsampling(data_paths: List[str],
     energy_key = data_coordinator.energy_key
     size_key = data_coordinator.size_key
 
-    for data_path in data_paths:
+    for data_path in parallel.progress_iter(data_paths, style=style):
         prefix = data_path[len(common_path):]
         prefix = prefix.replace("/", "-")
         if prefix[0] == "-":
@@ -874,12 +878,12 @@ def parse_with_subsampling(data_paths: List[str],
                 min_diff=min_diff)
         else:
             subsamples = np.arange(len(energy_list))
-        if verbose >= 2:
+        if verbose:
             print("{}/{} samples taken from {}.".format(len(subsamples),
                                                         len(energy_list),
                                                         prefix))
         counter += len(subsamples)
-        if verbose >= 1:
+        if verbose:
             print("Total: {} samples parsed.".format(counter))
         df = df.iloc[np.sort(subsamples)]
 
