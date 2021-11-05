@@ -43,7 +43,7 @@ jobs:
         pip install numba
         pip install .
         pip install setuptools_scm
-        pip install elastic
+        pip install elastic>=5.1.0.17 --no-deps
         pip install spglib
         pip install seekpath
         pip install phonopy==2.11.0
