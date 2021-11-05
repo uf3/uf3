@@ -43,10 +43,10 @@ jobs:
         pip install numba
         pip install .
         pip install setuptools_scm
-        pip install "elastic>=5.1.0.17"
+        pip install elastic
         pip install spglib
         pip install seekpath
-        pip install "phonopy>=2.6.0"
+        pip install phonopy==2.11.0
     - name: Test with pytest
       run: |
         pytest
