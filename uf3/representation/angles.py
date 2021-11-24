@@ -170,14 +170,13 @@ def featurize_force_3b(geom: ase.Atoms,
                                                    knot_sets,
                                                    supercell,
                                                    square=True)
-    if len(x_where) == 0:
-        return np.zeros((n_atoms, 3, L, M, N))
-
     force_grids = [[[np.zeros((L[i], M[i], N[i])),
                      np.zeros((L[i], M[i], N[i])),
                      np.zeros((L[i], M[i], N[i]))]
                     for _ in range(n_atoms)]
                    for i in range(n_interactions)]
+    if len(x_where) == 0:
+        return force_grids
     # process each atom's neighbors to limit memory requirement
     triplet_generator = generate_triplets(
         x_where, y_where, sup_comp, trio_hashes, matrix, knot_sets)
