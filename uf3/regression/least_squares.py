@@ -449,10 +449,7 @@ class WeightedLinearModel(BasicLinearModel):
 
     def save(self, filename: str):
         """Save model (coefficients and knots map) to file."""
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        json_io.dump_interaction_map(dict(solution=solution,
-                                          knots=knots_map),
+        json_io.dump_interaction_map(self.dump(),
                                      filename=filename,
                                      write=True)
 
@@ -460,7 +457,7 @@ class WeightedLinearModel(BasicLinearModel):
         """Arrange coefficients/knots map into dictionary."""
         solution = arrange_coefficients(self.coefficients, self.bspline_config)
         knots_map = self.bspline_config.knots_map
-        return dict(solution=solution, knots=knots_map)
+        return dict(coefficients=solution, knots=knots_map)
 
     def load(self,
              solution: Dict[Tuple[str], np.ndarray] = None,
@@ -477,7 +474,7 @@ class WeightedLinearModel(BasicLinearModel):
         """
         if filename is not None:
             dump = json_io.load_interaction_map(filename)
-            solution = dump["solution"]
+            solution = dump["coefficients"]
         elif solution is None:
             raise ValueError("Neither solution nor filename were provided.")
         flattened_coefficients = []
