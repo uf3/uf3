@@ -301,7 +301,6 @@ class WeightedLinearModel(BasicLinearModel):
     def fit_from_file(self,
                       filename: str,
                       subset: Collection,
-                      index: Collection,
                       weight: float = 0.5,
                       batch_size=2500,
                       energy_key="energy",
@@ -312,8 +311,7 @@ class WeightedLinearModel(BasicLinearModel):
 
         Args:
             filename (str): path to HDF5 file.
-            subset (list): list of indices for training.
-            index (list): list of keys, i.e. from df_data DataFrame.
+            subset (list): list of keys for training.
             weight (float): parameter balancing contribution from energies
                 vs. forces. Higher values favor energies; defaults to 0.5.
             batch_size (int): batch size, in rows, for matrix multiplication
@@ -324,7 +322,6 @@ class WeightedLinearModel(BasicLinearModel):
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
         n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
-        subset_keys = index[subset]
         gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
         e_variance = VarianceRecorder()
         f_variance = VarianceRecorder()
@@ -333,7 +330,7 @@ class WeightedLinearModel(BasicLinearModel):
         for j in table_iterator:
             table_name = table_names[j]
             df = process.load_feature_db(filename, table_name)
-            keys = df.index.unique(level=0).intersection(subset_keys)
+            keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
             g_e, g_f, o_e, o_f = self.gram_from_df(df,
