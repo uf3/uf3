@@ -57,7 +57,7 @@ def distances_by_interaction(geom: ase.Atoms,
     else:
         distances_map = {}
     for pair in pair_tuples:
-        r_min = r_min_map[pair]
+        r_min = max(r_min_map[pair], 0)
         r_max = r_max_map[pair]
         pair_numbers = ase_symbols.symbols2numbers(pair)
         comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
@@ -119,7 +119,7 @@ def derivatives_by_interaction(geom: ase.Atoms,
     derivative_map = {}
     for pair in pair_tuples:
         pair_numbers = ase_symbols.symbols2numbers(pair)
-        r_min = r_min_map[pair]
+        r_min = max(r_min_map[pair], 0)
         r_max = r_max_map[pair]
         comp_mask = mask_matrix_by_pair_interaction(pair_numbers,
                                                     sup_composition,
@@ -261,8 +261,8 @@ def get_distance_derivatives(geom: ase.Atoms,
 
     distance_matrix = spatial.distance.cdist(sup_positions, sup_positions)
     n_atoms = len(geo_positions)
-
-    cut_mask = (distance_matrix >= r_min) & (distance_matrix <= r_max)
+    r_min = max(r_min, 0)
+    cut_mask = (distance_matrix > r_min) & (distance_matrix <= r_max)
     i_where, j_where = np.where(cut_mask)
     drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
                                         i_where, j_where, n_atoms)
