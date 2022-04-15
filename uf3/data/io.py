@@ -901,7 +901,7 @@ def parse_with_subsampling(data_paths: List[str],
         data_coordinator.load_dataframe(df, prefix=prefix)
 
 
-def cache_data(data_coordinator: DataCoordinator,
+def cache_data(df_data: pd.DataFrame,
                filename: str,
                energy_key: str = 'energy',
                serial: bool = False):
@@ -909,14 +909,12 @@ def cache_data(data_coordinator: DataCoordinator,
     Save dataframe from data_coordinator as ase Database.
 
     Args:
-        data_coordinator (DataCoordinator)
+        df_data (pd.DataFrame)
         filename (str)
         energy_key (str): column name for energies, default "energy".
         serial (bool)
     """
     append = os.path.isfile(filename)
-
-    df_data = data_coordinator.consolidate()
     geometries = df_data['geometry']
 
     with ase_db.connect(filename, append=append, serial=serial) as database:
