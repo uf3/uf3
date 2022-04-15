@@ -189,6 +189,7 @@ def visualize_splines(coefficients,
                       knot_sequence,
                       ax=None,
                       cmap=None,
+                      show_components=True,
                       show_total=True):
     r_min = knot_sequence[0]
     r_max = knot_sequence[-1]
@@ -200,6 +201,8 @@ def visualize_splines(coefficients,
         cmap = cm.gnuplot
     colors = cmap(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+
     for i, c in enumerate(coefficients):
         kn = knot_sequence[i:i + 5]
         kno = np.concatenate([np.repeat(kn[0], 3),
@@ -210,20 +213,25 @@ def visualize_splines(coefficients,
                                  3,
                                  extrapolate=False)
         y_plot = bs(x_plot)
-        ax.plot(x_plot,
-                y_plot,
-                color=colors[i],
-                linewidth=1)
+
+        if show_components:
+            ax.plot(x_plot,
+                    y_plot,
+                    color=colors[i],
+                    linewidth=1)
         y_plot[np.isnan(y_plot)] = 0
-    bs_t = interpolate.BSpline(knot_sequence,
-                               coefficients,
-                               3,
-                               extrapolate=False)
-    y_total = bs_t(x_plot)
-    s_min = np.min(y_total)
-    s_max = np.max(y_total)
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    # bs_t = interpolate.BSpline(knot_sequence,
+    #                            coefficients,
+    #                            3,
+    #                            extrapolate=False)
+    # y_total = bs_t(x_plot)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
     if show_total:
-        ax.plot(x_plot, bs_t(x_plot),
+        # ax.plot(x_plot, bs_t(x_plot),
+        ax.plot(x_plot, y_total,
                 c='k',
                 linewidth=2,
                 linestyle=(0, (1, 1)))
