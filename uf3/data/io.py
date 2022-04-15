@@ -6,7 +6,7 @@ import os
 import re
 import io as pio
 import fnmatch
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 import numpy as np
 import pandas as pd
 import tables
@@ -870,6 +870,7 @@ def parse_with_subsampling(data_paths: List[str],
         if len(df) == 0:
             continue
         energy_list = df[energy_key].values / df[size_key].values
+        energy_list = energy_list.astype(float)
 
         if max_samples > 0:
             subsamples = subsample.farthest_point_sampling(
