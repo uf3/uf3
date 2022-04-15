@@ -34,13 +34,17 @@ class TestKnots:
         points = np.round(points, 4)
         assert np.allclose(points, [0, 0, 0, 0, 0.7071, 1, 1, 1, 1])
 
+    def test_generate_natural_knots(self):
+        points = generate_natural_knots(0, 7, 1)
+        assert np.allclose(points, [0, 1, 2, 3, 4, 5, 6, 7])
+
 
 class TestBSplineConfig:
     def test_regularizer_subdivision(self, binary_chemistry):
         bspline_handler = BSplineBasis(binary_chemistry)
         partitions = bspline_handler.get_feature_partition_sizes()
-        # default 20 intervals yields 23 basis functions
-        assert np.allclose(partitions, [1, 1, 23, 23, 23])
+        # default 15 intervals yields 18 basis functions
+        assert np.allclose(partitions, [1, 1, 18, 18, 18])
 
     def test_custom_knots(self):
         element_list = ['Au', 'Ag']
@@ -52,8 +56,8 @@ class TestBSplineConfig:
         assert bspline_handler.r_max_map[('Ag', 'Au')] == 1.1
         assert bspline_handler.resolution_map[('Ag', 'Au')] == 1
         assert bspline_handler.r_min_map[('Au', 'Au')] == 1.0
-        assert bspline_handler.r_max_map[('Au', 'Au')] == 6.0
-        assert bspline_handler.resolution_map[('Au', 'Au')] == 20
+        assert bspline_handler.r_max_map[('Au', 'Au')] == 8.0
+        assert bspline_handler.resolution_map[('Au', 'Au')] == 15
 
     def test_unary(self):
         element_list = ['Au']
@@ -61,8 +65,8 @@ class TestBSplineConfig:
         bspline_handler = BSplineBasis(chemistry,
                                        r_min_map={('Au', 'Au'): 1.1})
         assert bspline_handler.r_min_map[('Au', 'Au')] == 1.1
-        assert bspline_handler.r_max_map[('Au', 'Au')] == 6.0
-        assert bspline_handler.resolution_map[('Au', 'Au')] == 20
+        assert bspline_handler.r_max_map[('Au', 'Au')] == 8.0
+        assert bspline_handler.resolution_map[('Au', 'Au')] == 15
 
     def test_binary(self):
         element_list = ['Ne', 'Xe']
@@ -70,7 +74,7 @@ class TestBSplineConfig:
         bspline_handler = BSplineBasis(chemistry,
                                        resolution_map={('Ne', 'Xe'): 10})
         assert bspline_handler.r_min_map[('Ne', 'Ne')] == 1.0
-        assert bspline_handler.r_max_map[('Xe', 'Xe')] == 6.0
+        assert bspline_handler.r_max_map[('Xe', 'Xe')] == 8.0
         assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
 
     def test_regularizer(self):
@@ -81,16 +85,16 @@ class TestBSplineConfig:
         bspline_handler = BSplineBasis(chemistry)
         matrix = bspline_handler.get_regularization_matrix(ridge_map,
                                                            curvature_map)
-        ridge_sum = (2 * 2) + (0.5 * (23 + 23 + 23))
-        curv_sum = (0 * 2) + (1 + (2 * 21) + 1) * 3
+        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
+        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
         matrix = bspline_handler.get_regularization_matrix(r1=2,
                                                            r2=0.5,
                                                            c2=1)
-        ridge_sum = (2 * 2) + (0.5 * (23 + 23 + 23))
-        curv_sum = (0 * 2) + (1 + (2 * 21) + 1) * 3
+        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
+        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
