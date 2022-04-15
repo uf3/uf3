@@ -980,3 +980,35 @@ def resolve_name_conflict(path: str) -> int:
                 break
             i += 1
     return i
+
+
+def get_max_forces(*component_views):
+    """Get maximum forces for DataFrame row."""
+    component_views = [v.tolist() for v in component_views]
+    forces = np.vstack(component_views).T
+    return np.max(np.linalg.norm(forces, 2, axis=1))
+
+
+def filter_max_forces(df_data: pd.DataFrame,
+                      cutoff: float = 10,
+                      force_keys: tuple = ("fx", "fy", "fz"),
+                      return_values: bool = False
+                      ) -> Union[pd.Series, Tuple]:
+    """
+
+    Args:
+        df_data: DataFrame with force component columns
+        cutoff: maximum force for filter, units of eV/angstrom
+        force_keys: default ("fx", "fy", "fz")
+        return_values: if True, return keys and Pandas Series of maxima.
+
+    Returns:
+        matches: list of keys corresponding to matching entries.
+    """
+    components_view = df_data[list(force_keys)]
+    max_forces = components_view.apply(get_max_forces, axis=1)
+    matches = df_data.index[max_forces <= cutoff]
+    if not return_values:
+        return matches
+    else:
+        return matches, max_forces
