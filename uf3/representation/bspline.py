@@ -164,29 +164,56 @@ class BSplineBasis:
                      r_min_map: Dict[Tuple, Any] = None,
                      resolution_map: Dict[Tuple, Any] = None,
                      knots_map: Dict[Tuple, Any] = None):
+        """
+
+        Args:
+            r_max_map:
+            r_min_map:
+            resolution_map:
+            knots_map:
+
+        Returns:
+
+        """
         # lower and upper distance cutoffs
-        if r_min_map is not None:
-            r_min_map = composition.sort_interaction_map(r_min_map)
-            self.r_min_map.update(r_min_map)
-        if r_max_map is not None:
-            r_max_map = composition.sort_interaction_map(r_max_map)
-            self.r_max_map.update(r_max_map)
-        if resolution_map is not None:
-            resolution_map = composition.sort_interaction_map(resolution_map)
-            self.resolution_map.update(resolution_map)
+        if r_min_map is None:
+            r_min_map = {}
+        if r_max_map is None:
+            r_max_map = {}
+        if resolution_map is None:
+            resolution_map = {}
+        r_min_map = composition.sort_interaction_map(r_min_map)
+        self.r_min_map.update(r_min_map)
+        r_max_map = composition.sort_interaction_map(r_max_map)
+        self.r_max_map.update(r_max_map)
+        resolution_map = composition.sort_interaction_map(resolution_map)
+        self.resolution_map.update(resolution_map)
         # Update with pregenerated knots_map
         if knots_map is not None:
+            knots_map = composition.sort_interaction_map(knots_map)
             self.update_knots_from_dict(knots_map)
         # Update with provided and default values
-        for pair in self.interactions_map.get(2, []):
+        pair_list = self.interactions_map.get(2, [])
+        trio_list = self.interactions_map.get(3, [])
+        for map_ in [self.r_min_map, self.r_max_map, self.resolution_map]:
+            tuple_consistency_check(map_, self.interactions_map)
+        for pair in pair_list:
             self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
-            self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
-            self.resolution_map[pair] = self.resolution_map.get(pair, 20)
-        for trio in self.interactions_map.get(3, []):
-            self.r_min_map[trio] = self.r_min_map.get(trio, [1.0, 1.0, 1.0])
-            self.r_max_map[trio] = self.r_max_map.get(trio, [4.0, 4.0, 8.0])
+            self.r_max_map[pair] = self.r_max_map.get(pair, 8.0)
+            self.resolution_map[pair] = self.resolution_map.get(pair, 15)
+        for trio in trio_list:
+            mins = [r_min_map.get(k, 1.0)
+                    for k in itertools.combinations(trio, 2)]
+            default_min = [np.min(mins), np.min(mins), np.min(mins)]
+            maxs = [r_max_map.get(k, 4.0)
+                    for k in itertools.combinations(trio, 2)]
+            default_max = [np.max(maxs), np.max(maxs), 2 * np.max(maxs)]
+            default_res = [5, 5, 10]
+
+            self.r_min_map[trio] = self.r_min_map.get(trio, default_min)
+            self.r_max_map[trio] = self.r_max_map.get(trio, default_max)
             self.resolution_map[trio] = self.resolution_map.get(trio,
-                                                                [5, 5, 10])
+                                                                default_res)
             min_set = len(set(self.r_min_map[trio]))
             max_set = len(set(self.r_max_map[trio]))
             res_set = len(set(self.resolution_map[trio]))
