@@ -137,7 +137,7 @@ class CompactJSONEncoder(json.JSONEncoder):
                 return "{}"
         elif isinstance(o, float):
             # Use scientific notation for floats, where appropiate
-            return format(o, "g")
+            return format(o, ".10g")
         elif isinstance(o, str):  # escape newlines
             o = o.replace("\n", "\\n")
             return f'"{o}"'
