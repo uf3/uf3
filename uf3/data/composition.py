@@ -292,3 +292,28 @@ def unpack_szudzik_hash(hash_list: np.ndarray, n_iter: int) -> np.ndarray:
         hash_list = unpacked[:, 0]
     columns.insert(0, hash_list)
     return np.vstack(columns).T
+
+
+def get_pair_hashes(species_set,
+                    pair_idx):
+    """Convenience function for working with element pairs."""
+    i_spec, j_spec = species_set
+    i_where, j_where = pair_idx
+    i_spec = i_spec[i_where]
+    j_spec = j_spec[j_where]
+    pair_spec = np.vstack([i_spec, j_spec]).T
+    pair_spec = np.sort(pair_spec, axis=1)
+    hashes = get_szudzik_hash(pair_spec)
+    return hashes
+
+
+def hash_gather(values, hashes):
+    """Arrange entries by hash, given vectors."""
+    value_ref = {}
+    hash_set = np.sort(np.unique(hashes))
+
+    for pair in hash_set:
+        pair_mask = (hashes == pair)
+        pair_dists = values[pair_mask]
+        value_ref[int(pair)] = pair_dists
+    return value_ref
