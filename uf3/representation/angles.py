@@ -306,7 +306,8 @@ def identify_ij(geom: ase.Atoms,
     """
     if supercell is None:
         supercell = geom
-    knots_flat = np.concatenate([sequence[0] for sequence in knot_sets])
+    knots_flat = np.concatenate([sequence for set_ in knot_sets
+                                 for sequence in set_])
     r_min = max(np.min(knots_flat), 0)
     r_max = np.max(knots_flat)
     sup_positions = supercell.get_positions()
