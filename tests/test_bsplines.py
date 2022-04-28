@@ -34,10 +34,6 @@ class TestKnots:
         points = np.round(points, 4)
         assert np.allclose(points, [0, 0, 0, 0, 0.7071, 1, 1, 1, 1])
 
-    def test_generate_natural_knots(self):
-        points = generate_natural_knots(0, 7, 1)
-        assert np.allclose(points, [0, 1, 2, 3, 4, 5, 6, 7])
-
 
 class TestBSplineConfig:
     def test_regularizer_subdivision(self, binary_chemistry):
