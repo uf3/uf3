@@ -540,12 +540,14 @@ class BSplineBasis:
         Returns:
 
         """
+        vec = vec * self.flat_weights[interaction]
         l_space, m_space, n_space = self.knots_map[interaction]
         L = len(l_space) - 4
         M = len(m_space) - 4
         N = len(n_space) - 4
         grid = np.zeros((L, M, N))
         grid.flat[self.template_mask[interaction]] = vec
+        grid = grid + grid.transpose(1, 0, 2)
         return grid
 
 
