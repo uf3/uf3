@@ -11,7 +11,7 @@ Copy the :code:`ML-UF3` directory to the appropriate lammps source code director
 
    mv ML-UF3 LAMMPS_BASE_DIR/src/.
 
-If compiling lammps with :code:`CMake`, add the :code:`ML-UF3` keyword to :code:`set(STANDARD_PACKAGES)` list in :code:`LAMMPS_BASE_DIR/cmake/CMakeLists.txt` file. Go the :code:`build` directory in :code:`LAMMPS_BASE_DIR` (make one if it doesn't exist) and compile lammps.
+If compiling lammps with :code:`CMake`, add the :code:`ML-UF3` keyword to :code:`set(STANDARD_PACKAGES)` list in :code:`LAMMPS_BASE_DIR/cmake/CMakeLists.txt` file (search for :code:`ML-SNAP` and add :code:`ML-UF3` in the very next line). Go to the :code:`build` directory in :code:`LAMMPS_BASE_DIR` (make one if it doesn't exist) and compile lammps.
 
 .. code:: bash
 
@@ -33,9 +33,9 @@ To use UF3 potentials in lammps just add the following tags to the lammps input 
     pair_style uf3 3 1
     pair_coeff * * W_W W_W_W
 
-The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword on tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. The last number of this line specifies the number of atoms in the system. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions on a system containing only 1 element.
+The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. The last number of this line specifies the number of elemnts in the system. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions on a system containing only 1 element.
 
-The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. The two asterisks on this line are not used in the current implementation but should be present. After the asterisks come all the 2 and 3-body UF3 lammps potential files. Make sure these files are present in the current run directory or in directories where lammps can find them.
+The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. The two asterisks on this line are not used in the current implementation but should be present. After the asterisks list all the 2 and 3-body UF3 lammps potential files seperated by space. Make sure these files are present in the current run directory or in directories where lammps can find them.
 
 Structure of UF3 lammps potential file
 -----
@@ -57,10 +57,10 @@ The 2-body UF3 lammps potential file should have the following format-
     COEFF
     #
 
-The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body or 3-body interaction.
-The first two characters of the third line indicate that this file describes the interaction between atom-type 1 and 1. 
+The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction.
 
-The :code:`Rij_CUTOFF` sets the 2-body cutoff for the interaction described by the potential file. :code:`NUM_OF_KNOTS` is the number of knots (or the length of the knot vector) present on the very next line. The :code:`BSPLINE_KNOTS` should contain all the knots in increasing order. :code:`NUM_OF_COEFF` is the number of coefficients in the :code:`COEFF` line. All the numbers in the BSPLINE_KNOTS and COEFF line should be space-separated. 
+For 2-body UF3 lammps potential, the first two characters of the third line indicates the atom-types for which this file containes the interaction potential. In the above example the file describes the interaction between atom-type 1 and 1.
+The :code:`Rij_CUTOFF` sets the 2-body cutoff for the interaction described by the potential file. :code:`NUM_OF_KNOTS` is the number of knots (or the length of the knot vector) present on the very next line. The :code:`BSPLINE_KNOTS` line should contain all the knots in increasing order. :code:`NUM_OF_COEFF` is the number of coefficients in the :code:`COEFF` line. All the numbers in the BSPLINE_KNOTS and COEFF line should be space-separated. 
 
 3-body potential
 ====
@@ -91,8 +91,9 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
     #
 
 
-The first line is similar to the 2-body potential file. The third line has :code:`3B` characters indicating that this file describes 3-body interaction. The first 3 characters of the third line state the atom type for which this 3-body potential should be used. In the above example, the file will be used to describe the interaction between atom-types 1, 2, and 3. The cutoff distance between atom-type 1 and 2 is :code:`Rij_CUTOFF`, atom-type 1 and 3 is :code:`Rik_CUTOFF` and between 2 and 3 is :code:`Rjk_CUTOFF`. **Note the current implementation works only for UF3 potentials with cutoff distances for 3-body interactions that follows** :code:`2Rij_CUTOFF=2Rik_CUTOFF=Rjk_CUTOFF` ** relation.**
+The first line is similar to the 2-body potential file and the second line has :code:`3B` characters indicating that this file describes 3-body interaction. The first 3 characters of the third line state the atom type for which this 3-body potential should be used. In the above example, the file will be used to describe the interaction between atom-types 1(i), 2(j), and 3(k). The cutoff distance between atom-type 1 and 2 is :code:`Rij_CUTOFF`, atom-type 1 and 3 is :code:`Rik_CUTOFF` and between 2 and 3 is :code:`Rjk_CUTOFF`. **Note the current implementation works only for UF3 potentials with cutoff distances for 3-body interactions that follows** :code:`2Rij_CUTOFF=2Rik_CUTOFF=Rjk_CUTOFF` **relation.**
 
-The :code:`BSPLINE_KNOTS_FOR_JK`, :code:`BSPLINE_KNOTS_FOR_IK`, and :code:`BSPLINE_KNOTS_FOR_IJ` lines (note the order) contain the knots for atoms J and K, I and K, and atoms I and J respectively. The number of knots is defined by the :code:`NUM_OF_KNOTS_*` characters in the previous line.
+The :code:`BSPLINE_KNOTS_FOR_JK`, :code:`BSPLINE_KNOTS_FOR_IK`, and :code:`BSPLINE_KNOTS_FOR_IJ` lines (note the order) contain the knots in increasing order for atoms J and K, I and K, and atoms I and J respectively. The number of knots is defined by the :code:`NUM_OF_KNOTS_*` characters in the previous line.
+The shape of the coefficient matrix is defined on the :code:`SHAPE_OF_COEFF_MATRIX[I][J][K]` line followed by the columns of the coefficient matrix, one per line, as shown above. For example, if the coefficient matrix has the shape of 8x8x13, then :code:`SHAPE_OF_COEFF_MATRIX[I][J][K]` will be :code:`8 8 13` followed by 64 (8x8) lines each containing 13 coefficients seperated by space.
 
-The shape of the coefficient matrix is defined on the :code:`SHAPE_OF_COEFF_MATRIX[I][J][K]` line followed by the columns of the coefficient matrix, one per line, as shown above. For example, if the coefficient matrix has the shape of 8x8x13, then :code:`SHAPE_OF_COEFF_MATRIX[I][J][K]` will be :code:`8 8 13`.
+All the UF3 lammps potential files end with :code:`#` character.
