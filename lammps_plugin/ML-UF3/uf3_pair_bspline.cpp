@@ -16,14 +16,14 @@ uf3_pair_bspline::uf3_pair_bspline(LAMMPS* ulmp, int ubspline_degree,
 	bspline_degree = ubspline_degree;
 	knot_vect = uknot_vect;
 	coeff_vect = ucoeff_vect;
-	knot_vect_size = knot_vect.size();
-	coeff_vect_size = coeff_vect.size();
+	knot_vect_size = uknot_vect.size();
+	coeff_vect_size = ucoeff_vect.size();
 	//initialize dncoeff_vect and dnknot_coeff for derivates
-	for (int i=0;i<coeff_vect.size()-1;++i){
+	for (int i=0;i<coeff_vect_size-1;++i){
 		dntemp4 = bspline_degree/(knot_vect[i+bspline_degree+1]-knot_vect[i+1]);
 		dncoeff_vect.push_back((coeff_vect[i+1]-coeff_vect[i])*dntemp4);
 	}
-	for (int i=1;i<knot_vect.size()-1;++i){
+	for (int i=1;i<knot_vect_size-1;++i){
 		dnknot_vect.push_back(knot_vect[i]);
 	}
 }
@@ -60,14 +60,14 @@ double uf3_pair_bspline::main_eval_loop(double ivalue_rij, int ibspline_degree,
 	temp_val = 0;
 	if (iknot_vect.front() <= ivalue_rij && ivalue_rij < iknot_vect.back()){
 		//Determine the interval for value_rij
-		for (int i=0; i<iknot_vect.size()-1; ++i){
+		for (int i=0; i<knot_vect_size-1; ++i){
 			if (iknot_vect[i] <= ivalue_rij && ivalue_rij < iknot_vect[i+1])
 				{ipos_i = i; break;}
 		}
 		//if value_rij is equal to existing knot then
 		//determine multiplicity of existing knot
 		if (ivalue_rij==iknot_vect[ipos_i]){
-			for (int i=0;i<iknot_vect.size();++i){
+			for (int i=0;i<knot_vect_size;++i){
 				if (iknot_vect[i]==ivalue_rij){
 					iknot_mult = iknot_mult + 1;
 				}
@@ -79,7 +79,7 @@ double uf3_pair_bspline::main_eval_loop(double ivalue_rij, int ibspline_degree,
 	//Extrapolating outside the domain?
 	//--value_rij on the left hand side
 	else if (ivalue_rij < iknot_vect[0]){
-		for (int i=0; i < iknot_vect.size()-1; ++i){
+		for (int i=0; i < knot_vect_size-1; ++i){
 			if (iknot_vect[i] != iknot_vect[i+1])
 				{ipos_i = i; break;}
 		}
@@ -87,7 +87,7 @@ double uf3_pair_bspline::main_eval_loop(double ivalue_rij, int ibspline_degree,
 	//--value_rij on the right hand side
 	else
 	{
-		for (int i=iknot_vect.size()-1;i>0;--i){
+		for (int i=knot_vect_size-1;i>0;--i){
 			if (iknot_vect[i] != iknot_vect[i-1])
 				{ipos_i = i-1; break;}
 		}
