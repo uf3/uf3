@@ -1,7 +1,4 @@
-This document describes how to use UF3 potentials in lammps_ MD code. See the tungsten_example_ directory for an example of lammps input file and UF3 lammps potential files.
-
-.. _lammps: https://www.lammps.org/
-   .. _tungsten_example: https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/tungsten_example
+This document describes how to use UF3 potentials in `lammps <https://www.lammps.org/>`_ MD code. See the `tungsten_example_ <https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/tungsten_example>`_ directory for an example of lammps input file and UF3 lammps potential files.
 
 Compiling lammps with UF3 library
 -----
