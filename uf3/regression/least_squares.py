@@ -249,8 +249,12 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
-            energy_weight = 1 / len(y_e) / np.std(y_e)
-            force_weight = 1 / len(y_f) / np.std(y_f)
+            try:
+                energy_weight = 1 / len(y_e) / np.std(y_e)
+                force_weight = 1 / len(y_f) / np.std(y_f)
+            except ZeroDivisionError:
+                energy_weight = 1.0
+                force_weight = 1 / len(y_f)
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
