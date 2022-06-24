@@ -464,6 +464,15 @@ class WeightedLinearModel(BasicLinearModel):
         knots_map = self.bspline_config.knots_map
         return dict(coefficients=solution, knots=knots_map)
 
+    def save_full(self):
+        """Save decompressed coefficients for LAMMPS."""
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        knots_map = self.bspline_config.knots_map
+        for trio in self.bspline_config.interactions_map[3]:
+            solution[trio] = self.bspline_config.decompress_3b(solution[trio],
+                                                               trio)
+        return dict(coefficients=solution, knots=knots_map)
+
     def load(self,
              solution: Dict[Tuple[str], np.ndarray] = None,
              filename: str = None,
