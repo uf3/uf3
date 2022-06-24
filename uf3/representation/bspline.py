@@ -571,8 +571,6 @@ def get_knot_spacer(knot_strategy):
         spacing_function = generate_geometric_knots
     elif knot_strategy == 'inverse':
         spacing_function = generate_inv_knots
-    elif knot_strategy == 'custom':
-        pass
     else:
         raise ValueError('Invalid value of knot_strategy:', knot_strategy)
     return spacing_function
