@@ -514,12 +514,9 @@ def construct_trio_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
     for trio in trio_tuples:
         knot_sequence = bspline_config.knots_map[trio]
         c_compressed = coefficient_sets[trio]
-
-        c_deweighted = c_compressed * bspline_config.flat_weights[trio]
-        c_decompressed = bspline_config.decompress_3B(c_deweighted, trio)
-        c_symmetrized = c_decompressed + c_decompressed.transpose(1, 0, 2)
+        c_decompressed = bspline_config.decompress_3B(c_compressed, trio)
         bspline_field = ndsplines.NDSpline(knot_sequence,
-                                           c_symmetrized,
+                                           c_decompressed,
                                            3,  # cubic BSpline
                                            extrapolate=False)
         potentials[trio] = bspline_field
