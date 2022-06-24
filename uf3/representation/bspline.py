@@ -755,7 +755,10 @@ def find_spline_indices(points: np.ndarray,
     # identify basis function "center" per point
     idx = np.searchsorted(knot_sequence, points, side='left') - 1 - 3
     # tile to identify four non-zero basis functions per point
-    offsets = np.tile([0, 1, 2, 3], len(points))
+    offsets = np.zeros(len(points) * 4, dtype=numba.int64)
+    for i in range(4):
+        offsets[i::4] = i
+    # offsets = np.tile([0, 1, 2, 3], len(points))
     idx = np.repeat(idx, 4) + offsets
     points = np.repeat(points, 4)
     return points, idx
