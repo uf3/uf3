@@ -240,3 +240,82 @@ def visualize_splines(coefficients,
     ax.set_xlabel("r")
     ax.set_ylabel("B(r)")
     return fig, ax
+
+
+def visualize_basis_functions(coefficients,
+                              knot_sequence,
+                              ax=None,
+                              cmap=None):
+    r_min = knot_sequence[0]
+    r_max = knot_sequence[-1]
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+    if cmap is None:
+        cmap = cm.gnuplot
+    colors = cmap(np.linspace(0, 1, len(coefficients)))
+    x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+
+    for i, c in enumerate(coefficients):
+        kn = knot_sequence[i:i + 5]
+        kno = np.concatenate([np.repeat(kn[0], 3),
+                              kn,
+                              np.repeat(kn[-1], 3)])
+        bs = interpolate.BSpline(kno,
+                                 np.array([0, 0, 0, c, 0, 0, 0]),
+                                 3,
+                                 extrapolate=False)
+        y_plot = bs(x_plot)
+
+        ax.plot(x_plot,
+                y_plot,
+                color=colors[i],
+                linewidth=1)
+        y_plot[np.isnan(y_plot)] = 0
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
+    ax.set_xlim(r_min, r_max)
+    ax.set_ylim(s_min, s_max)
+    ax.set_xlabel("r")
+    ax.set_ylabel("B(r)")
+    return fig, ax
+
+
+def visualize_pair_potential(coefficients,
+                             knot_sequence,
+                             ax=None,
+                             **kwargs):
+    r_min = knot_sequence[0]
+    r_max = knot_sequence[-1]
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+    x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+    for i, c in enumerate(coefficients):
+        kn = knot_sequence[i:i + 5]
+        kno = np.concatenate([np.repeat(kn[0], 3),
+                              kn,
+                              np.repeat(kn[-1], 3)])
+        bs = interpolate.BSpline(kno,
+                                 np.array([0, 0, 0, c, 0, 0, 0]),
+                                 3,
+                                 extrapolate=False)
+        y_plot = bs(x_plot)
+        y_plot[np.isnan(y_plot)] = 0
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
+    ax.plot(x_plot, y_total,
+            **kwargs)
+    ax.set_xlim(r_min, r_max)
+    ax.set_ylim(s_min, s_max)
+    ax.set_xlabel("r")
+    ax.set_ylabel("B(r)")
+    return fig, ax
