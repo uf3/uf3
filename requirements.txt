@@ -5,6 +5,6 @@ ase
 pandas
 pyyaml
 matplotlib
-ndsplines
+ndsplines==0.1.2
 tables
 asdf
