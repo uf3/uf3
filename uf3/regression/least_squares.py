@@ -469,7 +469,7 @@ class WeightedLinearModel(BasicLinearModel):
         solution = arrange_coefficients(self.coefficients, self.bspline_config)
         knots_map = self.bspline_config.knots_map
         for trio in self.bspline_config.interactions_map[3]:
-            solution[trio] = self.bspline_config.decompress_3b(solution[trio],
+            solution[trio] = self.bspline_config.decompress_3B(solution[trio],
                                                                trio)
         return dict(coefficients=solution, knots=knots_map)
 
