@@ -111,7 +111,8 @@ class ChemicalSystem:
         interactions_map[1] = self.element_list
         cwr = itertools.combinations_with_replacement(self.element_list, 2)
         cwr = [sort_interaction_symbols(symbols) for symbols in cwr]
-        interactions_map[2] = sorted(cwr)
+        interactions_map[2] = sorted(cwr,
+                                     key=lambda c: [reference_X[x] for x in c])
         for d in range(3, self.degree + 1):
             combinations = get_element_combinations(self.element_list, d)
             interactions_map[d] = combinations
