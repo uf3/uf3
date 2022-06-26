@@ -153,6 +153,12 @@ void PairUF3::allocate()
     memory->create(setflag_3b,num_of_elements+1,num_of_elements+1,num_of_elements+1,"pair:setflag_3b");
     //Contains info about 3-body cutoff distance for type i, j and k
     memory->create(cut_3b,num_of_elements+1,num_of_elements+1,"pair:cut_3b");
+    //setting cut_3b and setflag = 0
+    for(int i =1; i<num_of_elements+1; i++){
+      for(int j =1; j<num_of_elements+1; j++){
+        cut_3b[i][j] = 0;
+      }
+    }
     n3b_knot_matrix.resize(num_of_elements+1);
     UFBS3b.resize(num_of_elements+1);
     for(int i =1; i<num_of_elements+1; i++){
@@ -245,10 +251,11 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
 					potf_name,temp_type1,temp_type2,temp_type3);
     
     cut3b_rjk = fp3rd_line.next_double();
-    cut_3b[temp_type1][temp_type2] = std::max(fp3rd_line.next_double(),
+    cut3b_rij = fp3rd_line.next_double();
+    cut_3b[temp_type1][temp_type2] = std::max(cut3b_rij,
 					cut_3b[temp_type1][temp_type2]);
     cut3b_rik = fp3rd_line.next_double();
-    if (cut_3b[temp_type1][temp_type2]!=cut3b_rik){
+    if (cut3b_rij!=cut3b_rik){
       error->all(FLERR, "UF3: rij!=rik, Current implementation only works for rij=rik");
     }
     if (2*cut3b_rik!=cut3b_rjk){

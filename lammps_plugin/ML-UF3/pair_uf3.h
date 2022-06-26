@@ -47,7 +47,7 @@ class PairUF3 : public Pair {
   int coeff_matrix_dim1, coeff_matrix_dim2, coeff_matrix_dim3, coeff_matrix_elements_len;
   bool pot_3b;
   int ***setflag_3b;
-  double **cutsq_2b, **cut_3b, cut3b_rjk, cut3b_rik;
+  double **cutsq_2b, **cut_3b, cut3b_rjk, cut3b_rij, cut3b_rik;
   virtual void allocate();
   std::vector<std::vector<std::vector<double>>> n2b_knot, n2b_coeff;
   std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> n3b_knot_matrix;
