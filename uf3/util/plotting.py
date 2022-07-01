@@ -5,6 +5,7 @@ from matplotlib import axes
 from scipy import stats
 from scipy import interpolate
 from scipy import linalg
+from uf3.util import cubehelix
 
 
 def round_lims(values, round_factor=0.5):
@@ -90,7 +91,7 @@ def density_scatter(references,
     if 's' not in scatter_kwargs.keys():
         scatter_kwargs['s'] = 1  # default marker size
     if cmap is None:
-        cmap = cm.viridis
+        cmap = cubehelix.c_rainbow
     x = np.array(references)
     y = np.array(predictions)
     # Compute metrics, e.g. RMSE, before selecting random subset.
@@ -198,7 +199,7 @@ def visualize_splines(coefficients,
     else:
         fig = ax.get_figure()
     if cmap is None:
-        cmap = cm.gnuplot
+        cmap = cubehelix.c_rainbow
     colors = cmap(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
     basis_components = []
@@ -222,19 +223,13 @@ def visualize_splines(coefficients,
         y_plot[np.isnan(y_plot)] = 0
         basis_components.append(y_plot)
     y_total = np.sum(basis_components, axis=0)
-    # bs_t = interpolate.BSpline(knot_sequence,
-    #                            coefficients,
-    #                            3,
-    #                            extrapolate=False)
-    # y_total = bs_t(x_plot)
     s_min = np.min(y_total[~np.isnan(y_total)])
     s_max = np.max(y_total[~np.isnan(y_total)])
     if show_total:
-        # ax.plot(x_plot, bs_t(x_plot),
-        ax.plot(x_plot, y_total,
+        ax.plot(x_plot,
+                y_total,
                 c='k',
-                linewidth=2,
-                linestyle=(0, (1, 1)))
+                linewidth=2)
     ax.set_xlim(r_min, r_max)
     ax.set_ylim(s_min, s_max)
     ax.set_xlabel("r")
@@ -253,7 +248,7 @@ def visualize_basis_functions(coefficients,
     else:
         fig = ax.get_figure()
     if cmap is None:
-        cmap = cm.gnuplot
+        cmap = cubehelix.c_rainbow
     colors = cmap(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
     basis_components = []
@@ -295,6 +290,9 @@ def visualize_pair_potential(coefficients,
         fig, ax = plt.subplots()
     else:
         fig = ax.get_figure()
+    if "linewidth" not in kwargs:
+        kwargs["linewidth"] = 2
+
     x_plot = np.linspace(r_min, r_max, 1000)
     basis_components = []
     for i, c in enumerate(coefficients):
