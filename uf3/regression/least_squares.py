@@ -252,7 +252,7 @@ class WeightedLinearModel(BasicLinearModel):
             try:
                 energy_weight = 1 / len(y_e) / np.std(y_e)
                 force_weight = 1 / len(y_f) / np.std(y_f)
-            except ZeroDivisionError:
+            except (ZeroDivisionError, FloatingPointError):
                 energy_weight = 1.0
                 force_weight = 1 / len(y_f)
             x_f, y_f = freeze_columns(x_f,
