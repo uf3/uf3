@@ -292,6 +292,8 @@ def visualize_pair_potential(coefficients,
         fig = ax.get_figure()
     if "linewidth" not in kwargs:
         kwargs["linewidth"] = 2
+    if "color" not in kwargs:
+        kwargs["color"] = "black"
 
     x_plot = np.linspace(r_min, r_max, 1000)
     basis_components = []
@@ -310,10 +312,58 @@ def visualize_pair_potential(coefficients,
     y_total = np.sum(basis_components, axis=0)
     s_min = np.min(y_total[~np.isnan(y_total)])
     s_max = np.max(y_total[~np.isnan(y_total)])
-    ax.plot(x_plot, y_total,
+    ax.plot(x_plot,
+            y_total,
             **kwargs)
     ax.set_xlim(r_min, r_max)
     ax.set_ylim(s_min, s_max)
     ax.set_xlabel("r")
     ax.set_ylabel("B(r)")
     return fig, ax
+
+
+def plot_pair_distributions(analysis,
+                            pair_order=None,
+                            x_max=None,
+                            y_max=2.0,
+                            show_cutoffs=False,
+                            figsize=(3.5, 3),
+                            dpi=100):
+    frequencies = analysis["rdfs"]
+    bin_edges = analysis["bin_edges"]
+    valleys = analysis["valleys"]
+    if pair_order is None:
+        pair_order = list(frequencies.keys())
+    if x_max is None:
+        x_max = bin_edges[-1]
+    bar_width = bin_edges[1] - bin_edges[0]
+    canvases = []
+    for i, pair in enumerate(pair_order):
+        fig, ax = plt.subplots(figsize=figsize,
+                               dpi=dpi)
+        ax.set_title(" - ".join(pair))
+        ax.set_xlim(0, x_max)
+        if y_max is None:
+            vector = frequencies[pair]
+            vector = vector[np.nonzero(vector)]
+            y_lim = np.mean(vector) * 2
+        else:
+            y_lim = y_max
+        ax.set_ylim(0, y_lim)
+        ax.bar(bin_edges[:-1],
+               frequencies[pair],
+               width=bar_width)
+        ax.plot([0, x_max],
+                [1.0, 1.0],
+                linestyle='--',
+                color='k')
+        if show_cutoffs:
+            ax.vlines(valleys.get(pair, []),
+                      0,
+                      y_lim,
+                      color="orange",
+                      linestyle=":")
+        ax.set_xlabel("Pair distance (angstroms)")
+        ax.set_ylabel("Normalized Frequency")
+        canvases.append((fig, ax))
+    return canvases
