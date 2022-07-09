@@ -364,6 +364,7 @@ class WeightedLinearModel(BasicLinearModel):
                       subset: Collection,
                       weight: float = 0.5,
                       batch_size=2500,
+                      sample_weights: Dict = None,
                       energy_key="energy",
                       progress: str = "bar"):
         """
@@ -377,6 +378,7 @@ class WeightedLinearModel(BasicLinearModel):
                 vs. forces. Higher values favor energies; defaults to 0.5.
             batch_size (int): batch size, in rows, for matrix multiplication
                 operations in constructing gram matrices.
+            sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             progress (str): style for progress indicators.
         """
@@ -394,12 +396,14 @@ class WeightedLinearModel(BasicLinearModel):
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
-            g_e, g_f, o_e, o_f = self.gram_from_df(df,
-                                                   keys,
-                                                   e_variance=e_variance,
-                                                   f_variance=f_variance,
-                                                   energy_key=energy_key,
-                                                   batch_size=batch_size)
+            intermediates = self.gram_from_df(df,
+                                              keys,
+                                              e_variance=e_variance,
+                                              f_variance=f_variance,
+                                              sample_weights=sample_weights,
+                                              energy_key=energy_key,
+                                              batch_size=batch_size)
+            g_e, g_f, o_e, o_f = intermediates
             gram_e += g_e
             gram_f += g_f
             ord_e += o_e
@@ -429,6 +433,7 @@ class WeightedLinearModel(BasicLinearModel):
                      keys: Collection,
                      e_variance: VarianceRecorder = None,
                      f_variance: VarianceRecorder = None,
+                     sample_weights: Dict = None,
                      energy_key: str = "energy",
                      batch_size: int = 2500):
         """
@@ -442,6 +447,7 @@ class WeightedLinearModel(BasicLinearModel):
                 statistics for energies (mean and variance).
             f_variance (VarianceRecorder): handler for accumulating
                 statistics for forces (mean and variance).
+            sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             batch_size (int): batch size, in rows, for matrix multiplication
                 operations in constructing gram matrices.
@@ -449,7 +455,8 @@ class WeightedLinearModel(BasicLinearModel):
         n_elements = len(self.bspline_config.element_list)
         x_e, y_e, x_f, y_f = dataframe_to_tuples(df.loc[keys],
                                                  n_elements=n_elements,
-                                                 energy_key=energy_key)
+                                                 energy_key=energy_key,
+                                                 sample_weights=sample_weights)
         x_e, y_e = freeze_columns(x_e,
                                   y_e,
                                   self.mask,
@@ -642,7 +649,8 @@ def get_spline_taylor_expansion(r_target,
 
 def dataframe_to_tuples(df_features,
                         n_elements=None,
-                        energy_key='energy'):
+                        energy_key='energy',
+                        sample_weights=None):
     """
     Extract energy/force inputs/outputs from DataFrame.
 
@@ -653,6 +661,7 @@ def dataframe_to_tuples(df_features,
             normalization.
         energy_key (str): key for energy samples, used to slice df_features
             into energies and forces for weight generation.
+        sample_weights (dict):
 
     Returns:
         x (np.ndarray): features for machine learning.
@@ -662,6 +671,7 @@ def dataframe_to_tuples(df_features,
     if len(df_features) <= 1:
         raise ValueError(
             "Not enough samples ({} provided)".format(len(df_features)))
+    names = df_features.index.get_level_values(0)
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
     force_mask = np.logical_not(energy_mask)
@@ -678,6 +688,15 @@ def dataframe_to_tuples(df_features,
     else:
         x_e = x[energy_mask]
     x_f = x[force_mask]
+
+    if sample_weights is not None:
+        w = np.array([sample_weights.get(name, 1.0) for name in names])
+        w_e = w[energy_mask]
+        w_f = w[force_mask]
+        x_e = np.multiply(x_e.T, w_e).T
+        y_e = np.multiply(y_e, w_e)
+        x_f = np.multiply(x_f.T, w_f).T
+        y_f = np.multiply(y_f, w_f)
     return x_e, y_e, x_f, y_f
 
 
