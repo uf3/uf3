@@ -85,6 +85,12 @@ class ChemicalSystem:
                    ]
         if self.degree > 2:
             summary.append(f"    Trios: {self.interactions_map[3]}")
+        # summary.append("    Hashes:")
+        # for n in range(2, self.degree + 1):
+        #     element_combinations = self.interactions_map[n]
+        #     hash_list = self.interaction_hashes[n]
+        #     for k, v in zip(element_combinations, hash_list):
+        #         summary.append(" " * 8 + f"{str(k)}: {str(v)}")
         return "\n".join(summary)
 
     def __str__(self):
@@ -327,3 +333,16 @@ def hash_gather(values, hashes):
         pair_dists = values[pair_mask]
         value_ref[int(pair)] = pair_dists
     return value_ref
+
+
+def symbols_to_hash(symbols):
+    numbers = [ase_symbols.atomic_numbers[symbol]
+               for symbol in symbols]
+    numbers = np.array([numbers])
+    return get_szudzik_hash(numbers)[0]
+
+
+def hash_to_symbols(hash_, n=2):
+    pair = unpack_szudzik_hash([hash_], n)[0]
+    return tuple([ase_symbols.chemical_symbols[int(idx)]
+                  for idx in pair])
