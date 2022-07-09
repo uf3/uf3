@@ -17,6 +17,7 @@ If compiling lammps with :code:`CMake`, add the :code:`ML-UF3` keyword to :code:
 
  cd LAMMPS_BASE_DIR/build
  cmake ../cmake/ -D PKG_ML-UF3=yes
+ cmake --build .
 
 This will compile lammps with support for UF3 potentials. For more information on how to build lammps see this link_.
 

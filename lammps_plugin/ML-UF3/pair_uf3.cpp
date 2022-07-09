@@ -51,6 +51,7 @@ PairUF3::~PairUF3()
     if (pot_3b){
     memory->destroy(setflag_3b);
     memory->destroy(cut_3b);
+    memory->destroy(cut_3b_list);
     memory->destroy(neighshort);
     }
   }
@@ -152,11 +153,15 @@ void PairUF3::allocate()
     //Contains info about wether UF potential were found for type i, j and k
     memory->create(setflag_3b,num_of_elements+1,num_of_elements+1,num_of_elements+1,"pair:setflag_3b");
     //Contains info about 3-body cutoff distance for type i, j and k
-    memory->create(cut_3b,num_of_elements+1,num_of_elements+1,"pair:cut_3b");
+    memory->create(cut_3b,num_of_elements+1,num_of_elements+1,num_of_elements+1,"pair:cut_3b");
+    //Contains info about 3-body cutoff distance for type i, j and k
+    //for constructing 3-body list
+    memory->create(cut_3b_list,num_of_elements+1,num_of_elements+1,"pair:cut_3b_list");
     //setting cut_3b and setflag = 0
     for(int i =1; i<num_of_elements+1; i++){
       for(int j =1; j<num_of_elements+1; j++){
-        cut_3b[i][j] = 0;
+        cut_3b_list[i][j] = 0;
+        for(int k=1;k<num_of_elements+1; k++) cut_3b[i][j][k] = 0;
       }
     }
     n3b_knot_matrix.resize(num_of_elements+1);
@@ -252,8 +257,10 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     
     cut3b_rjk = fp3rd_line.next_double();
     cut3b_rij = fp3rd_line.next_double();
-    cut_3b[temp_type1][temp_type2] = std::max(cut3b_rij,
-					cut_3b[temp_type1][temp_type2]);
+    //cut_3b[temp_type1][temp_type2] = std::max(cut3b_rij,
+					//cut_3b[temp_type1][temp_type2]);
+    cut_3b_list[temp_type1][temp_type2] = std::max(cut3b_rij,
+					cut_3b_list[temp_type1][temp_type2]);
     cut3b_rik = fp3rd_line.next_double();
     if (cut3b_rij!=cut3b_rik){
       error->all(FLERR, "UF3: rij!=rik, Current implementation only works for rij=rik");
@@ -261,7 +268,10 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     if (2*cut3b_rik!=cut3b_rjk){
       error->all(FLERR, "UF3: 2rij=2rik!=rik, Current implementation only works for 2rij=2rik!=rik");
     }
-    cut_3b[temp_type1][temp_type3] = std::max(cut_3b[temp_type1][temp_type3],cut3b_rik);
+    //cut_3b[temp_type1][temp_type3] = std::max(cut_3b[temp_type1][temp_type3],cut3b_rik);
+    cut_3b_list[temp_type1][temp_type3] = std::max(cut_3b_list[temp_type1][temp_type3],cut3b_rik);
+    cut_3b[temp_type1][temp_type2][temp_type3] = cut3b_rij;
+    cut_3b[temp_type1][temp_type3][temp_type2] = cut3b_rik;
     
     temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
@@ -429,16 +439,20 @@ void PairUF3::compute(int eflag, int vflag)
       j = jlist[jj];
       j &= NEIGHMASK;
       
-      delx = x[j][0] - xtmp;
-      dely = x[j][1] - ytmp;
-      delz = x[j][2] - ztmp;
+      //delx = x[j][0] - xtmp;
+      delx = xtmp - x[j][0];
+      //dely = x[j][1] - ytmp;
+      dely = ytmp - x[j][1];
+      //delz = x[j][2] - ztmp;
+      delz = ztmp - x[j][2];
+
       rsq = delx * delx + dely * dely + delz * delz;
       jtype = type[j];
       if (rsq < cutsq[itype][jtype]) {
         rij = sqrt(rsq);
 
         if (pot_3b){
-          if (rij<=cut_3b[itype][jtype]){
+          if (rij<=cut_3b_list[itype][jtype]){
             neighshort[numshort] = j;
             if (numshort >= maxshort-1) {
               maxshort += maxshort/2;
@@ -448,7 +462,7 @@ void PairUF3::compute(int eflag, int vflag)
           }
         }
         
-        fpair = UFBS2b[itype][jtype].bsderivative(rij)/rij;
+        fpair = -1*UFBS2b[itype][jtype].bsderivative(rij)/rij;
         
         fx = delx * fpair;
         fy = dely * fpair;
@@ -484,6 +498,7 @@ void PairUF3::compute(int eflag, int vflag)
 
       //kth atom
       for(kk = jj+1; kk<numshort; kk++){
+        
         fik[0] = fki[0] = 0;
         fik[1] = fki[1] = 0;
         fik[2] = fki[2] = 0;
@@ -498,6 +513,8 @@ void PairUF3::compute(int eflag, int vflag)
         del_rki[1] = x[k][1] - ytmp;
         del_rki[2] = x[k][2] - ztmp;
         rik = sqrt(((del_rki[0]*del_rki[0])+(del_rki[1]*del_rki[1])+(del_rki[2]*del_rki[2])));
+
+        if ((rij <= cut_3b[itype][jtype][ktype]) && (rik <= cut_3b[itype][ktype][jtype])){
         
         del_rkj[0] = x[k][0] - x[j][0];
         del_rkj[1] = x[k][1] - x[j][1];
@@ -551,7 +568,7 @@ void PairUF3::compute(int eflag, int vflag)
         if (evflag) {
           ev_tally3(i,j,k, evdwl, 0, Fj, Fk, del_rji, del_rki);
         }
-
+      }
       }
     } 
   }
