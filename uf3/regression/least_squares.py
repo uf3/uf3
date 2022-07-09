@@ -152,9 +152,24 @@ class WeightedLinearModel(BasicLinearModel):
     Handler class for regularized linear least squares using energies and
     forces and basis set provided by bspline.BsplineBasis.
     """
-    def __init__(self, bspline_config, regularizer=None, **params):
+    def __init__(self,
+                 bspline_config,
+                 regularizer=None,
+                 data_coverage=None,
+                 **params):
         super().__init__(regularizer)
         self.bspline_config = bspline_config
+        n_basis = np.sum(self.bspline_config.get_feature_partition_sizes())
+        if data_coverage is not None:
+            if len(data_coverage) == n_basis:
+                self.data_coverage = data_coverage
+            else:
+                raise ValueError(
+                    f"Incorrect data_coverage shape: "
+                    f"{len(data_coverage)} != {n_basis}"
+                )
+        else:
+            self.data_coverage = np.zeros(n_basis, dtype=bool)
 
         if self.regularizer is None:
             # initialize regularizer matrix if unspecified.
@@ -244,6 +259,13 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x)
             ordinate (np.ndarray: ordinate (x^T y)
         """
+        data_coverage = (np.sum(gram, axis=0) != 0)
+        data_coverage = revert_frozen_coefficients(data_coverage,
+                                                   self.n_feats,
+                                                   self.mask,
+                                                   self.frozen_c,
+                                                   self.col_idx)
+        self.data_coverage = np.logical_or(self.data_coverage, data_coverage)
         regularizer = freeze_regularizer(self.regularizer, self.mask)
         regularizer = np.dot(regularizer.T, regularizer)
         coefficients = lu_factorization(gram + regularizer, ordinate)
@@ -452,7 +474,7 @@ class WeightedLinearModel(BasicLinearModel):
     def batched_predict(self,
                         filename: str,
                         keys: List[str] = None,
-                        table_names: List[str]=None,
+                        table_names: List[str] = None,
                         score: bool = True):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
@@ -575,6 +597,47 @@ class WeightedLinearModel(BasicLinearModel):
             raise ValueError(error_line)
         self.coefficients = np.array(flattened_coefficients)
 
+    def fix_repulsion_2b(self, pair, r_target=None, min_curvature=2.0):
+        components = self.bspline_config.get_interaction_partitions()
+        component_sizes, component_offsets = components
+        offset = component_offsets[pair]
+        n_basis = component_sizes[pair]
+        idx_subset = np.arange(offset, offset + n_basis)
+        c_subset = self.coefficients[idx_subset]
+        coverage = self.data_coverage[idx_subset]
+        min_coverage = np.argmax(coverage == True)
+        if min_coverage == 0:
+            print(f"Coverage is sufficient; no fix applied to {pair}.")
+        idx_fix = np.arange(self.bspline_config.leading_trim, min_coverage)
+
+        knot_sequence = self.bspline_config.knots_map[pair]
+        r_centers = knot_sequence[2: n_basis + 2]
+        if r_target is None:
+            r_target = r_centers[min_coverage]
+        r_centers = r_centers[idx_fix]
+        c_new = get_spline_taylor_expansion(r_target,
+                                            r_centers,
+                                            c_subset,
+                                            knot_sequence,
+                                            min_curvature=min_curvature)
+        print(f"{pair} Correction: adjusted {len(idx_fix)} coefficients.")
+        self.coefficients[idx_subset[idx_fix]] = c_new
+
+
+def get_spline_taylor_expansion(r_target,
+                                r,
+                                coefficients,
+                                knot_sequence,
+                                min_curvature=0.0):
+    nd3 = ndsplines.NDSpline([knot_sequence], coefficients, 3)
+    y_trace = nd3(r_target, nus=0)
+    d1_trace = nd3(r_target, nus=1)
+    d2_trace = nd3(r_target, nus=2)
+    if min_curvature is not None:
+        d2_trace = max(d2_trace, min_curvature)
+    dr = r - r_target
+    y = y_trace + (d1_trace * dr) + (0.5 * d2_trace * dr ** 2)
+    return y
 
 
 def dataframe_to_tuples(df_features,
