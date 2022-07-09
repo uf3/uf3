@@ -445,6 +445,20 @@ class BSplineBasis:
             component_offsets[interaction] = offsets[j]
         return component_sizes, component_offsets
 
+    def get_column_names(self):
+        composition_columns = ['n_{}'.format(el) for el
+                               in self.element_list]
+        feature_columns = []
+        sizes = self.get_interaction_partitions()[0]
+        for n in range(2, self.degree + 1):
+            for interaction in self.interactions_map[n]:
+                size = sizes[interaction]
+                interaction = "".join(interaction)
+                names = [interaction + str(i) for i in range(size)]
+                feature_columns.extend(names)
+        column_names = ["y"] + composition_columns + feature_columns
+        return column_names
+
     def generate_frozen_indices(self,
                                 offset_1b: bool = True,
                                 n_lead: int = 0,

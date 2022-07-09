@@ -36,12 +36,7 @@ class BasisFeaturizer:
         self.prefix = prefix
 
         # generate column labels
-        self.n_features = sum(self.partition_sizes) - len(self.element_list)
-        feature_columns = ['{}_{}'.format(prefix, i)
-                           for i in range(self.n_features)]
-        composition_columns = ['n_{}'.format(el) for el
-                               in self.element_list]
-        self.columns = ["y"] + composition_columns + feature_columns
+        self.columns = self.bspline_config.get_column_names()
 
     @property
     def chemical_system(self):

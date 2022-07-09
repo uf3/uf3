@@ -54,7 +54,6 @@ class TestBasis:
         assert bspline_handler.r_cut == 8.0
         assert len(bspline_handler.knots_map[('Ar', 'Ar')]) == 22
         assert len(bspline_handler.basis_functions[('Ar', 'Ar')]) == 18
-        assert bspline_handler.n_features == 18  # 20 + 3
         assert len(bspline_handler.columns) == 20  # 1 + 23 + 1
 
     def test_energy_features(self, unary_chemistry, simple_molecule):
