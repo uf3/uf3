@@ -79,10 +79,12 @@ class BSplineBasis:
 
     @staticmethod
     def from_config(config):
+        return BSplineBasis.from_dict(config)
+
+    @staticmethod
+    def from_dict(config):
         """Instantiate from configuration dictionary"""
-        if "chemical_system" not in config:
-            raise ValueError("No chemical system specified.")
-        chemical_system = config["chemical_system"]
+        chemical_system = composition.ChemicalSystem.from_dict(config)
         basis_settings = dict()
         if "knots_path" in config and config["load_knots"]:
             knots_fname = config["knots_path"]
@@ -102,9 +104,14 @@ class BSplineBasis:
                 basis_settings[alias] = config[key]
             if alias in config:  # higher priority in case of duplicate
                 basis_settings[alias] = config[alias]
-        keys = ["leading_trim",
+        keys = ["r_min_map",
+                "r_max_map",
+                "resolution_map",
+                "knot_strategy",
+                "offset_1b",
+                "leading_trim",
                 "trailing_trim",
-                "knot_strategy"]
+                "knots_map"]
         basis_settings.update({k: v for k, v in config.items() if k in keys})
         bspline_config = BSplineBasis(chemical_system, **basis_settings)
         if "knots_path" in config and config["dump_knots"]:
@@ -113,6 +120,15 @@ class BSplineBasis:
                                          filename=config["knots_path"],
                                          write=True)
         return bspline_config
+
+    def as_dict(self):
+        dump = dict(knot_strategy=self.knot_strategy,
+                    offset_1b=self.offset_1b,
+                    leading_trim=self.leading_trim,
+                    trailing_trim=self.trailing_trim,
+                    knots_map=self.knots_map,
+                    **self.chemical_system.as_dict())
+        return dump
 
     @property
     def degree(self):
@@ -136,9 +152,13 @@ class BSplineBasis:
 
     def __repr__(self):
         summary = ["BSplineBasis:",
-                   f"    Basis functions: {self.n_feats}",
-                   self.chemical_system.__repr__()
-                   ]
+                   f"    Basis functions:"]
+        sizes = self.get_interaction_partitions()[0]
+        for n in range(2, self.degree + 1):
+            for interaction in self.interactions_map[n]:
+                size = sizes[interaction]
+                summary.append(" " * 8 + f"{str(interaction)}: {size:d}")
+        summary.append(self.chemical_system.__repr__())
         return "\n".join(summary)
 
     def __str__(self):
@@ -229,7 +249,7 @@ class BSplineBasis:
         """"""
         for pair in self.interactions_map.get(2, []):
             if pair in knots_map:
-                knot_sequence = knots_map[pair]
+                knot_sequence = np.array(knots_map[pair])
                 self.knots_map[pair] = knot_sequence
                 self.r_min_map[pair] = knot_sequence[0]
                 self.r_max_map[pair] = knot_sequence[-1]
@@ -262,6 +282,9 @@ class BSplineBasis:
                         l_sequence = knot_sequence[0]
                         m_sequence = knot_sequence[1]
                         n_sequence = knot_sequence[2]
+                l_sequence = np.array(l_sequence)
+                m_sequence = np.array(m_sequence)
+                n_sequence = np.array(n_sequence)
                 self.knots_map[trio] = [l_sequence,
                                         m_sequence,
                                         n_sequence]
@@ -287,6 +310,8 @@ class BSplineBasis:
                 n_intervals = self.resolution_map[pair]
                 knot_sequence = self.knot_spacer(r_min, r_max, n_intervals)
                 # knot_sequence[knot_sequence == 0] = 1e-6
+                if r_min is None:
+                    self.r_min_map[pair] = knot_sequence[0]
                 self.knots_map[pair] = knot_sequence
             subintervals = get_knot_subintervals(self.knots_map[pair])
             self.knot_subintervals[pair] = subintervals

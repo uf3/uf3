@@ -61,12 +61,21 @@ class ChemicalSystem:
         self.interaction_hashes = self.get_interaction_hashes()
 
     @staticmethod
-    def from_config(config: Dict[Any, Any]):
+    def from_config(config):
+        return ChemicalSystem.from_dict(config)
+
+    @staticmethod
+    def from_dict(config: Dict[Any, Any]):
         """Instantiate from configuration dictionary"""
         keys = ['element_list',
                 'degree']
-        config = {k: v for k, v in config.items() if k in keys}
+        config = {k: config[k] for k in keys}
         return ChemicalSystem(**config)
+
+    def as_dict(self):
+        dump = dict(element_list=self.element_list,
+                    degree=self.degree)
+        return dump
 
     def __repr__(self):
         summary = ["ChemicalSystem:",

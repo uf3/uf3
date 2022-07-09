@@ -5,8 +5,10 @@ from featurized DataFrames using regularized least squares.
 
 from typing import List, Dict, Collection, Tuple
 import os
+import warnings
 import numpy as np
 import pandas as pd
+import ndsplines
 from uf3.representation import bspline, process
 from uf3.data import io
 from uf3.util import json_io
@@ -170,6 +172,38 @@ class WeightedLinearModel(BasicLinearModel):
                           if isinstance(v, (int, float, np.floating))}
             reg = self.bspline_config.get_regularization_matrix(**reg_params)
             self.regularizer = reg
+
+    @staticmethod
+    def from_config(config):
+        return WeightedLinearModel.from_dict(config)
+
+    @staticmethod
+    def from_dict(config):
+        bspline_config = bspline.BSplineBasis.from_dict(config)
+        regularizer = config.get("regularizer", None)
+        data_coverage = config.get("data_coverage", None)
+        model = WeightedLinearModel(bspline_config,
+                                    regularizer=regularizer,
+                                    data_coverage=data_coverage)
+        model.load(solution=config)
+        return model
+
+    @staticmethod
+    def from_file(filename):
+        dump = json_io.load_interaction_map(filename)
+        return WeightedLinearModel.from_dict(dump)
+
+    def as_dict(self):
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        for trio in self.bspline_config.interactions_map.get(3, []):
+            solution[trio] = self.bspline_config.decompress_3B(solution[trio],
+                                                               trio)
+        knots_map = self.bspline_config.knots_map
+        dump = dict(coefficients=solution,
+                    knots=knots_map,
+                    data_coverage=self.data_coverage,
+                    **self.bspline_config.as_dict())
+        return dump
 
     @property
     def n_feats(self):
@@ -454,27 +488,16 @@ class WeightedLinearModel(BasicLinearModel):
 
     def save(self, filename: str):
         """Save model (coefficients and knots map) to file."""
-        json_io.dump_interaction_map(self.dump(),
+        json_io.dump_interaction_map(self.as_dict(),
                                      filename=filename,
                                      write=True)
 
     def dump(self):
-        """Arrange coefficients/knots map into dictionary."""
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        return dict(coefficients=solution, knots=knots_map)
-
-    def save_full(self):
-        """Save decompressed coefficients for LAMMPS."""
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        for trio in self.bspline_config.interactions_map[3]:
-            solution[trio] = self.bspline_config.decompress_3B(solution[trio],
-                                                               trio)
-        return dict(coefficients=solution, knots=knots_map)
+        """Legacy alias"""
+        return self.as_dict()
 
     def load(self,
-             solution: Dict[Tuple[str], np.ndarray] = None,
+             solution: Dict = None,
              filename: str = None,
              ):
         """
@@ -487,10 +510,45 @@ class WeightedLinearModel(BasicLinearModel):
             filename (str): filename of json dump containing solution.
         """
         if filename is not None:
-            dump = json_io.load_interaction_map(filename)
-            solution = dump["coefficients"]
+            if solution is not None:
+                warnings.warn("Provided solutions ignored; loading file.")
+            solution = json_io.load_interaction_map(filename)
         elif solution is None:
             raise ValueError("Neither solution nor filename were provided.")
+        if "coefficients" in solution:
+            solution = solution["coefficients"]
+        elif "solution" in solution:
+            # TODO: proper deprecation
+            warnings.warn("'solution' should be renamed to 'coefficients'")
+            solution = solution["solution"]
+        # consistency check with bspline_config
+        component_len = self.bspline_config.get_interaction_partitions()[0]
+        for pair in self.bspline_config.interactions_map[2]:
+            n_target = component_len[pair]
+            if pair not in solution:
+                warnings.warn(f"{pair} not provided.")
+                solution[pair] = np.zeros(n_target)
+            n_provided = len(solution[pair])
+            if n_provided != n_target:
+                raise ValueError(
+                    f"Incorrect shape: {pair}, {n_provided} != {n_target}"
+                )
+        for trio in self.bspline_config.interactions_map.get(3, []):
+            n_target = len(component_len[trio])
+            if trio not in solution:
+                warnings.warn(f"{trio} not provided.")
+            if trio in solution:
+                # decompress if necessary
+                component = solution[trio]
+                if len(np.shape(component)) > 1:
+                    vector = self.bspline_config.compress_3B(component,
+                                                             trio)
+                    solution[trio] = vector
+            n_provided = len(solution[trio])
+            if n_provided != n_target:
+                raise ValueError(
+                    f"Incorrect shape: {trio}, {n_provided} != {n_target}"
+                )
         flattened_coefficients = []
         for element in self.bspline_config.element_list:
             value = solution[element]
