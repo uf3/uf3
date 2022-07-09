@@ -838,7 +838,8 @@ def get_knot_subintervals(knots: np.ndarray) -> List:
 def generate_uniform_knots(r_min: float,
                            r_max: float,
                            n_intervals: int,
-                           sequence: bool = True
+                           sequence: bool = True,
+                           offset: int = 3,
                            ) -> np.ndarray:
     """
     Generate evenly-spaced knot points or knot sequence.
@@ -853,6 +854,8 @@ def generate_uniform_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        r_min = -offset * (r_max - 0.0) / (n_intervals - offset)
     knots = np.linspace(r_min, r_max, n_intervals + 1)
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -878,6 +881,9 @@ def generate_inv_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.linspace(1/r_min, 1/r_max, n_intervals + 1)**-1
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -904,6 +910,9 @@ def generate_geometric_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.geomspace(r_min, r_max, n_intervals + 1)
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -933,6 +942,9 @@ def generate_lammps_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.linspace(r_min ** 2, r_max ** 2, n_intervals + 1) ** 0.5
     if sequence:
         knots = knot_sequence_from_points(knots)
