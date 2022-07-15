@@ -204,7 +204,8 @@ class WeightedLinearModel(BasicLinearModel):
         return model
 
     @staticmethod
-    def from_file(filename):
+    def from_json(filename):
+        """Load model (coefficients and knots map) from json file."""
         dump = json_io.load_interaction_map(filename)
         return WeightedLinearModel.from_dict(dump)
 
@@ -515,8 +516,8 @@ class WeightedLinearModel(BasicLinearModel):
         else:
             return y_e, p_e, y_f, p_f
 
-    def save(self, filename: str):
-        """Save model (coefficients and knots map) to file."""
+    def to_json(self, filename: str):
+        """Save model (coefficients and knots map) to json file."""
         json_io.dump_interaction_map(self.as_dict(),
                                      filename=filename,
                                      write=True)
