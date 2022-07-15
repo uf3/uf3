@@ -373,8 +373,15 @@ class BSplineBasis:
                 ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
             elif k.lower()[0] == 'c':
                 curvature_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
-        ridge_map = {1: 1e-8, 2: 0.0, 3: 0.0, **ridge_map}
-        curvature_map = {1: 0.0, 2: 1e-8, 3: 1e-8, **curvature_map}
+
+        ridge_map = {1: regularize.DEFAULT_REGULARIZER_GRID["ridge_1b"],
+                     2: regularize.DEFAULT_REGULARIZER_GRID["ridge_2b"],
+                     3: regularize.DEFAULT_REGULARIZER_GRID["ridge_3b"],
+                     **ridge_map}
+        curvature_map = {1: 0.0,
+                         2: regularize.DEFAULT_REGULARIZER_GRID["curve_2b"],
+                         3: regularize.DEFAULT_REGULARIZER_GRID["curve_3b"],
+                         **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
         matrix = regularize.get_regularizer_matrix(n_elements,

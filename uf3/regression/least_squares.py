@@ -15,13 +15,6 @@ from uf3.util import json_io
 from uf3.util import parallel
 
 
-DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
-                                ridge_2b=0.0,
-                                ridge_3b=1e-6,
-                                curve_2b=1e-8,
-                                curve_3b=1e-8)
-
-
 class VarianceRecorder:
     """Convenience class for computing online variance and mean"""
     def __init__(self, mean=0, std=0, n=0):
