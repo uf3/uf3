@@ -71,6 +71,8 @@ LAMMPS interface:
    conda install numpy==1.20.3 --force-reinstall
    conda install -c conda-forge lammps --no-update-deps
 
+The environment variable ``$ASE_LAMMPSRUN_COMMAND`` must also be set to use the LAMMPS interface within python. See the `ASE documentation <https://wiki.fysik.dtu.dk/ase/ase/calculators/lammpsrun.html>`_ for details.
+
 Dependencies
 ------------
 
