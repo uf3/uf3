@@ -563,12 +563,12 @@ class WeightedLinearModel(BasicLinearModel):
                     f"Incorrect shape: {pair}, {n_provided} != {n_target}"
                 )
         for trio in self.bspline_config.interactions_map.get(3, []):
-            n_target = len(component_len[trio])
+            n_target = component_len[trio]
             if trio not in solution:
                 warnings.warn(f"{trio} not provided.")
             if trio in solution:
                 # decompress if necessary
-                component = solution[trio]
+                component = np.array(solution[trio])
                 if len(np.shape(component)) > 1:
                     vector = self.bspline_config.compress_3B(component,
                                                              trio)
