@@ -37,9 +37,9 @@ class PairUF3 : public Pair {
   void coeff(int, char **) override;
   void uf3_read_pot_file(char *potf_name);
   void init_style() override;
-  void init_list(int, class NeighList *) override; //needed for ptr to full neigh list
-  double init_one(int, int) override; //needed for cutoff radius for neighbour list
-  
+  void init_list(int, class NeighList *) override;    // needed for ptr to full neigh list
+  double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
+  double single(int, int, int, int, double, double, double, double &) override;
 
  protected:
   int num_of_elements, nbody_flag, n2body_pot_files, n3body_pot_files, tot_pot_files;
@@ -58,7 +58,7 @@ class PairUF3 : public Pair {
   std::vector<std::vector<std::vector<uf3_triplet_bspline>>> UFBS3b;
   int *neighshort, maxshort;    // short neighbor list array for 3body interaction
   double ret_val;
-  double * ret_val_deri; 
+  double *ret_val_deri;
 };
 
 }    // namespace LAMMPS_NS
