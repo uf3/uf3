@@ -11,6 +11,12 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------
+ *    Contributing authors: Ajinkya Hire(U of Florida), 
+ *                          Hendrik Kraß (U of Constance),
+ *                          Richard Hennig (U of Florida)
+ * ---------------------------------------------------------------------- */
+
 #ifdef PAIR_CLASS
 // clang-format off
 PairStyle(uf3,PairUF3);
@@ -35,30 +41,25 @@ class PairUF3 : public Pair {
   void compute(int, int) override;
   void settings(int, char **) override;
   void coeff(int, char **) override;
-  void uf3_read_pot_file(char *potf_name);
   void init_style() override;
   void init_list(int, class NeighList *) override;    // needed for ptr to full neigh list
   double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
  protected:
+  void uf3_read_pot_file(char *potf_name);
   int num_of_elements, nbody_flag, n2body_pot_files, n3body_pot_files, tot_pot_files;
-  int temp_type1, temp_type2, temp_type3, temp_line_len;
   int coeff_matrix_dim1, coeff_matrix_dim2, coeff_matrix_dim3, coeff_matrix_elements_len;
   bool pot_3b;
   int ***setflag_3b;
-  double **cutsq_2b, ***cut_3b, **cut_3b_list, cut3b_rjk, cut3b_rij, cut3b_rik;
+  double ***cut_3b, **cut_3b_list;
   virtual void allocate();
   std::vector<std::vector<std::vector<double>>> n2b_knot, n2b_coeff;
   std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> n3b_knot_matrix;
-  std::vector<std::vector<std::vector<double>>> temp_3d_matrix;
   std::unordered_map<std::string, std::vector<std::vector<std::vector<double>>>> n3b_coeff_matrix;
-  std::string key;
   std::vector<std::vector<uf3_pair_bspline>> UFBS2b;
   std::vector<std::vector<std::vector<uf3_triplet_bspline>>> UFBS3b;
   int *neighshort, maxshort;    // short neighbor list array for 3body interaction
-  double ret_val;
-  double *ret_val_deri;
 };
 
 }    // namespace LAMMPS_NS

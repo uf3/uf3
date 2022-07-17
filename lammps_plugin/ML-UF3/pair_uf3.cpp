@@ -12,8 +12,10 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
- *    Contributing author: Ajinkya Hire, Richard Hennig (U of Florida)
- *    ------------------------------------------------------------------------- */
+ *    Contributing authors: Ajinkya Hire(U of Florida), 
+ *                          Hendrik Kraß (U of Constance),
+ *                          Richard Hennig (U of Florida)
+ * ---------------------------------------------------------------------- */
 
 #include "pair_uf3.h"
 #include "uf3_pair_bspline.h"
@@ -38,7 +40,7 @@ PairUF3::PairUF3(LAMMPS *lmp) : Pair(lmp)
   restartinfo = 0;      // 1 if pair style writes restart info
   maxshort = 10;
   neighshort = nullptr;
-  centroidstressflag = 4;
+  centroidstressflag = CENTROID_NOTAVAIL;
   manybody_flag = 1;
   one_coeff = 1;
 }
@@ -49,7 +51,7 @@ PairUF3::~PairUF3()
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
-    // memory->destroy(cutsq_2b);
+
     if (pot_3b) {
       memory->destroy(setflag_3b);
       memory->destroy(cut_3b);
@@ -65,8 +67,6 @@ PairUF3::~PairUF3()
 
 void PairUF3::settings(int narg, char **arg)
 {
-
-  utils::logmesg(lmp, "\nUF3: new splines");
 
   if (narg != 2)
     error->all(FLERR, "UF3: Invalid number of argument in pair settings\n\
@@ -130,18 +130,16 @@ void PairUF3::coeff(int narg, char **arg)
   }
   for (int i = 1; i < num_of_elements + 1; i++) {
     for (int j = i; j < num_of_elements + 1; j++) {
-      UFBS2b[i][j] = uf3_pair_bspline(lmp, 3, n2b_knot[i][j], n2b_coeff[i][j]);
-      UFBS2b[j][i] = uf3_pair_bspline(lmp, 3, n2b_knot[j][i], n2b_coeff[j][i]);
+      UFBS2b[i][j] = uf3_pair_bspline(lmp, n2b_knot[i][j], n2b_coeff[i][j]);
+      UFBS2b[j][i] = UFBS2b[i][j];
     }
     if (pot_3b) {
       for (int j = 1; j < num_of_elements + 1; j++) {
         for (int k = j; k < num_of_elements + 1; k++) {
-          key = std::to_string(i) + std::to_string(j) + std::to_string(k);
+          std::string key = std::to_string(i) + std::to_string(j) + std::to_string(k);
           UFBS3b[i][j][k] =
               uf3_triplet_bspline(lmp, n3b_knot_matrix[i][j][k], n3b_coeff_matrix[key]);
-          key = std::to_string(i) + std::to_string(k) + std::to_string(j);
-          UFBS3b[i][k][j] =
-              uf3_triplet_bspline(lmp, n3b_knot_matrix[i][k][j], n3b_coeff_matrix[key]);
+          UFBS3b[i][k][j] = UFBS3b[i][j][k];
         }
       }
     }
@@ -151,11 +149,13 @@ void PairUF3::coeff(int narg, char **arg)
 void PairUF3::allocate()
 {
   allocated = 1;
+
   // Contains info about wether UF potential were found for type i and j
   memory->create(setflag, num_of_elements + 1, num_of_elements + 1, "pair:setflag");
+
   // Contains info about 2-body cutoff distance for type i and j
   memory->create(cutsq, num_of_elements + 1, num_of_elements + 1, "pair:cutsq");
-  // memory->create(cutsq_2b,num_of_elements+1,num_of_elements+1,"pair:cutsq_2b");
+
   // Contains knot_vect of 2-body potential for type i and j
   n2b_knot.resize(num_of_elements + 1);
   n2b_coeff.resize(num_of_elements + 1);
@@ -223,8 +223,8 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
   if (fp2nd_line.contains("2B") == 1) {
     temp_line = txtfilereader.next_line(4);
     ValueTokenizer fp3rd_line(temp_line);
-    temp_type1 = fp3rd_line.next_int();
-    temp_type2 = fp3rd_line.next_int();
+    int temp_type1 = fp3rd_line.next_int();
+    int temp_type2 = fp3rd_line.next_int();
     if (comm->me == 0)
       utils::logmesg(lmp, "UF3: {} file contains 2-body UF3 potential for {} {}\n", potf_name,
                      temp_type1, temp_type2);
@@ -233,7 +233,7 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     // if(comm->me==0) utils::logmesg(lmp,"UF3: Cutoff {}\n",cutsq[temp_type1][temp_type2]);
     cutsq[temp_type2][temp_type1] = cutsq[temp_type1][temp_type2];
 
-    temp_line_len = fp3rd_line.next_int();
+    int temp_line_len = fp3rd_line.next_int();
 
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp4th_line(temp_line);
@@ -272,19 +272,19 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
   } else if (fp2nd_line.contains("3B") == 1) {
     temp_line = txtfilereader.next_line(9);
     ValueTokenizer fp3rd_line(temp_line);
-    temp_type1 = fp3rd_line.next_int();
-    temp_type2 = fp3rd_line.next_int();
-    temp_type3 = fp3rd_line.next_int();
+    int temp_type1 = fp3rd_line.next_int();
+    int temp_type2 = fp3rd_line.next_int();
+    int temp_type3 = fp3rd_line.next_int();
     if (comm->me == 0)
       utils::logmesg(lmp, "UF3: {} file contains 3-body UF3 potential for {} {} {}\n", potf_name,
                      temp_type1, temp_type2, temp_type3);
 
-    cut3b_rjk = fp3rd_line.next_double();
-    cut3b_rij = fp3rd_line.next_double();
+    double cut3b_rjk = fp3rd_line.next_double();
+    double cut3b_rij = fp3rd_line.next_double();
     // cut_3b[temp_type1][temp_type2] = std::max(cut3b_rij,
     // cut_3b[temp_type1][temp_type2]);
     cut_3b_list[temp_type1][temp_type2] = std::max(cut3b_rij, cut_3b_list[temp_type1][temp_type2]);
-    cut3b_rik = fp3rd_line.next_double();
+    double cut3b_rik = fp3rd_line.next_double();
     if (cut3b_rij != cut3b_rik) {
       error->all(FLERR, "UF3: rij!=rik, Current implementation only works for rij=rik");
     }
@@ -297,7 +297,7 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     cut_3b[temp_type1][temp_type2][temp_type3] = cut3b_rij;
     cut_3b[temp_type1][temp_type3][temp_type2] = cut3b_rik;
 
-    temp_line_len = fp3rd_line.next_int();
+    int temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp4th_line(temp_line);
 
@@ -334,15 +334,6 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][i];
     }
 
-    /*if(comm->me==0){
-    utils::logmesg(lmp,"UF3: knot_matrix\n");
-    for(int i=0;i<3;i++){
-      for(int j=0;j<n3b_knot_matrix[temp_type1][temp_type2][temp_type3][i].size();j++){
-        utils::logmesg(lmp,"{} ",n3b_knot_matrix[temp_type1][temp_type2][temp_type3][i][j]);
-      }
-      utils::logmesg(lmp,"\n");
-    }}*/
-
     temp_line = txtfilereader.next_line(3);
     ValueTokenizer fp7th_line(temp_line);
 
@@ -367,7 +358,8 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
 
     coeff_matrix_elements_len = coeff_matrix_dim3;
 
-    key = std::to_string(temp_type1) + std::to_string(temp_type2) + std::to_string(temp_type3);
+    std::string key =
+        std::to_string(temp_type1) + std::to_string(temp_type2) + std::to_string(temp_type3);
     n3b_coeff_matrix[key].resize(coeff_matrix_dim1);
     for (int i = 0; i < coeff_matrix_dim1; i++) {
       n3b_coeff_matrix[key][i].resize(coeff_matrix_dim2);
@@ -380,19 +372,6 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
         }
       }
     }
-    // if(comm->me==0) utils::logmesg(lmp,"UF3: Finished reading coeff matrix\n");
-
-    // key = std::to_string(temp_type1)+std::to_string(temp_type3)+std::to_string(temp_type2);
-    // n3b_coeff_matrix[key] = temp_3d_matrix;
-    /*if(comm->me==0){
-    utils::logmesg(lmp,"UF3: coeff_matrix\n");
-    for(int i=0;i<coeff_matrix_dim1;i++){
-      for(int j=0;j<coeff_matrix_dim2;j++){
-        for(int k=0;k<coeff_matrix_dim3;k++) utils::logmesg(lmp,"{} ",n3b_coeff_matrix[key][i][j][k]);
-        //utils::logmesg(lmp,"\n");
-      }
-      //utils::logmesg(lmp,"--------------{}\n",i);
-    }}*/
 
     key = std::to_string(temp_type1) + std::to_string(temp_type3) + std::to_string(temp_type2);
     n3b_coeff_matrix[key] =
@@ -499,7 +478,9 @@ void PairUF3::compute(int eflag, int vflag)
           }
         }
 
-        fpair = -1 * UFBS2b[itype][jtype].bsderivative(rij) / rij;
+        double *pair_eval = UFBS2b[itype][jtype].eval(rij);
+
+        fpair = -1 * pair_eval[1] / rij;
 
         fx = delx * fpair;
         fy = dely * fpair;
@@ -513,7 +494,7 @@ void PairUF3::compute(int eflag, int vflag)
           f[j][1] -= fy;
           f[j][2] -= fz;
         }
-        if (eflag) evdwl = UFBS2b[itype][jtype].bsvalue(rij);
+        if (eflag) evdwl = pair_eval[0];
 
         if (evflag)
           ev_tally_xyz(i, j, nlocal, newton_pair, evdwl, 0.0, fx, fy, fz, delx, dely, delz);
@@ -562,28 +543,27 @@ void PairUF3::compute(int eflag, int vflag)
           rjk = sqrt(
               ((del_rkj[0] * del_rkj[0]) + (del_rkj[1] * del_rkj[1]) + (del_rkj[2] * del_rkj[2])));
 
-          ret_val = UFBS3b[itype][jtype][ktype].bsvalue(rij, rik, rjk);
-          ret_val_deri = UFBS3b[itype][jtype][ktype].bsvalue_bsderivative(rij, rik, rjk);
+          double *triangle_eval = UFBS3b[itype][jtype][ktype].eval(rij, rik, rjk);
 
-          fij[0] = *(ret_val_deri + 0) * (del_rji[0] / rij);
+          fij[0] = *(triangle_eval + 1) * (del_rji[0] / rij);
           fji[0] = -fij[0];
-          fik[0] = *(ret_val_deri + 1) * (del_rki[0] / rik);
+          fik[0] = *(triangle_eval + 2) * (del_rki[0] / rik);
           fki[0] = -fik[0];
-          fjk[0] = *(ret_val_deri + 2) * (del_rkj[0] / rjk);
+          fjk[0] = *(triangle_eval + 3) * (del_rkj[0] / rjk);
           fkj[0] = -fjk[0];
 
-          fij[1] = *(ret_val_deri + 0) * (del_rji[1] / rij);
+          fij[1] = *(triangle_eval + 1) * (del_rji[1] / rij);
           fji[1] = -fij[1];
-          fik[1] = *(ret_val_deri + 1) * (del_rki[1] / rik);
+          fik[1] = *(triangle_eval + 2) * (del_rki[1] / rik);
           fki[1] = -fik[1];
-          fjk[1] = *(ret_val_deri + 2) * (del_rkj[1] / rjk);
+          fjk[1] = *(triangle_eval + 3) * (del_rkj[1] / rjk);
           fkj[1] = -fjk[1];
 
-          fij[2] = *(ret_val_deri + 0) * (del_rji[2] / rij);
+          fij[2] = *(triangle_eval + 1) * (del_rji[2] / rij);
           fji[2] = -fij[2];
-          fik[2] = *(ret_val_deri + 1) * (del_rki[2] / rik);
+          fik[2] = *(triangle_eval + 2) * (del_rki[2] / rik);
           fki[2] = -fik[2];
-          fjk[2] = *(ret_val_deri + 2) * (del_rkj[2] / rjk);
+          fjk[2] = *(triangle_eval + 3) * (del_rkj[2] / rjk);
           fkj[2] = -fjk[2];
 
           f[i][0] += fij[0] + fik[0];
@@ -604,7 +584,7 @@ void PairUF3::compute(int eflag, int vflag)
           f[k][2] += fki[2] + fkj[2];
           Fk[2] = fki[2] + fkj[2];
 
-          if (eflag) evdwl = ret_val;    // 2/3 because of ev_tally_xyz
+          if (eflag) evdwl = *triangle_eval;
 
           if (evflag) { ev_tally3(i, j, k, evdwl, 0, Fj, Fk, del_rji, del_rki); }
         }
@@ -621,8 +601,9 @@ double PairUF3::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   double r = sqrt(rsq);
 
   if (r < cutsq[itype][jtype]) {
-    value = UFBS2b[itype][jtype].bsvalue(r);
-    fforce = factor_lj * UFBS2b[itype][jtype].bsderivative(r);
+    double *pair_eval = UFBS2b[itype][jtype].eval(r);
+    value = pair_eval[0];
+    fforce = factor_lj * pair_eval[1];
   }
 
   return factor_lj * value;
