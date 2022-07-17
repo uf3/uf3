@@ -1,10 +1,23 @@
-//De Boor's algorithm @
-//https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/B-spline/de-Boor.html
-//For values outside the domain,
-//extrapoltaes the left(right) hand side piece of the curve
-//Only works for bspline degree upto 3 becuase of definiation of P
-//
+/* ----------------------------------------------------------------------
+   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
+   https://www.lammps.org/ Sandia National Laboratories
+   Steve Plimpton, sjplimp@sandia.gov
+   Copyright (2003) Sandia Corporation.  Under the terms of Contract
+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
+   certain rights in this software.  This software is distributed under
+   the GNU General Public License.
+   See the README file in the top-level LAMMPS directory.
+------------------------------------------------------------------------- */
+
+// De Boor's algorithm @
+// https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/B-spline/de-Boor.html
+// For values outside the domain, it exhibits undefined behavior.
+// Uses fixed B-Spline degree 3.
+
 #include "pointers.h"
+
+#include "uf3_bspline_basis2.h"
+#include "uf3_bspline_basis3.h"
 
 #include <vector>
 
@@ -15,28 +28,21 @@ namespace LAMMPS_NS {
 
 class uf3_pair_bspline {
  private:
-  int bspline_degree;
   int knot_vect_size, coeff_vect_size;
   std::vector<double> knot_vect, dnknot_vect;
   std::vector<double> coeff_vect, dncoeff_vect;
-  int pos_i, h, knot_mult, max_count, knot_affect_start, knot_affect_end;
-  double temp2, temp3, dntemp4, temp_val;
-  //Make P's; size of P is max of what will ever be needed
-  double P[4][4] = {};
+  std::vector<uf3_bspline_basis3> bspline_bases;
+  std::vector<uf3_bspline_basis2> dnbspline_bases;
   LAMMPS *lmp;
-  //double main_eval_loop(double ivalue_rij,int ibspline_degree,std::vector<double> iknot_vect,
-  //			std::vector<double> icoeff_vect, int ipos_i, int iknot_mult);
+
  public:
   // dummy constructor
   uf3_pair_bspline();
-  uf3_pair_bspline(LAMMPS *ulmp, int ubspline_degree, const std::vector<double> &uknot_vect,
+  uf3_pair_bspline(LAMMPS *ulmp, const std::vector<double> &uknot_vect,
                    const std::vector<double> &ucoeff_vect);
   ~uf3_pair_bspline();
-  double bsvalue(double value_rij);
-  double bsderivative(double value_rij);
-  double main_eval_loop(double ivalue_rij, int ibspline_degree,
-                        const std::vector<double> &iknot_vect,
-                        const std::vector<double> &icoeff_vect);
+  double ret_val[2];
+  double *eval(double value_rij);
 };
 }    // namespace LAMMPS_NS
 #endif
