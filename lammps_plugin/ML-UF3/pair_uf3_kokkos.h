@@ -19,8 +19,8 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(uf3/kk,PairMGPKokkos<LMPDeviceType>)
-PairStyle(uf3/kk/device,PairMGPKokkos<LMPDeviceType>)
+PairStyle(uf3/kk,PairUF3Kokkos<LMPDeviceType>)
+PairStyle(uf3/kk/device,PairUF3Kokkos<LMPDeviceType>)
 // clang-format on
 #else
 
@@ -67,6 +67,12 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
   std::vector<std::vector<std::vector<uf3_triplet_bspline>>> UFBS3b;
   int *neighshort, maxshort;    // short neighbor list array for 3body interaction
 
+  enum { EnabledNeighFlags = FULL };
+  enum { COUL_FLAG = 0 };
+  typedef DeviceType device_type;
+  typedef ArrayTypes<DeviceType> AT;
+  typedef EV_FLOAT value_type;
+
   template <typename T, typename V> void copy_1d(V &d, T *h, int n);
 
   template <typename T, typename V> void copy_2d(V &d, T **h, int m, int n);
@@ -105,8 +111,10 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
 
   DAT::tdual_efloat_1d k_eatom;
   DAT::tdual_virial_array k_vatom;
+  DAT::tdual_virial_array k_cvatom;
   typename AT::t_efloat_1d d_eatom;
   typename AT::t_virial_array d_vatom;
+  typename AT::t_virial_array d_cvatom;
 
   int need_dup;
   Kokkos::Experimental::ScatterView<F_FLOAT *[3], typename DAT::t_f_array::array_layout, DeviceType,

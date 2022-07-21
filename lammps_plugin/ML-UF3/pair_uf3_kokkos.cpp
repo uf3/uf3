@@ -18,25 +18,33 @@
  * ---------------------------------------------------------------------- */
 
 #include "pair_uf3_kokkos.h"
-#include "uf3_pair_bspline_kokkos.h"
-#include "uf3_triplet_bspline_kokkos.h"
+#include "pair_uf3.h"
+#include "uf3_pair_bspline.h"
+#include "uf3_triplet_bspline.h"
 
 #include "atom_kokkos.h"
+#include "atom_masks.h"
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "kokkos.h"
 #include "math_const.h"
 #include "memory_kokkos.h"
 #include "neigh_list_kokkos.h"
+#include "neigh_request.h"
 #include "neighbor.h"
+#include "pair_kokkos.h"
 #include "text_file_reader.h"
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 #include <cmath>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-template <class DeviceType> PairUF3Kokkos<DeviceType>:: : PairUF3Kokkos(LAMMPS *lmp) : PairUF3(lmp)
+template <class DeviceType> PairUF3Kokkos<DeviceType>::PairUF3Kokkos(LAMMPS *lmp) : PairUF3(lmp)
 {
   respa_enable = 0;
 
@@ -227,7 +235,7 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::operator()(TagPairUF3Comp
     const int jtype = type[j];
 
     if (rsq < cutsq[itype][jtype]) {
-      rij = sqrt(rsq);
+      F_FLOAT rij = sqrt(rsq);
 
       if (rij <= cut_3b_list[itype][jtype]) {
         d_neighbors_short(i, inside) = j;
@@ -247,7 +255,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
                                       EV_FLOAT &ev) const
 {
 
-  F_FLOAT del_rji[3], del_rki[3], del_rki[3];
+  F_FLOAT del_rji[3], del_rki[3], del_rkj[3];
   F_FLOAT fij[3], fik[3], fjk[3];
   F_FLOAT fji[3], fki[3], fkj[3];
   F_FLOAT Fi[3], Fj[3], Fk[3];
@@ -331,7 +339,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
       del_rkj[0] = x(k, 0) - x(j, 0);
       del_rkj[1] = x(k, 1) - x(j, 1);
       del_rkj[2] = x(k, 2) - x(j, 2);
-      const F_FLOAT rkj =
+      const F_FLOAT rjk =
           sqrt(del_rkj[0] * del_rkj[0] + del_rkj[1] * del_rkj[1] + del_rkj[2] * del_rkj[2]);
 
       F_FLOAT *triangle_eval = UFBS3b[itype][jtype][ktype].eval(rij, rik, rjk);
@@ -375,7 +383,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
       if (EVFLAG) {
         if (eflag) { ev.evdwl += evdwl3; }
         if (vflag_either || eflag_atom) {
-          this->template ev_tally3<NEIGHFLAG>(ev, i, j, k, evdwl3, 0.0, Fj, Fk, delr1, delr2);
+          this->template ev_tally3<NEIGHFLAG>(ev, i, j, k, evdwl3, 0.0, Fj, Fk, del_rji, del_rki);
         }
       }
     }
@@ -449,7 +457,7 @@ void PairUF3Kokkos<DeviceType>::copy_3d(V &d, T ***h, int m, int n, int o)
 template <class DeviceType>
 template <int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION void
-PairMGPKokkos<DeviceType>::ev_tally(EV_FLOAT &ev, const int &i, const int &j, const F_FLOAT &epair,
+PairUF3Kokkos<DeviceType>::ev_tally(EV_FLOAT &ev, const int &i, const int &j, const F_FLOAT &epair,
                                     const F_FLOAT &fpair, const F_FLOAT &delx, const F_FLOAT &dely,
                                     const F_FLOAT &delz) const
 {
@@ -466,9 +474,9 @@ PairMGPKokkos<DeviceType>::ev_tally(EV_FLOAT &ev, const int &i, const int &j, co
                                    decltype(ndup_vatom)>::get(dup_vatom, ndup_vatom);
   auto a_vatom = v_vatom.template access<AtomicDup<NEIGHFLAG, DeviceType>::value>();
 
-  auto v_vatom = ScatterViewHelper<NeedDup<NEIGHFLAG, DeviceType>::value, decltype(dup_vatom),
-                                   decltype(ndup_vatom)>::get(dup_vatom, ndup_vatom);
-  auto a_vatom = v_vatom.template access<AtomicDup<NEIGHFLAG, DeviceType>::value>();
+  auto v_cvatom = ScatterViewHelper<NeedDup<NEIGHFLAG, DeviceType>::value, decltype(dup_cvatom),
+                                    decltype(ndup_cvatom)>::get(dup_cvatom, ndup_cvatom);
+  auto a_cvatom = v_cvatom.template access<AtomicDup<NEIGHFLAG, DeviceType>::value>();
 
   if (eflag_atom) {
     const E_FLOAT epairhalf = 0.5 * epair;
@@ -525,7 +533,7 @@ PairMGPKokkos<DeviceType>::ev_tally(EV_FLOAT &ev, const int &i, const int &j, co
 template <class DeviceType>
 template <int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION void
-PairMGPKokkos<DeviceType>::ev_tally3(EV_FLOAT &ev, const int &i, const int &j, int &k,
+PairUF3Kokkos<DeviceType>::ev_tally3(EV_FLOAT &ev, const int &i, const int &j, int &k,
                                      const F_FLOAT &evdwl, const F_FLOAT &ecoul, F_FLOAT *fj,
                                      F_FLOAT *fk, F_FLOAT *drji, F_FLOAT *drki) const
 {
@@ -543,6 +551,10 @@ PairMGPKokkos<DeviceType>::ev_tally3(EV_FLOAT &ev, const int &i, const int &j, i
   auto v_vatom = ScatterViewHelper<NeedDup<NEIGHFLAG, DeviceType>::value, decltype(dup_vatom),
                                    decltype(ndup_vatom)>::get(dup_vatom, ndup_vatom);
   auto a_vatom = v_vatom.template access<AtomicDup<NEIGHFLAG, DeviceType>::value>();
+
+  auto v_cvatom = ScatterViewHelper<NeedDup<NEIGHFLAG, DeviceType>::value, decltype(dup_cvatom),
+                                    decltype(ndup_cvatom)>::get(dup_cvatom, ndup_cvatom);
+  auto a_cvatom = v_cvatom.template access<AtomicDup<NEIGHFLAG, DeviceType>::value>();
 
   if (eflag_atom) {
     epairthird = THIRD * (evdwl + ecoul);
@@ -605,7 +617,7 @@ PairMGPKokkos<DeviceType>::ev_tally3(EV_FLOAT &ev, const int &i, const int &j, i
 
 template <class DeviceType>
 KOKKOS_INLINE_FUNCTION void
-PairMGPKokkos<DeviceType>::ev_tally3_atom(EV_FLOAT &ev, const int &i, const F_FLOAT &evdwl,
+PairUF3Kokkos<DeviceType>::ev_tally3_atom(EV_FLOAT &ev, const int &i, const F_FLOAT &evdwl,
                                           const F_FLOAT &ecoul, F_FLOAT *fj, F_FLOAT *fk,
                                           F_FLOAT *drji, F_FLOAT *drki) const
 {
