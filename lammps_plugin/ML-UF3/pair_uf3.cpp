@@ -565,7 +565,7 @@ void PairUF3::compute(int eflag, int vflag)
         rik = sqrt(
             ((del_rki[0] * del_rki[0]) + (del_rki[1] * del_rki[1]) + (del_rki[2] * del_rki[2])));
 
-        if ((rij <= cut_3b[itype][jtype][ktype]) && (rik <= cut_3b[itype][ktype][jtype])) {
+        if ((rij < cut_3b[itype][jtype][ktype]) && (rik < cut_3b[itype][ktype][jtype])) {
 
           del_rkj[0] = x[k][0] - x[j][0];
           del_rkj[1] = x[k][1] - x[j][1];
