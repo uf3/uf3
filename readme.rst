@@ -77,7 +77,7 @@ Dependencies
 ------------
 
 -  We rely on ase to handle parsing outputs from atomistic codes like
-   LAMMPS, VASP, and C2PK.
+   LAMMPS, VASP, and CP2K.
 -  We use Pandas to keep track of atomic configurations and their
    energies/forces as well as organizing data for featurization and
    training.
