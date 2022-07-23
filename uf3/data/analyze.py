@@ -145,12 +145,12 @@ class DataAnalyzer:
         if rattle > 0:
             supercell.rattle(rattle)
         dist_matr = spatial.distance.cdist(geom.get_positions(),
-                                           supercell.get_positions()[n_atoms:])
+                                           supercell.get_positions())
         cut_mask = (dist_matr > r_min) & (dist_matr <= r_max)
         dists = dist_matr[cut_mask]
         pair_idx = np.where(cut_mask)
         species_set = (geom.get_atomic_numbers(),
-                       supercell.get_atomic_numbers()[n_atoms:])
+                       supercell.get_atomic_numbers())
         hashes = composition.get_pair_hashes(species_set, pair_idx)
         return dists, hashes
 
@@ -211,7 +211,7 @@ class DataAnalyzer:
                                          n_atoms,
                                          volume)
         weight = self.pairs_acc[pair] / self.totals_acc
-        rdf = self.histogram_values[pair] / norm * weight
+        rdf = self.histogram_values[pair] / norm / weight
         return norm, rdf
 
     def analyze(self,
@@ -326,11 +326,12 @@ class DataAnalyzer:
         self.valleys[pair] = valley_list
         self.peaks[pair] = peak_list
 
+
 def find_peaks(x,
                y,
                smooth=False,
-               filter_degree=9,
-               filter_width=3,
+               filter_width=9,
+               filter_degree=3,
                ):
     if smooth:
         y = signal.savgol_filter(y, filter_width, filter_degree)
@@ -343,5 +344,3 @@ def find_closest_value(values, target):
     scores = np.abs(values - target)
     idx = np.argmin(scores)
     return idx, values[idx]
-
-
