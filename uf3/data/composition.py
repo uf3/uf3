@@ -165,23 +165,42 @@ class ChemicalSystem:
         return interaction_hashes
 
 
+def interactions_to_numbers(interactions):
+    if isinstance(interactions, tuple):
+        return tuple(ase_symbols.symbols2numbers(interactions))
+    elif isinstance(interactions, list):
+        return [interactions_to_numbers(item) for item in interactions]
+    elif isinstance(interactions, dict):
+        return {k: interactions_to_numbers(v)
+                for k, v in interactions.items()}
+    elif isinstance(interactions, str):
+        return ase_symbols.atomic_numbers[interactions]
+    else:
+        raise ValueError
+
+
+def sort_elements(symbols):
+    symbols = sorted(symbols, key=lambda el: reference_X[el])
+    return symbols
+
+
 def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
     """Apply sort_interaction_symbols() to each key in a dictionary."""
     return {sort_interaction_symbols(k): v for k, v in imap.items()}
 
 
-def sort_interaction_symbols(symbols: Collection[str]) -> Tuple[str]:
+def sort_interaction_symbols(symbols: Collection[str]) -> Tuple:
     """
     Sort interaction tuple by electronegativities.
     For consistency, many-body interactions (i.e. >2) are sorted while fixing
     the first (center) element."""
     if len(symbols) >= 3:
         center = symbols[0]
-        symbols = sorted(symbols[1:], key=lambda el: reference_X[el])
+        symbols = sort_elements(symbols[1:])
         symbols.insert(0, center)
         return tuple(symbols)
     else:
-        return tuple(sorted(symbols, key=lambda el: reference_X[el]))
+        return tuple(sort_elements(symbols))
 
 
 def get_electronegativity_sort(numbers: Collection[int]) -> np.ndarray:
