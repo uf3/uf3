@@ -11,6 +11,7 @@ import pandas as pd
 import ndsplines
 from uf3.representation import bspline, process
 from uf3.data import io
+from uf3.data import composition
 from uf3.util import json_io
 from uf3.util import parallel
 
@@ -544,6 +545,11 @@ class WeightedLinearModel(BasicLinearModel):
             # TODO: proper deprecation
             warnings.warn("'solution' should be renamed to 'coefficients'")
             solution = solution["solution"]
+        for key in solution:
+            if isinstance(key, tuple):
+                sorted_key = composition.sort_elements(key)
+                if tuple(sorted_key) != key:
+                    solution[sorted_key] = solution[key]
         # consistency check with bspline_config
         component_len = self.bspline_config.get_interaction_partitions()[0]
         for pair in self.bspline_config.interactions_map[2]:
