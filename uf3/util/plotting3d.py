@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 
 class ThreeBodyPlotter:
     def __init__(self, model, interaction, theta=True):
-        model_dump = model.save_full()
+        model_dump = model.dump()
         decompressed_coefficients = model_dump["coefficients"][interaction]
         knots_set = model_dump["knots"][interaction]
         self.knots_set = [np.array(k) for k in knots_set]
@@ -17,6 +17,7 @@ class ThreeBodyPlotter:
                                       3)
         self.knots = knots_set
         self.theta = theta
+        self.mesh = None
         self.x_plot = None
         self.y_plot = None
         self.z_plot = None
@@ -43,19 +44,22 @@ class ThreeBodyPlotter:
             b = sample_mesh[:, 1]
             theta = sample_mesh[:, 2].copy()
             sample_mesh[:, 2] = np.sqrt(
-                a ** 2 + b ** 2 - (2 * a * b * np.cos(theta)))
+                a**2 + b**2 - (2 * a * b * np.cos(theta)))
             self.z_plot = theta
         else:
             self.z_plot = sample_mesh[:, 2]
         self.values = self.nds(sample_mesh)
+        self.mesh = sample_mesh
         self.x_plot = sample_mesh[:, 0]
         self.y_plot = sample_mesh[:, 1]
 
 
-    def plot_slices(self, **kwargs):
+    def plot_slices(self, n_slices=10, **kwargs):
         if self.values is None:
             raise ValueError("Values must be generated with sample_uniformly.")
-        v_slice = np.linspace(np.min(self.z_plot), np.max(self.z_plot), 11)
+        v_slice = np.linspace(np.min(self.z_plot),
+                              np.max(self.z_plot),
+                              n_slices + 1)
 
         x_plot = self.x_plot
         y_plot = self.y_plot
