@@ -54,13 +54,8 @@ class UFCalculator(ase_calc.Calculator):
         self.pair_potentials = construct_pair_potentials(self.solutions,
                                                          self.bspline_config)
         if self.degree > 2:
-            if len(self.element_list) > 1:
-                raise ValueError("Multicomponent 3B is not yet implemented.")
-            self.trio = self.bspline_config.interactions_map[3][0]
-            c_compressed = self.solutions[self.trio]
-            c_decompressed = self.bspline_config.decompress_3B(c_compressed,
-                                                               self.trio)
-            self.coefficients_3b = angles.symmetrize_3B(c_decompressed)
+            self.trio_potentials = construct_trio_potentials(
+                self.solutions, self.bspline_config)
 
     def __repr__(self):
         summary = ["UFCalculator:",
@@ -125,34 +120,81 @@ class UFCalculator(ase_calc.Calculator):
             supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
         else:
             supercell = atoms
+
+        if force_consistent is not True:
+            e_1b = self.energy_1b(atoms)
+        else:
+            e_1b = 0.0
+
+        if self.degree >= 2:
+            e_2b = self.energy_2b(atoms, supercell)
+        else:
+            e_2b = 0.0
+
+        if self.degree >= 3:
+            e_3b = self.energy_3b(atoms, supercell)
+        else:
+            e_3b = 0.0
+        energy = e_1b + e_2b + e_3b
+        return energy
+
+    def energy_1b(self, atoms):
+        energy = 0.0
+        el_set, el_counts = np.unique(atoms.get_chemical_symbols(),
+                                      return_counts=True)
+        for el, count in zip(el_set, el_counts):
+            energy += float(self.solutions[el] * count)
+        return energy
+
+    def energy_2b(self,
+                  atoms,
+                  supercell):
         pair_tuples = self.interactions_map[2]
         distances_map = distances.distances_by_interaction(atoms,
                                                            pair_tuples,
                                                            self.r_min_map,
                                                            self.r_max_map,
                                                            supercell)
-        energy = 0
-        if force_consistent is not True:
-            el_set, el_counts = np.unique(atoms.get_chemical_symbols(),
-                                          return_counts=True)
-            for el, count in zip(el_set, el_counts):
-                energy += self.solutions[el] * count
+        energy = 0.0
         for pair in pair_tuples:
+            distance_list = distances_map[pair]
             r_min = self.r_min_map[pair]
             r_max = self.r_max_map[pair]
-            distance_list = distances_map[pair]
             mask = (distance_list > r_min) & (distance_list < r_max)
             distance_list = distance_list[mask]
             bspline_values = self.pair_potentials[pair](distance_list)
+            energy_contribution = np.sum(bspline_values)
             # energy contribution per distance
-            energy += np.sum(bspline_values)
-        if self.degree >= 3:
-            knot_sequences = self.bspline_config.knots_map[self.trio]
-            c_grid = self.coefficients_3b
-            energy += evaluate_energy_3b(atoms,
-                                         knot_sequences,
-                                         c_grid,
-                                         supercell)
+            energy += energy_contribution
+        return energy
+
+    def energy_3b(self,
+                  atoms,
+                  supercell):
+        energy = 0.0
+
+        trio_list = self.bspline_config.interactions_map[3]
+        hashes = self.bspline_config.chemical_system.interaction_hashes[3]
+        n_interactions = len(hashes)
+        knot_sets = [self.bspline_config.knots_map[trio] for trio in trio_list]
+
+        sup_comp = supercell.get_atomic_numbers()
+        # identify pairs
+        dist_matrix, i_where, j_where = angles.identify_ij(atoms,
+                                                           knot_sets,
+                                                           supercell)
+        triplet_generator = angles.generate_triplets(
+            i_where, j_where, sup_comp, hashes, dist_matrix, knot_sets)
+
+        for triplet_batch in triplet_generator:
+            for interaction_idx in range(n_interactions):
+                interaction_data = triplet_batch[interaction_idx]
+                if interaction_data is None:
+                    continue
+                spline = self.trio_potentials[trio_list[interaction_idx]]
+                i, r_l, r_m, r_n, ituples = interaction_data
+                component = spline(np.vstack([r_l, r_m, r_n]).T)
+                energy += np.sum(component)
         return energy
 
     def get_forces(self, atoms: ase.Atoms = None) -> np.ndarray:
@@ -162,6 +204,21 @@ class UFCalculator(ase_calc.Calculator):
             supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
         else:
             supercell = atoms
+
+        f_shape = np.zeros((n_atoms, 3))
+        if self.degree >= 2:
+            f_2b = self.forces_2b(atoms, supercell)
+        else:
+            f_2b = np.zeros_like(f_shape)
+
+        if self.degree >= 3:
+            f_3b = self.forces_3b(atoms, supercell)
+        else:
+            f_3b = np.zeros_like(f_shape)
+        forces = f_2b + f_3b
+        return forces
+
+    def forces_2b(self, atoms, supercell):
         pair_tuples = self.interactions_map[2]
         deriv_results = distances.derivatives_by_interaction(atoms,
                                                              pair_tuples,
@@ -171,7 +228,7 @@ class UFCalculator(ase_calc.Calculator):
                                                              supercell)
         distance_map, derivative_map = deriv_results
 
-        forces = np.zeros((n_atoms, 3))
+        forces = np.zeros((len(atoms), 3))
         for pair in pair_tuples:
             r_min = self.r_min_map[pair]
             r_max = self.r_max_map[pair]
@@ -180,19 +237,115 @@ class UFCalculator(ase_calc.Calculator):
             mask = (distance_list > r_min) & (distance_list < r_max)
             distance_list = distance_list[mask]
             # first derivative
-            bspline_values = self.pair_potentials[pair](distance_list, nu=1)
+            bspline_values = self.pair_potentials[pair](distance_list, nus=1)
             deltas = drij_dr[:, :, mask]  # mask position deltas by distances
             # broadcast multiplication over atomic and cartesian axis dims
             component = np.sum(np.multiply(bspline_values, deltas), axis=-1)
             forces -= component
-        if self.degree >= 3:
-            knot_sequences = self.bspline_config.knots_map[self.trio]
-            c_grid = self.coefficients_3b
-            forces -= evaluate_forces_3b(atoms,
-                                         knot_sequences,
-                                         c_grid,
-                                         supercell)
         return forces
+
+    def forces_3b(self, atoms, supercell):
+        n_atoms = len(atoms)
+        forces = np.zeros((n_atoms, 3))
+
+        trio_list = self.bspline_config.interactions_map[3]
+        hashes = self.bspline_config.chemical_system.interaction_hashes[3]
+        n_interactions = len(hashes)
+        knot_sets = [self.bspline_config.knots_map[trio] for trio in trio_list]
+
+        sup_comp = supercell.get_atomic_numbers()
+        # identify pairs
+        coords, matrix, x_where, y_where = angles.identify_ij(atoms,
+                                                              knot_sets,
+                                                              supercell,
+                                                              square=True)
+        triplet_generator = angles.generate_triplets(
+            x_where, y_where, sup_comp, hashes, matrix, knot_sets)
+
+        for triplet_batch in triplet_generator:
+            for interaction_idx in range(n_interactions):
+                interaction_data = triplet_batch[interaction_idx]
+                if interaction_data is None:
+                    continue
+                spline = self.trio_potentials[trio_list[interaction_idx]]
+                i, r_l, r_m, r_n, ituples = interaction_data
+                drij_dr = distances.compute_direction_cosines(coords,
+                                                              matrix,
+                                                              ituples[:, 0],
+                                                              ituples[:, 1],
+                                                              n_atoms)
+                drik_dr = distances.compute_direction_cosines(coords,
+                                                              matrix,
+                                                              ituples[:, 0],
+                                                              ituples[:, 2],
+                                                              n_atoms)
+                drjk_dr = distances.compute_direction_cosines(coords,
+                                                              matrix,
+                                                              ituples[:, 1],
+                                                              ituples[:, 2],
+                                                              n_atoms)
+                triangles = np.vstack([r_l, r_m, r_n]).T
+                val_l = spline(triangles, nus=np.array([1, 0, 0]))
+                val_m = spline(triangles, nus=np.array([0, 1, 0]))
+                val_n = spline(triangles, nus=np.array([0, 0, 1]))
+                forces -= np.dot(drij_dr, val_l)
+                forces -= np.dot(drik_dr, val_m)
+                forces -= np.dot(drjk_dr, val_n)
+        return forces
+
+    # def evaluate_forces_3b(geom: ase.Atoms,
+    #                        knot_sequences: List[np.ndarray],
+    #                        c_grid: np.ndarray,
+    #                        sup_geom: ase.Atoms = None
+    #                        ) -> np.ndarray:
+    #     """
+    #     Evaluate forces of a configuration based on knot sequences and
+    #     bspline coefficients.
+    #
+    #     Args:
+    #         geom (ase.Atoms): configuration of interest.
+    #         knot_sequences (list): knot sequences.
+    #         c_grid (np.ndarray): 3D grid of bspline coefficients.
+    #         sup_geom (ase.Atoms): optional supercell.
+    #
+    #     Returns:
+    #         forces (np.ndarray): force components for each atom in configuration.
+    #     """
+    #     # TODO: multicomponent
+    #     if sup_geom is None:
+    #         sup_geom = geom
+    #     n_atoms = len(geom)
+    #     spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
+    #     # identify pairs
+    #     coords, dist_matrix, i_where, j_where = angles.identify_ij(
+    #         geom, [knot_sequences], sup_geom, square=True)
+    #     triplet_groups = angles.legacy_generate_triplets(
+    #         i_where, j_where, dist_matrix, knot_sequences)
+    #     f_accumulate = np.zeros((n_atoms, 3))
+    #     for atom_idx, r_l, r_m, r_n, idx_ijk in triplet_groups:
+    #         drij_dr = distances.compute_direction_cosines(coords,
+    #                                                       dist_matrix,
+    #                                                       idx_ijk[:, 0],
+    #                                                       idx_ijk[:, 1],
+    #                                                       n_atoms)
+    #         drik_dr = distances.compute_direction_cosines(coords,
+    #                                                       dist_matrix,
+    #                                                       idx_ijk[:, 0],
+    #                                                       idx_ijk[:, 2],
+    #                                                       n_atoms)
+    #         drjk_dr = distances.compute_direction_cosines(coords,
+    #                                                       dist_matrix,
+    #                                                       idx_ijk[:, 1],
+    #                                                       idx_ijk[:, 2],
+    #                                                       n_atoms)
+    #         triangles = np.vstack([r_l, r_m, r_n]).T
+    #         val_l = spline_evaluator(triangles, nus=np.array([1, 0, 0]))
+    #         val_m = spline_evaluator(triangles, nus=np.array([0, 1, 0]))
+    #         val_n = spline_evaluator(triangles, nus=np.array([0, 0, 1]))
+    #         f_accumulate += np.dot(drij_dr, val_l)
+    #         f_accumulate += np.dot(drik_dr, val_m)
+    #         f_accumulate += np.dot(drjk_dr, val_n)
+    #     return f_accumulate
 
     def get_stress(self,
                    atoms: ase.Atoms = None,
@@ -284,99 +437,6 @@ class UFCalculator(ase_calc.Calculator):
         return results
 
 
-def evaluate_energy_3b(geom: ase.Atoms,
-                       knot_sequences: List[np.ndarray],
-                       c_grid: np.ndarray,
-                       sup_geom: ase.Atoms = None
-                       ) -> float:
-    """
-    Evaluate energy of a configuration based on knot sequences and
-    bspline coefficients.
-
-    Args:
-        geom (ase.Atoms): configuration of interest.
-        knot_sequences (list): knot sequences.
-        c_grid (np.ndarray): 3D grid of bspline coefficients.
-        sup_geom (ase.Atoms): optional supercell.
-
-    Returns:
-        energy (float): total energy of the configuration.
-    """
-    # TODO: multicomponent
-    if sup_geom is None:
-        sup_geom = geom
-    spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
-    # identify pairs
-    dist_matrix, i_where, j_where = angles.identify_ij(geom,
-                                                       [knot_sequences],
-                                                       sup_geom)
-    if len(i_where) == 0:
-        return 0.0
-    # generate valid i, j, k triplets by joining i-j and i-j' pairs
-    triplet_groups = angles.legacy_generate_triplets(
-        i_where, j_where, dist_matrix, knot_sequences)
-    energy = 0
-    for atom_idx, l, m, n, tuples in triplet_groups:
-        triangles = np.vstack([l, m, n]).T
-        energy += np.sum(spline_evaluator(triangles))
-    return energy
-
-
-def evaluate_forces_3b(geom: ase.Atoms,
-                       knot_sequences: List[np.ndarray],
-                       c_grid: np.ndarray,
-                       sup_geom: ase.Atoms = None
-                       ) -> np.ndarray:
-    """
-    Evaluate forces of a configuration based on knot sequences and
-    bspline coefficients.
-
-    Args:
-        geom (ase.Atoms): configuration of interest.
-        knot_sequences (list): knot sequences.
-        c_grid (np.ndarray): 3D grid of bspline coefficients.
-        sup_geom (ase.Atoms): optional supercell.
-
-    Returns:
-        forces (np.ndarray): force components for each atom in configuration.
-    """
-    # TODO: multicomponent
-    if sup_geom is None:
-        sup_geom = geom
-    n_atoms = len(geom)
-    spline_evaluator = ndsplines.NDSpline(knot_sequences, c_grid, 3)
-    # identify pairs
-    coords, dist_matrix, i_where, j_where = angles.identify_ij(
-        geom, [knot_sequences], sup_geom, square=True)
-    triplet_groups = angles.legacy_generate_triplets(
-        i_where, j_where, dist_matrix, knot_sequences)
-    f_accumulate = np.zeros((n_atoms, 3))
-    for atom_idx, r_l, r_m, r_n, idx_ijk in triplet_groups:
-        drij_dr = distances.compute_direction_cosines(coords,
-                                                      dist_matrix,
-                                                      idx_ijk[:, 0],
-                                                      idx_ijk[:, 1],
-                                                      n_atoms)
-        drik_dr = distances.compute_direction_cosines(coords,
-                                                      dist_matrix,
-                                                      idx_ijk[:, 0],
-                                                      idx_ijk[:, 2],
-                                                      n_atoms)
-        drjk_dr = distances.compute_direction_cosines(coords,
-                                                      dist_matrix,
-                                                      idx_ijk[:, 1],
-                                                      idx_ijk[:, 2],
-                                                      n_atoms)
-        triangles = np.vstack([r_l, r_m, r_n]).T
-        val_l = spline_evaluator(triangles, nus=np.array([1, 0, 0]))
-        val_m = spline_evaluator(triangles, nus=np.array([0, 1, 0]))
-        val_n = spline_evaluator(triangles, nus=np.array([0, 0, 1]))
-        f_accumulate += np.dot(drij_dr, val_l)
-        f_accumulate += np.dot(drik_dr, val_m)
-        f_accumulate += np.dot(drjk_dr, val_n)
-    return f_accumulate
-
-
 def coefficients_by_interaction(element_list: List,
                                 interactions_map: Dict[int, List[Tuple[str]]],
                                 partition_sizes: Collection[int],
@@ -411,7 +471,7 @@ def coefficients_by_interaction(element_list: List,
 
 def construct_pair_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
                               bspline_config: bspline.BSplineBasis
-                              ) -> Dict[Tuple[str], interpolate.BSpline]:
+                              ) -> Dict[Tuple[str], ndsplines.NDSpline]:
     """
     Construct BSpline basis functions from coefficients and
     bspline.BSplineBasis handler.
@@ -426,12 +486,40 @@ def construct_pair_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
     pair_tuples = bspline_config.chemical_system.interactions_map[2]
     potentials = {}
     for pair in pair_tuples:
-        knot_sequence = bspline_config.knots_map[pair]
-        bspline_curve = interpolate.BSpline(knot_sequence,
-                                            coefficient_sets[pair],
-                                            3,  # cubic BSpline
-                                            extrapolate=False)
+        knot_sequence = [bspline_config.knots_map[pair]]
+        bspline_curve = ndsplines.NDSpline(knot_sequence,
+                                           coefficient_sets[pair],
+                                           3,  # cubic BSpline
+                                           extrapolate=False)
         potentials[pair] = bspline_curve
+    return potentials
+
+
+def construct_trio_potentials(coefficient_sets: Dict[Tuple[str], np.ndarray],
+                              bspline_config: bspline.BSplineBasis
+                              ) -> Dict[Tuple[str], ndsplines.NDSpline]:
+    """
+    Construct BSpline basis functions from coefficients and
+    bspline.BSplineBasis handler.
+
+    Args:
+        coefficient_sets (dict): map of pair tuple to coefficient vector.
+        bspline_config (bspline.BSplineBasis)
+
+    Returns:
+        potentials (dict): map of pair tuple to interpolate.BSpline
+    """
+    trio_tuples = bspline_config.chemical_system.interactions_map[3]
+    potentials = {}
+    for trio in trio_tuples:
+        knot_sequence = bspline_config.knots_map[trio]
+        c_compressed = coefficient_sets[trio]
+        c_decompressed = bspline_config.decompress_3B(c_compressed, trio)
+        bspline_field = ndsplines.NDSpline(knot_sequence,
+                                           c_decompressed,
+                                           3,  # cubic BSpline
+                                           extrapolate=False)
+        potentials[trio] = bspline_field
     return potentials
 
 

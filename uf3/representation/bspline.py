@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple, Any, Collection
 import os
 import re
 import warnings
+import itertools
 import numpy as np
 from scipy import interpolate
 
@@ -29,8 +30,8 @@ class BSplineBasis:
                  resolution_map=None,
                  knot_strategy='linear',
                  offset_1b=True,
+                 leading_trim=0,
                  trailing_trim=3,
-                 mask_trim=True,
                  knots_map=None):
         """
         Args:
@@ -46,7 +47,8 @@ class BSplineBasis:
                 body interactions and 5 for three-body interactions.
             knot_strategy (str): "linear" for uniform spacing
                 or "lammps" for knot spacing by r^2.
-
+            leading_trim (int): number of basis functions at leading edge
+                to suppress. Useful for ensuring smooth cutoffs.
             trailing_trim (int): number of basis functions at trailing edge
                 to suppress. Useful for ensuring smooth cutoffs.
             knots_map (dict): pre-generated map of knots.
@@ -55,8 +57,8 @@ class BSplineBasis:
         self.chemical_system = chemical_system
         self.knot_strategy = knot_strategy
         self.offset_1b = offset_1b
+        self.leading_trim = leading_trim
         self.trailing_trim = trailing_trim
-        self.mask_trim = mask_trim
         self.r_min_map = {}
         self.r_max_map = {}
         self.resolution_map = {}
@@ -77,10 +79,12 @@ class BSplineBasis:
 
     @staticmethod
     def from_config(config):
+        return BSplineBasis.from_dict(config)
+
+    @staticmethod
+    def from_dict(config):
         """Instantiate from configuration dictionary"""
-        if "chemical_system" not in config:
-            raise ValueError("No chemical system specified.")
-        chemical_system = config["chemical_system"]
+        chemical_system = composition.ChemicalSystem.from_dict(config)
         basis_settings = dict()
         if "knots_path" in config and config["load_knots"]:
             knots_fname = config["knots_path"]
@@ -100,7 +104,14 @@ class BSplineBasis:
                 basis_settings[alias] = config[key]
             if alias in config:  # higher priority in case of duplicate
                 basis_settings[alias] = config[alias]
-        keys = ["trailing_trim", "mask_trim", "knot_strategy"]
+        keys = ["r_min_map",
+                "r_max_map",
+                "resolution_map",
+                "knot_strategy",
+                "offset_1b",
+                "leading_trim",
+                "trailing_trim",
+                "knots_map"]
         basis_settings.update({k: v for k, v in config.items() if k in keys})
         bspline_config = BSplineBasis(chemical_system, **basis_settings)
         if "knots_path" in config and config["dump_knots"]:
@@ -109,6 +120,15 @@ class BSplineBasis:
                                          filename=config["knots_path"],
                                          write=True)
         return bspline_config
+
+    def as_dict(self):
+        dump = dict(knot_strategy=self.knot_strategy,
+                    offset_1b=self.offset_1b,
+                    leading_trim=self.leading_trim,
+                    trailing_trim=self.trailing_trim,
+                    knots_map=self.knots_map,
+                    **self.chemical_system.as_dict())
+        return dump
 
     @property
     def degree(self):
@@ -132,15 +152,24 @@ class BSplineBasis:
 
     def __repr__(self):
         summary = ["BSplineBasis:",
-                   f"    Basis functions: {self.n_feats}",
-                   self.chemical_system.__repr__()
-                   ]
+                   f"    Basis functions:"]
+        sizes = self.get_interaction_partitions()[0]
+        for n in range(2, self.degree + 1):
+            for interaction in self.interactions_map[n]:
+                size = sizes[interaction]
+                summary.append(" " * 8 + f"{str(interaction)}: {size:d}")
+        summary.append(self.chemical_system.__repr__())
         return "\n".join(summary)
 
     def __str__(self):
         return self.__repr__()
 
     def get_cutoff(self):
+        """
+
+        Returns:
+
+        """
         values = []
         for interaction in self.r_max_map:
             r_max = self.r_max_map[interaction]
@@ -155,29 +184,56 @@ class BSplineBasis:
                      r_min_map: Dict[Tuple, Any] = None,
                      resolution_map: Dict[Tuple, Any] = None,
                      knots_map: Dict[Tuple, Any] = None):
+        """
+
+        Args:
+            r_max_map:
+            r_min_map:
+            resolution_map:
+            knots_map:
+
+        Returns:
+
+        """
         # lower and upper distance cutoffs
-        if r_min_map is not None:
-            r_min_map = composition.sort_interaction_map(r_min_map)
-            self.r_min_map.update(r_min_map)
-        if r_max_map is not None:
-            r_max_map = composition.sort_interaction_map(r_max_map)
-            self.r_max_map.update(r_max_map)
-        if resolution_map is not None:
-            resolution_map = composition.sort_interaction_map(resolution_map)
-            self.resolution_map.update(resolution_map)
+        if r_min_map is None:
+            r_min_map = {}
+        if r_max_map is None:
+            r_max_map = {}
+        if resolution_map is None:
+            resolution_map = {}
+        r_min_map = composition.sort_interaction_map(r_min_map)
+        self.r_min_map.update(r_min_map)
+        r_max_map = composition.sort_interaction_map(r_max_map)
+        self.r_max_map.update(r_max_map)
+        resolution_map = composition.sort_interaction_map(resolution_map)
+        self.resolution_map.update(resolution_map)
         # Update with pregenerated knots_map
         if knots_map is not None:
+            knots_map = composition.sort_interaction_map(knots_map)
             self.update_knots_from_dict(knots_map)
         # Update with provided and default values
-        for pair in self.interactions_map.get(2, []):
+        pair_list = self.interactions_map.get(2, [])
+        trio_list = self.interactions_map.get(3, [])
+        for map_ in [self.r_min_map, self.r_max_map, self.resolution_map]:
+            tuple_consistency_check(map_, self.interactions_map)
+        for pair in pair_list:
             self.r_min_map[pair] = self.r_min_map.get(pair, 1.0)
-            self.r_max_map[pair] = self.r_max_map.get(pair, 6.0)
-            self.resolution_map[pair] = self.resolution_map.get(pair, 20)
-        for trio in self.interactions_map.get(3, []):
-            self.r_min_map[trio] = self.r_min_map.get(trio, [1.0, 1.0, 1.0])
-            self.r_max_map[trio] = self.r_max_map.get(trio, [4.0, 4.0, 8.0])
+            self.r_max_map[pair] = self.r_max_map.get(pair, 8.0)
+            self.resolution_map[pair] = self.resolution_map.get(pair, 15)
+        for trio in trio_list:
+            mins = [r_min_map.get(k, 1.0)
+                    for k in itertools.combinations(trio, 2)]
+            default_min = [np.min(mins), np.min(mins), np.min(mins)]
+            maxs = [r_max_map.get(k, 4.0)
+                    for k in itertools.combinations(trio, 2)]
+            default_max = [np.max(maxs), np.max(maxs), 2 * np.max(maxs)]
+            default_res = [5, 5, 10]
+
+            self.r_min_map[trio] = self.r_min_map.get(trio, default_min)
+            self.r_max_map[trio] = self.r_max_map.get(trio, default_max)
             self.resolution_map[trio] = self.resolution_map.get(trio,
-                                                                [5, 5, 10])
+                                                                default_res)
             min_set = len(set(self.r_min_map[trio]))
             max_set = len(set(self.r_max_map[trio]))
             res_set = len(set(self.resolution_map[trio]))
@@ -190,13 +246,16 @@ class BSplineBasis:
         self.r_cut = self.get_cutoff()
 
     def update_knots_from_dict(self, knots_map):
+        """"""
         for pair in self.interactions_map.get(2, []):
             if pair in knots_map:
-                knot_sequence = knots_map[pair]
+                knot_sequence = np.array(knots_map[pair])
                 self.knots_map[pair] = knot_sequence
                 self.r_min_map[pair] = knot_sequence[0]
                 self.r_max_map[pair] = knot_sequence[-1]
                 self.resolution_map[pair] = len(knot_sequence) - 7
+            else:
+                warnings.warn(f"{pair} specification unused.")
 
         for trio in self.interactions_map.get(3, []):
             if trio in knots_map:
@@ -223,6 +282,9 @@ class BSplineBasis:
                         l_sequence = knot_sequence[0]
                         m_sequence = knot_sequence[1]
                         n_sequence = knot_sequence[2]
+                l_sequence = np.array(l_sequence)
+                m_sequence = np.array(m_sequence)
+                n_sequence = np.array(n_sequence)
                 self.knots_map[trio] = [l_sequence,
                                         m_sequence,
                                         n_sequence]
@@ -235,8 +297,11 @@ class BSplineBasis:
                 self.resolution_map[trio] = [len(l_sequence) - 7,
                                              len(m_sequence) - 7,
                                              len(n_sequence) - 7]
+            else:
+                warnings.warn(f"{trio} specification unused.")
 
     def update_basis_functions(self):
+        """"""
         # Generate subintervals and basis functions for two-body
         for pair in self.interactions_map.get(2, []):
             if pair not in self.knots_map:  # compute knots if not provided
@@ -244,7 +309,9 @@ class BSplineBasis:
                 r_max = self.r_max_map[pair]
                 n_intervals = self.resolution_map[pair]
                 knot_sequence = self.knot_spacer(r_min, r_max, n_intervals)
-                knot_sequence[knot_sequence == 0] = 1e-6
+                # knot_sequence[knot_sequence == 0] = 1e-6
+                if r_min is None:
+                    self.r_min_map[pair] = knot_sequence[0]
                 self.knots_map[pair] = knot_sequence
             subintervals = get_knot_subintervals(self.knots_map[pair])
             self.knot_subintervals[pair] = subintervals
@@ -262,7 +329,7 @@ class BSplineBasis:
                         knot_sequence = self.knot_spacer(r_min[i],
                                                          r_max[i],
                                                          r_resolution[i])
-                        knot_sequence[knot_sequence == 0] = 1e-6
+                        # knot_sequence[knot_sequence == 0] = 1e-6
                         knot_sequences.append(knot_sequence)
                     self.knots_map[trio] = knot_sequences
                 subintervals = []
@@ -276,9 +343,11 @@ class BSplineBasis:
                 self.basis_functions[trio] = basis_functions
             self.set_flatten_template_3B()
         self.partition_sizes = self.get_feature_partition_sizes()
-        self.col_idx, self.frozen_c = self.generate_frozen_indices(
-            offset_1b=self.offset_1b,
-            n_trim=self.trailing_trim)
+        ci, cf = self.generate_frozen_indices(offset_1b=self.offset_1b,
+                                              n_lead=self.leading_trim,
+                                              n_trail=self.trailing_trim)
+        self.col_idx = ci
+        self.frozen_c = cf
 
     def get_regularization_matrix(self,
                                   ridge_map={},
@@ -304,8 +373,15 @@ class BSplineBasis:
                 ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
             elif k.lower()[0] == 'c':
                 curvature_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
-        ridge_map = {1: 1e-8, 2: 0.0, 3: 0.0, **ridge_map}
-        curvature_map = {1: 0.0, 2: 1e-8, 3: 1e-8, **curvature_map}
+
+        ridge_map = {1: regularize.DEFAULT_REGULARIZER_GRID["ridge_1b"],
+                     2: regularize.DEFAULT_REGULARIZER_GRID["ridge_2b"],
+                     3: regularize.DEFAULT_REGULARIZER_GRID["ridge_3b"],
+                     **ridge_map}
+        curvature_map = {1: 0.0,
+                         2: regularize.DEFAULT_REGULARIZER_GRID["curve_2b"],
+                         3: regularize.DEFAULT_REGULARIZER_GRID["curve_3b"],
+                         **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
         matrix = regularize.get_regularizer_matrix(n_elements,
@@ -358,6 +434,12 @@ class BSplineBasis:
         return partition_sizes
 
     def get_interaction_partitions(self):
+        """
+
+
+        Returns:
+
+        """
         interactions_list = self.interactions
         partition_sizes = self.get_feature_partition_sizes()
         offsets = np.cumsum(partition_sizes)
@@ -370,10 +452,37 @@ class BSplineBasis:
             component_offsets[interaction] = offsets[j]
         return component_sizes, component_offsets
 
+    def get_column_names(self):
+        composition_columns = ['n_{}'.format(el) for el
+                               in self.element_list]
+        feature_columns = []
+        sizes = self.get_interaction_partitions()[0]
+        for n in range(2, self.degree + 1):
+            for interaction in self.interactions_map[n]:
+                size = sizes[interaction]
+                interaction = "".join(interaction)
+                names = [interaction + str(i) for i in range(size)]
+                feature_columns.extend(names)
+        column_names = ["y"] + composition_columns + feature_columns
+        return column_names
+
     def generate_frozen_indices(self,
                                 offset_1b: bool = True,
-                                n_trim: int = 3,
+                                n_lead: int = 0,
+                                n_trail: int = 3,
                                 value: float = 0.0):
+        """
+
+
+        Args:
+            offset_1b:
+            n_lead:
+            n_trail:
+            value:
+
+        Returns:
+
+        """
         pairs = self.interactions_map.get(2, [])
         trios = self.interactions_map.get(3, [])
         component_sizes, component_offsets = self.get_interaction_partitions()
@@ -382,13 +491,21 @@ class BSplineBasis:
         for pair in pairs:
             offset = component_offsets[pair]
             size = component_sizes[pair]
-            for trim_idx in range(1, n_trim + 1):
+            for trim_idx in range(n_lead):
+                idx = offset + trim_idx
+                col_idx.append(idx)
+                frozen_c.append(value)
+            for trim_idx in range(1, n_trail + 1):
                 idx = offset + size - trim_idx
                 col_idx.append(idx)
                 frozen_c.append(value)
         for trio in trios:
             template = np.zeros_like(self.templates[trio])
-            for trim_idx in range(1, n_trim + 1):
+            for trim_idx in range(n_lead):
+                template[trim_idx, :, :] = 1
+                template[:, trim_idx, :] = 1
+                template[:, :, trim_idx] = 1
+            for trim_idx in range(1, n_trail + 1):
                 template[-trim_idx, :, :] = 1
                 template[:, -trim_idx, :] = 1
                 template[:, :, -trim_idx] = 1
@@ -418,17 +535,14 @@ class BSplineBasis:
             unflatten_mask (np.ndarray): L x L x L boolean array for
                 regenerating full basis function set.
         """
-        if self.mask_trim:
-            trailing_trim = self.trailing_trim
-        else:
-            trailing_trim = 0
         for trio in self.interactions_map[3]:
             l_space, m_space, n_space = self.knots_map[trio]
             template = angles.get_symmetry_weights(self.symmetry[trio],
                                                    l_space,
                                                    m_space,
                                                    n_space,
-                                                   trailing_trim,)
+                                                   self.leading_trim,
+                                                   self.trailing_trim)
             template_flat = template.flatten()
             template_mask, = np.where(template_flat > 0)
             self.template_mask[trio] = template_mask
@@ -436,6 +550,15 @@ class BSplineBasis:
             self.templates[trio] = template
 
     def compress_3B(self, grid, interaction):
+        """
+
+        Args:
+            grid:
+            interaction:
+
+        Returns:
+
+        """
         if self.symmetry[interaction] == 1:
             vec = grid.flatten()
         elif self.symmetry[interaction] == 2:
@@ -454,16 +577,37 @@ class BSplineBasis:
         return vec
 
     def decompress_3B(self, vec, interaction):
+        """
+
+        Args:
+            vec:
+            interaction:
+
+        Returns:
+
+        """
+        vec = vec * self.flat_weights[interaction]
         l_space, m_space, n_space = self.knots_map[interaction]
         L = len(l_space) - 4
         M = len(m_space) - 4
         N = len(n_space) - 4
         grid = np.zeros((L, M, N))
         grid.flat[self.template_mask[interaction]] = vec
+        grid = grid + grid.transpose(1, 0, 2)
         return grid
 
 
 def get_knot_spacer(knot_strategy):
+    """
+
+
+    Args:
+        knot_strategy:
+
+
+    Returns:
+
+    """
     # select knot spacing option
     if knot_strategy == 'lammps':
         spacing_function = generate_lammps_knots
@@ -473,8 +617,6 @@ def get_knot_spacer(knot_strategy):
         spacing_function = generate_geometric_knots
     elif knot_strategy == 'inverse':
         spacing_function = generate_inv_knots
-    elif knot_strategy == 'custom':
-        pass
     else:
         raise ValueError('Invalid value of knot_strategy:', knot_strategy)
     return spacing_function
@@ -502,7 +644,8 @@ def generate_basis_functions(knot_subintervals):
 def evaluate_basis_functions(points,
                              basis_functions,
                              nu=0,
-                             trailing_trim=0,
+                             n_lead=0,
+                             n_trail=0,
                              flatten=True,
                              ):
     """
@@ -528,7 +671,7 @@ def evaluate_basis_functions(points,
     """
     n_splines = len(basis_functions)
     values_per_spline = [0] * n_splines
-    for idx in range(n_splines - trailing_trim):
+    for idx in range(n_lead, n_splines - n_trail):
         # loop over number of basis functions
         bspline_values = basis_functions[idx](points, nu=nu)
         bspline_values[np.isnan(bspline_values)] = 0
@@ -544,7 +687,8 @@ def featurize_force_2B(basis_functions,
                        distances,
                        drij_dR,
                        knot_sequence,
-                       trailing_trim=0,
+                       n_lead=0,
+                       n_trail=0,
                        ):
     """
     Args:
@@ -567,7 +711,7 @@ def featurize_force_2B(basis_functions,
     n_splines = len(basis_functions)
     n_atoms, _, n_distances = drij_dR.shape
     x = np.zeros((n_atoms, 3, n_splines))
-    for bspline_idx in np.arange(n_splines - trailing_trim):
+    for bspline_idx in np.arange(n_lead, n_splines - n_trail):
         # loop over number of basis functions
         basis_function = basis_functions[bspline_idx]
         b_knots = knot_sequence[bspline_idx: bspline_idx+5]
@@ -653,9 +797,12 @@ def find_spline_indices(points: np.ndarray,
             point (four each).
     """
     # identify basis function "center" per point
-    idx = np.searchsorted(np.unique(knot_sequence), points, side='left') - 1
+    idx = np.searchsorted(knot_sequence, points, side='left') - 1 - 3
     # tile to identify four non-zero basis functions per point
-    offsets = np.tile([0, 1, 2, 3], len(points))
+    offsets = np.zeros(len(points) * 4, dtype=np.int64)
+    for i in range(4):
+        offsets[i::4] = i
+    # offsets = np.tile([0, 1, 2, 3], len(points))
     idx = np.repeat(idx, 4) + offsets
     points = np.repeat(points, 4)
     return points, idx
@@ -698,7 +845,8 @@ def get_knot_subintervals(knots: np.ndarray) -> List:
 def generate_uniform_knots(r_min: float,
                            r_max: float,
                            n_intervals: int,
-                           sequence: bool = True
+                           sequence: bool = True,
+                           offset: int = 3,
                            ) -> np.ndarray:
     """
     Generate evenly-spaced knot points or knot sequence.
@@ -713,6 +861,8 @@ def generate_uniform_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        r_min = -offset * (r_max - 0.0) / (n_intervals - offset)
     knots = np.linspace(r_min, r_max, n_intervals + 1)
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -738,6 +888,9 @@ def generate_inv_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.linspace(1/r_min, 1/r_max, n_intervals + 1)**-1
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -764,6 +917,9 @@ def generate_geometric_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.geomspace(r_min, r_max, n_intervals + 1)
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -793,6 +949,9 @@ def generate_lammps_knots(r_min: float,
     Returns:
         knots (np.ndarray): knot points or knot sequence.
     """
+    if r_min is None:
+        raise ValueError(
+            "Automatic lower-bound is WIP for this knot spacing scheme.")
     knots = np.linspace(r_min ** 2, r_max ** 2, n_intervals + 1) ** 0.5
     if sequence:
         knots = knot_sequence_from_points(knots)
@@ -823,3 +982,12 @@ def parse_knots_file(filename: str,
                 if all(conditions):
                     knots_map[interaction] = array
     return knots_map
+
+
+def tuple_consistency_check(map_, interaction_map):
+    interactions = []
+    for degree_data in interaction_map.values():
+        interactions.extend(degree_data)
+    for entry in map_:
+        if entry not in interactions:
+            warnings.warn(f"{entry} specification unused.")

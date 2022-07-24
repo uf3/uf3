@@ -5,18 +5,15 @@ from featurized DataFrames using regularized least squares.
 
 from typing import List, Dict, Collection, Tuple
 import os
+import warnings
 import numpy as np
 import pandas as pd
+import ndsplines
 from uf3.representation import bspline, process
 from uf3.data import io
+from uf3.data import composition
 from uf3.util import json_io
 from uf3.util import parallel
-
-DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
-                                ridge_2b=0,
-                                ridge_3b=0,
-                                curve_2b=1e-8,
-                                curve_3b=1e-8)
 
 
 class VarianceRecorder:
@@ -149,9 +146,24 @@ class WeightedLinearModel(BasicLinearModel):
     Handler class for regularized linear least squares using energies and
     forces and basis set provided by bspline.BsplineBasis.
     """
-    def __init__(self, bspline_config, regularizer=None, **params):
+    def __init__(self,
+                 bspline_config,
+                 regularizer=None,
+                 data_coverage=None,
+                 **params):
         super().__init__(regularizer)
         self.bspline_config = bspline_config
+        n_basis = np.sum(self.bspline_config.get_feature_partition_sizes())
+        if data_coverage is not None:
+            if len(data_coverage) == n_basis:
+                self.data_coverage = data_coverage
+            else:
+                raise ValueError(
+                    f"Incorrect data_coverage shape: "
+                    f"{len(data_coverage)} != {n_basis}"
+                )
+        else:
+            self.data_coverage = np.zeros(n_basis, dtype=bool)
 
         if self.regularizer is None:
             # initialize regularizer matrix if unspecified.
@@ -169,6 +181,39 @@ class WeightedLinearModel(BasicLinearModel):
                           if isinstance(v, (int, float, np.floating))}
             reg = self.bspline_config.get_regularization_matrix(**reg_params)
             self.regularizer = reg
+
+    @staticmethod
+    def from_config(config):
+        return WeightedLinearModel.from_dict(config)
+
+    @staticmethod
+    def from_dict(config):
+        bspline_config = bspline.BSplineBasis.from_dict(config)
+        regularizer = config.get("regularizer", None)
+        data_coverage = config.get("data_coverage", None)
+        model = WeightedLinearModel(bspline_config,
+                                    regularizer=regularizer,
+                                    data_coverage=data_coverage)
+        model.load(solution=config)
+        return model
+
+    @staticmethod
+    def from_json(filename):
+        """Load model (coefficients and knots map) from json file."""
+        dump = json_io.load_interaction_map(filename)
+        return WeightedLinearModel.from_dict(dump)
+
+    def as_dict(self):
+        solution = arrange_coefficients(self.coefficients, self.bspline_config)
+        for trio in self.bspline_config.interactions_map.get(3, []):
+            solution[trio] = self.bspline_config.decompress_3B(solution[trio],
+                                                               trio)
+        knots_map = self.bspline_config.knots_map
+        dump = dict(coefficients=solution,
+                    knots=knots_map,
+                    data_coverage=self.data_coverage,
+                    **self.bspline_config.as_dict())
+        return dump
 
     @property
     def n_feats(self):
@@ -209,6 +254,13 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x)
             ordinate (np.ndarray: ordinate (x^T y)
         """
+        data_coverage = (np.sum(gram, axis=0) != 0)
+        data_coverage = revert_frozen_coefficients(data_coverage,
+                                                   self.n_feats,
+                                                   self.mask,
+                                                   self.frozen_c,
+                                                   self.col_idx)
+        self.data_coverage = np.logical_or(self.data_coverage, data_coverage)
         regularizer = freeze_regularizer(self.regularizer, self.mask)
         regularizer = np.dot(regularizer.T, regularizer)
         coefficients = lu_factorization(gram + regularizer, ordinate)
@@ -248,8 +300,12 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
-            energy_weight = 1 / len(y_e) / np.std(y_e)
-            force_weight = 1 / len(y_f) / np.std(y_f)
+            try:
+                energy_weight = 1 / len(y_e) / np.std(y_e)
+                force_weight = 1 / len(y_f) / np.std(y_f)
+            except (ZeroDivisionError, FloatingPointError):
+                energy_weight = 1.0
+                force_weight = 1 / len(y_f)
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -301,9 +357,9 @@ class WeightedLinearModel(BasicLinearModel):
     def fit_from_file(self,
                       filename: str,
                       subset: Collection,
-                      index: Collection,
                       weight: float = 0.5,
                       batch_size=2500,
+                      sample_weights: Dict = None,
                       energy_key="energy",
                       progress: str = "bar"):
         """
@@ -312,19 +368,18 @@ class WeightedLinearModel(BasicLinearModel):
 
         Args:
             filename (str): path to HDF5 file.
-            subset (list): list of indices for training.
-            index (list): list of keys, i.e. from df_data DataFrame.
+            subset (list): list of keys for training.
             weight (float): parameter balancing contribution from energies
                 vs. forces. Higher values favor energies; defaults to 0.5.
             batch_size (int): batch size, in rows, for matrix multiplication
                 operations in constructing gram matrices.
+            sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             progress (str): style for progress indicators.
         """
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
         n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
-        subset_keys = index[subset]
         gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
         e_variance = VarianceRecorder()
         f_variance = VarianceRecorder()
@@ -333,15 +388,17 @@ class WeightedLinearModel(BasicLinearModel):
         for j in table_iterator:
             table_name = table_names[j]
             df = process.load_feature_db(filename, table_name)
-            keys = df.index.unique(level=0).intersection(subset_keys)
+            keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
-            g_e, g_f, o_e, o_f = self.gram_from_df(df,
-                                                   keys,
-                                                   e_variance=e_variance,
-                                                   f_variance=f_variance,
-                                                   energy_key=energy_key,
-                                                   batch_size=batch_size)
+            intermediates = self.gram_from_df(df,
+                                              keys,
+                                              e_variance=e_variance,
+                                              f_variance=f_variance,
+                                              sample_weights=sample_weights,
+                                              energy_key=energy_key,
+                                              batch_size=batch_size)
+            g_e, g_f, o_e, o_f = intermediates
             gram_e += g_e
             gram_f += g_f
             ord_e += o_e
@@ -371,6 +428,7 @@ class WeightedLinearModel(BasicLinearModel):
                      keys: Collection,
                      e_variance: VarianceRecorder = None,
                      f_variance: VarianceRecorder = None,
+                     sample_weights: Dict = None,
                      energy_key: str = "energy",
                      batch_size: int = 2500):
         """
@@ -384,6 +442,7 @@ class WeightedLinearModel(BasicLinearModel):
                 statistics for energies (mean and variance).
             f_variance (VarianceRecorder): handler for accumulating
                 statistics for forces (mean and variance).
+            sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             batch_size (int): batch size, in rows, for matrix multiplication
                 operations in constructing gram matrices.
@@ -391,7 +450,8 @@ class WeightedLinearModel(BasicLinearModel):
         n_elements = len(self.bspline_config.element_list)
         x_e, y_e, x_f, y_f = dataframe_to_tuples(df.loc[keys],
                                                  n_elements=n_elements,
-                                                 energy_key=energy_key)
+                                                 energy_key=energy_key,
+                                                 sample_weights=sample_weights)
         x_e, y_e = freeze_columns(x_e,
                                   y_e,
                                   self.mask,
@@ -416,7 +476,7 @@ class WeightedLinearModel(BasicLinearModel):
     def batched_predict(self,
                         filename: str,
                         keys: List[str] = None,
-                        table_names: List[str]=None,
+                        table_names: List[str] = None,
                         score: bool = True):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
@@ -450,23 +510,18 @@ class WeightedLinearModel(BasicLinearModel):
         else:
             return y_e, p_e, y_f, p_f
 
-    def save(self, filename: str):
-        """Save model (coefficients and knots map) to file."""
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        json_io.dump_interaction_map(dict(solution=solution,
-                                          knots=knots_map),
+    def to_json(self, filename: str):
+        """Save model (coefficients and knots map) to json file."""
+        json_io.dump_interaction_map(self.as_dict(),
                                      filename=filename,
                                      write=True)
 
     def dump(self):
-        """Arrange coefficients/knots map into dictionary."""
-        solution = arrange_coefficients(self.coefficients, self.bspline_config)
-        knots_map = self.bspline_config.knots_map
-        return dict(solution=solution, knots=knots_map)
+        """Legacy alias"""
+        return self.as_dict()
 
     def load(self,
-             solution: Dict[Tuple[str], np.ndarray] = None,
+             solution: Dict = None,
              filename: str = None,
              ):
         """
@@ -479,10 +534,50 @@ class WeightedLinearModel(BasicLinearModel):
             filename (str): filename of json dump containing solution.
         """
         if filename is not None:
-            dump = json_io.load_interaction_map(filename)
-            solution = dump["solution"]
+            if solution is not None:
+                warnings.warn("Provided solutions ignored; loading file.")
+            solution = json_io.load_interaction_map(filename)
         elif solution is None:
             raise ValueError("Neither solution nor filename were provided.")
+        if "coefficients" in solution:
+            solution = solution["coefficients"]
+        elif "solution" in solution:
+            # TODO: proper deprecation
+            warnings.warn("'solution' should be renamed to 'coefficients'")
+            solution = solution["solution"]
+        for key in solution:
+            if isinstance(key, tuple):
+                sorted_key = composition.sort_elements(key)
+                if tuple(sorted_key) != key:
+                    solution[sorted_key] = solution[key]
+        # consistency check with bspline_config
+        component_len = self.bspline_config.get_interaction_partitions()[0]
+        for pair in self.bspline_config.interactions_map[2]:
+            n_target = component_len[pair]
+            if pair not in solution:
+                warnings.warn(f"{pair} not provided.")
+                solution[pair] = np.zeros(n_target)
+            n_provided = len(solution[pair])
+            if n_provided != n_target:
+                raise ValueError(
+                    f"Incorrect shape: {pair}, {n_provided} != {n_target}"
+                )
+        for trio in self.bspline_config.interactions_map.get(3, []):
+            n_target = component_len[trio]
+            if trio not in solution:
+                warnings.warn(f"{trio} not provided.")
+            if trio in solution:
+                # decompress if necessary
+                component = np.array(solution[trio])
+                if len(np.shape(component)) > 1:
+                    vector = self.bspline_config.compress_3B(component,
+                                                             trio)
+                    solution[trio] = vector
+            n_provided = len(solution[trio])
+            if n_provided != n_target:
+                raise ValueError(
+                    f"Incorrect shape: {trio}, {n_provided} != {n_target}"
+                )
         flattened_coefficients = []
         for element in self.bspline_config.element_list:
             value = solution[element]
@@ -509,11 +604,53 @@ class WeightedLinearModel(BasicLinearModel):
             raise ValueError(error_line)
         self.coefficients = np.array(flattened_coefficients)
 
+    def fix_repulsion_2b(self, pair, r_target=None, min_curvature=2.0):
+        components = self.bspline_config.get_interaction_partitions()
+        component_sizes, component_offsets = components
+        offset = component_offsets[pair]
+        n_basis = component_sizes[pair]
+        idx_subset = np.arange(offset, offset + n_basis)
+        c_subset = self.coefficients[idx_subset]
+        coverage = self.data_coverage[idx_subset]
+        min_coverage = np.argmax(coverage == True)
+        if min_coverage == 0:
+            print(f"Coverage is sufficient; no fix applied to {pair}.")
+        idx_fix = np.arange(self.bspline_config.leading_trim, min_coverage)
+
+        knot_sequence = self.bspline_config.knots_map[pair]
+        r_centers = knot_sequence[2: n_basis + 2]
+        if r_target is None:
+            r_target = r_centers[min_coverage]
+        r_centers = r_centers[idx_fix]
+        c_new = get_spline_taylor_expansion(r_target,
+                                            r_centers,
+                                            c_subset,
+                                            knot_sequence,
+                                            min_curvature=min_curvature)
+        print(f"{pair} Correction: adjusted {len(idx_fix)} coefficients.")
+        self.coefficients[idx_subset[idx_fix]] = c_new
+
+
+def get_spline_taylor_expansion(r_target,
+                                r,
+                                coefficients,
+                                knot_sequence,
+                                min_curvature=0.0):
+    nd3 = ndsplines.NDSpline([knot_sequence], coefficients, 3)
+    y_trace = nd3(r_target, nus=0)
+    d1_trace = nd3(r_target, nus=1)
+    d2_trace = nd3(r_target, nus=2)
+    if min_curvature is not None:
+        d2_trace = max(d2_trace, min_curvature)
+    dr = r - r_target
+    y = y_trace + (d1_trace * dr) + (0.5 * d2_trace * dr ** 2)
+    return y
 
 
 def dataframe_to_tuples(df_features,
                         n_elements=None,
-                        energy_key='energy'):
+                        energy_key='energy',
+                        sample_weights=None):
     """
     Extract energy/force inputs/outputs from DataFrame.
 
@@ -524,6 +661,7 @@ def dataframe_to_tuples(df_features,
             normalization.
         energy_key (str): key for energy samples, used to slice df_features
             into energies and forces for weight generation.
+        sample_weights (dict):
 
     Returns:
         x (np.ndarray): features for machine learning.
@@ -533,6 +671,7 @@ def dataframe_to_tuples(df_features,
     if len(df_features) <= 1:
         raise ValueError(
             "Not enough samples ({} provided)".format(len(df_features)))
+    names = df_features.index.get_level_values(0)
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
     force_mask = np.logical_not(energy_mask)
@@ -549,6 +688,15 @@ def dataframe_to_tuples(df_features,
     else:
         x_e = x[energy_mask]
     x_f = x[force_mask]
+
+    if sample_weights is not None:
+        w = np.array([sample_weights.get(name, 1.0) for name in names])
+        w_e = w[energy_mask]
+        w_f = w[force_mask]
+        x_e = np.multiply(x_e.T, w_e).T
+        y_e = np.multiply(y_e, w_e)
+        x_f = np.multiply(x_f.T, w_f).T
+        y_f = np.multiply(y_f, w_f)
     return x_e, y_e, x_f, y_f
 
 

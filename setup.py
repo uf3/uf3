@@ -8,7 +8,7 @@ module_dir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(module_dir, 'readme.rst'), "r") as f:
     long_description = f.read()
 
-install_requires = ['numpy<1.21',
+install_requires = ['numpy<1.22',
                     'scipy',
                     'pandas',
                     'ase>=3.20.1']

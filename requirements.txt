@@ -1,9 +1,9 @@
-numpy<=1.20.3
+numpy<1.22
 scipy
 tqdm
 ase
 pandas
 pyyaml
 matplotlib
-ndsplines
+ndsplines==0.1.2
 tables

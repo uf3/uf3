@@ -24,30 +24,23 @@ class BasisFeaturizer:
     -Arrange features into DataFrame
     -Process DataFrame into tuples of (x, y, weight)
     """
-    def __init__(self,
-                 chemical_system,
-                 bspline_config,
-                 fit_forces=True,
-                 prefix='x'):
+    def __init__(self, bspline_config, fit_forces=True, prefix='x'):
         """
         Args:
-            chemical_system (uf3.data.composition.ChemicalSystem)
             bspline_config (uf3.representation.bspline.BsplineConfig)
             fit_forces (bool): whether to generate force features.
             prefix (str): prefix for feature columns.
         """
-        self.chemical_system = chemical_system
         self.bspline_config = bspline_config
         self.fit_forces = fit_forces
         self.prefix = prefix
 
         # generate column labels
-        self.n_features = sum(self.partition_sizes) - len(self.element_list)
-        feature_columns = ['{}_{}'.format(prefix, i)
-                           for i in range(self.n_features)]
-        composition_columns = ['n_{}'.format(el) for el
-                               in self.element_list]
-        self.columns = ["y"] + composition_columns + feature_columns
+        self.columns = self.bspline_config.get_column_names()
+
+    @property
+    def chemical_system(self):
+        return self.bspline_config.chemical_system
 
     @property
     def degree(self):
@@ -98,21 +91,21 @@ class BasisFeaturizer:
         return self.chemical_system.interaction_hashes
 
     @property
+    def leading_trim(self):
+        return self.bspline_config.leading_trim
+
+    @property
     def trailing_trim(self):
-        if self.bspline_config.mask_trim:
-            return self.bspline_config.trailing_trim
-        else:
-            return 0
+        return self.bspline_config.trailing_trim
 
     @staticmethod
-    def from_config(chemical_system, config):
+    def from_config(bspline_config, config):
         """Instantiate from configuration dictionary"""
         keys = ['knot_spacing',
                 'prefix',
                 'fit_forces']
         config = {k: v for k, v in config.items() if k in keys}
-        return BasisFeaturizer(chemical_system,
-                               **config)
+        return BasisFeaturizer(bspline_config, **config)
 
     def __repr__(self):
         summary = ["BasisFeaturizer:",
@@ -399,7 +392,8 @@ class BasisFeaturizer:
             features = bspline.evaluate_basis_functions(
                 distances_map[pair],
                 basis_function,
-                trailing_trim=self.trailing_trim)
+                n_lead=self.leading_trim,
+                n_trail=self.trailing_trim)
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -436,7 +430,8 @@ class BasisFeaturizer:
                 distance_map[pair],
                 derivative_map[pair],
                 knot_sequence,
-                trailing_trim=self.trailing_trim)
+                n_lead=self.leading_trim,
+                n_trail=self.trailing_trim)
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -465,7 +460,8 @@ class BasisFeaturizer:
                                            basis_functions,
                                            hashes,
                                            supercell=supercell,
-                                           trailing_trim=self.trailing_trim)
+                                           n_lead=self.leading_trim,
+                                           n_trail=self.trailing_trim)
         vectors = []
         for i, trio in enumerate(trio_list):
             value_grid = grids[i]
@@ -498,7 +494,8 @@ class BasisFeaturizer:
                                           basis_functions,
                                           hashes,
                                           supercell=supercell,
-                                          trailing_trim=self.trailing_trim)
+                                          n_lead=self.leading_trim,
+                                          n_trail=self.trailing_trim)
         blocks = []
         for i, trio in enumerate(trio_list):
             values = grids[i]

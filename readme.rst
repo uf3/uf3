@@ -71,11 +71,13 @@ LAMMPS interface:
    conda install numpy==1.20.3 --force-reinstall
    conda install -c conda-forge lammps --no-update-deps
 
+The environment variable ``$ASE_LAMMPSRUN_COMMAND`` must also be set to use the LAMMPS interface within python. See the `ASE documentation <https://wiki.fysik.dtu.dk/ase/ase/calculators/lammpsrun.html>`_ for details.
+
 Dependencies
 ------------
 
 -  We rely on ase to handle parsing outputs from atomistic codes like
-   LAMMPS, VASP, and C2PK.
+   LAMMPS, VASP, and CP2K.
 -  We use Pandas to keep track of atomic configurations and their
    energies/forces as well as organizing data for featurization and
    training.
