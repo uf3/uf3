@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
- *    Contributing authors: Ajinkya Hire(U of Florida), 
+ *    Contributing authors: Ajinkya Hire (U of Florida), 
  *                          Hendrik Kraß (U of Constance),
  *                          Richard Hennig (U of Florida)
  * ---------------------------------------------------------------------- */
@@ -27,12 +27,9 @@ PairStyle(uf3/kk/device,PairUF3Kokkos<LMPDeviceType>)
 #ifndef LMP_PAIR_UF3_KOKKOS_H
 #define LMP_PAIR_UF3_KOKKOS_H
 
-#include "uf3_pair_bspline.h"
-#include "uf3_triplet_bspline.h"
-
+#include "kokkos.h"
 #include "pair_kokkos.h"
-
-#include <unordered_map>
+#include "pair_uf3.h"
 
 template <int NEIGHFLAG, int EVFLAG> struct TagPairUF3ComputeFullA {
 };
@@ -40,43 +37,18 @@ struct TagPairUF3ComputeShortNeigh {};
 
 namespace LAMMPS_NS {
 
-template <class DeviceType> class PairUF3Kokkos : public Pair {
+template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
  public:
   PairUF3Kokkos(class LAMMPS *);
   ~PairUF3Kokkos() override;
   void compute(int, int) override;
-  void settings(int, char **) override;
   void coeff(int, char **) override;
+  void settings(int, char **) override;
   void init_style() override;
   void init_list(int, class NeighList *) override;    // needed for ptr to full neigh list
-  double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
- protected:
-  void uf3_read_pot_file(char *potf_name);
-  int num_of_elements, nbody_flag, n2body_pot_files, n3body_pot_files, tot_pot_files;
-  int coeff_matrix_dim1, coeff_matrix_dim2, coeff_matrix_dim3, coeff_matrix_elements_len;
-  bool pot_3b;
-  int ***setflag_3b;
-  double ***cut_3b, **cut_3b_list;
-  virtual void allocate();
-  std::vector<std::vector<std::vector<double>>> n2b_knot, n2b_coeff;
-  std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> n3b_knot_matrix;
-  std::unordered_map<std::string, std::vector<std::vector<std::vector<double>>>> n3b_coeff_matrix;
-  std::vector<std::vector<uf3_pair_bspline>> UFBS2b;
-  std::vector<std::vector<std::vector<uf3_triplet_bspline>>> UFBS3b;
-  int *neighshort, maxshort;    // short neighbor list array for 3body interaction
-
-  enum { EnabledNeighFlags = FULL };
-  enum { COUL_FLAG = 0 };
-  typedef DeviceType device_type;
-  typedef ArrayTypes<DeviceType> AT;
-  typedef EV_FLOAT value_type;
-
-  template <typename T, typename V> void copy_1d(V &d, T *h, int n);
-
   template <typename T, typename V> void copy_2d(V &d, T **h, int m, int n);
-
   template <typename T, typename V> void copy_3d(V &d, T ***h, int m, int n, int o);
 
   template <int NEIGHFLAG, int EVFLAG>
@@ -90,6 +62,50 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
   KOKKOS_INLINE_FUNCTION
   void operator()(TagPairUF3ComputeShortNeigh, const int &) const;
 
+  enum { EnabledNeighFlags = FULL };
+  enum { COUL_FLAG = 0 };
+  typedef DeviceType device_type;
+  typedef ArrayTypes<DeviceType> AT;
+  typedef EV_FLOAT value_type;
+
+ protected:
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_cutsq, d_cut_3b_list;
+  Kokkos::View<F_FLOAT ***, LMPDeviceType::array_layout, LMPDeviceType> d_cut_3b;
+
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_coefficients_2b;
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_dncoefficients_2b;
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_n2b_knot;
+  Kokkos::View<F_FLOAT *, LMPDeviceType::array_layout, LMPDeviceType> d_n2b_knot_spacings;
+  Kokkos::View<int **, LMPDeviceType::array_layout, LMPDeviceType> map2b;
+  Kokkos::View<F_FLOAT[4][4], LMPDeviceType::array_layout, LMPDeviceType> constants;
+  Kokkos::View<F_FLOAT[3][3], LMPDeviceType::array_layout, LMPDeviceType> dnconstants;
+  Kokkos::View<F_FLOAT ***, LMPDeviceType::array_layout, LMPDeviceType> d_n3b_knot_matrix;
+  Kokkos::View<F_FLOAT ****, LMPDeviceType::array_layout, LMPDeviceType> d_coefficients_3b;
+  Kokkos::View<F_FLOAT *****, LMPDeviceType::array_layout, LMPDeviceType> d_dncoefficients_3b;
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_n3b_knot_spacings;
+  Kokkos::View<int ***, LMPDeviceType::array_layout, LMPDeviceType> map3b;
+
+  Kokkos::View<F_FLOAT **[16], LMPDeviceType::array_layout, LMPDeviceType> constants_2b;
+  Kokkos::View<F_FLOAT **[9], LMPDeviceType::array_layout, LMPDeviceType> dnconstants_2b;
+  Kokkos::View<F_FLOAT ***[16], LMPDeviceType::array_layout, LMPDeviceType> constants_3b;
+  Kokkos::View<F_FLOAT ***[9], LMPDeviceType::array_layout, LMPDeviceType> dnconstants_3b;
+
+  std::vector<F_FLOAT> get_constants(double *knots, double coefficient);
+  std::vector<F_FLOAT> get_dnconstants(double *knots, double coefficient);
+
+  void create_3b_coefficients();
+  void create_2b_coefficients();
+  std::vector<F_FLOAT> get_coefficients(const double *knots, const double coefficient) const;
+  std::vector<F_FLOAT> get_dncoefficients(const double *knots, const double coefficient) const;
+
+  template <int EVFLAG>
+  void twobody(const int itype, const int jtype, const F_FLOAT r, F_FLOAT &evdwl,
+               F_FLOAT &fpair) const;
+  template <int EVFLAG>
+  void threebody(const int itype, const int jtype, const int ktype, const F_FLOAT value_rij,
+                 const F_FLOAT value_rik, const F_FLOAT value_rjk, F_FLOAT &evdwl3,
+                 F_FLOAT (&fforce)[3]) const;
+
   template <int NEIGHFLAG>
   KOKKOS_INLINE_FUNCTION void
   ev_tally(EV_FLOAT &ev, const int &i, const int &j, const F_FLOAT &epair, const F_FLOAT &fpair,
@@ -100,10 +116,6 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
                                         const F_FLOAT &evdwl, const F_FLOAT &ecoul, F_FLOAT *fj,
                                         F_FLOAT *fk, F_FLOAT *drji, F_FLOAT *drki) const;
 
-  KOKKOS_INLINE_FUNCTION
-  void ev_tally3_atom(EV_FLOAT &ev, const int &i, const F_FLOAT &evdwl, const F_FLOAT &ecoul,
-                      F_FLOAT *fj, F_FLOAT *fk, F_FLOAT *drji, F_FLOAT *drki) const;
-
   typename AT::t_x_array_randomread x;
   typename AT::t_f_array f;
   typename AT::t_tagint_1d tag;
@@ -111,44 +123,23 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
 
   DAT::tdual_efloat_1d k_eatom;
   DAT::tdual_virial_array k_vatom;
-  DAT::tdual_virial_array k_cvatom;
+  DAT::tdual_centroid_virial_array k_cvatom;
   typename AT::t_efloat_1d d_eatom;
   typename AT::t_virial_array d_vatom;
-  typename AT::t_virial_array d_cvatom;
+  typename AT::t_centroid_virial_array d_cvatom;
 
-  int need_dup;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[3], typename DAT::t_f_array::array_layout, DeviceType,
-                                    Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterDuplicated>
-      dup_f;
-  Kokkos::Experimental::ScatterView<E_FLOAT *, typename DAT::t_efloat_1d::array_layout, DeviceType,
-                                    Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterDuplicated>
-      dup_eatom;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[6], typename DAT::t_virial_array::array_layout,
-                                    DeviceType, Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterDuplicated>
-      dup_vatom;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[9], typename DAT::t_virial_array::array_layout,
-                                    DeviceType, Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterDuplicated>
-      dup_cvatom;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[3], typename DAT::t_f_array::array_layout, DeviceType,
-                                    Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterNonDuplicated>
-      ndup_f;
-  Kokkos::Experimental::ScatterView<E_FLOAT *, typename DAT::t_efloat_1d::array_layout, DeviceType,
-                                    Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterNonDuplicated>
-      ndup_eatom;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[6], typename DAT::t_virial_array::array_layout,
-                                    DeviceType, Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterNonDuplicated>
-      ndup_vatom;
-  Kokkos::Experimental::ScatterView<F_FLOAT *[9], typename DAT::t_virial_array::array_layout,
-                                    DeviceType, Kokkos::Experimental::ScatterSum,
-                                    Kokkos::Experimental::ScatterNonDuplicated>
-      ndup_cvatom;
+  using ScatterFType = Kokkos::Experimental::ScatterView<F_FLOAT *[3], Kokkos::LayoutRight,
+                                                         typename DeviceType::memory_space>;
+  ScatterFType fscatter;
+  using ScatterVType = Kokkos::Experimental::ScatterView<F_FLOAT *[6], Kokkos::LayoutRight,
+                                                         typename DeviceType::memory_space>;
+  ScatterVType vscatter;
+  using ScatterCVType = Kokkos::Experimental::ScatterView<F_FLOAT *[9], Kokkos::LayoutRight,
+                                                          typename DeviceType::memory_space>;
+  ScatterCVType cvscatter;
+  using ScatterEType = Kokkos::Experimental::ScatterView<E_FLOAT *, LMPDeviceType::array_layout,
+                                                         typename DeviceType::memory_space>;
+  ScatterEType escatter;
 
   typename AT::t_neighbors_2d d_neighbors;
   typename AT::t_int_1d_randomread d_ilist;
@@ -163,6 +154,15 @@ template <class DeviceType> class PairUF3Kokkos : public Pair {
 
   friend void pair_virial_fdotr_compute<PairUF3Kokkos>(PairUF3Kokkos *);
 };
+
+KOKKOS_INLINE_FUNCTION int min(int i, int j)
+{
+  return i < j ? i : j;
+}
+KOKKOS_INLINE_FUNCTION int max(int i, int j)
+{
+  return i > j ? i : j;
+}
 
 }    // namespace LAMMPS_NS
 
