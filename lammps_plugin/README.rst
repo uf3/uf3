@@ -23,6 +23,14 @@ This will compile lammps with support for UF3 potentials. For more information o
 
 .. _link: https://docs.lammps.org/Build.html
 
+If you want to compile with MPI support enabled, you additionally have to set the BUILD_MPI flag and make sure that a suitable MPI runtime can be found by the compiler. To make the executables distinguishable, the `LAMMPS_MACHINE` option sets a suffix for the output file.
+
+.. code:: bash
+
+ cd LAMMPS_BASE_DIR/build
+ cmake ../cmake/ -D PKG_ML-UF3=yes -D BUILD_MPI=yes -D LAMMPS_MACHINE=mpi # Compiles to lmp_mpi
+ cmake --build .
+
 
 Running lammps with UF3 potential
 -----
