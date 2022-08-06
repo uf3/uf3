@@ -491,27 +491,26 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
     r_values[1] = r[d];
     r_values[2] = r_values[1] * r_values[1];
 
-    if (EVFLAG) {
-      r_values[3] = r_values[2] * r_values[1];
+    r_values[3] = r_values[2] * r_values[1];
 
-      // Calculate energy
-      evals[d][0] = constants_3b(interaction_id, d, start_indices[d], 0);
-      evals[d][0] += r_values[1] * constants_3b(interaction_id, d, start_indices[d], 1);
-      evals[d][0] += r_values[2] * constants_3b(interaction_id, d, start_indices[d], 2);
-      evals[d][0] += r_values[3] * constants_3b(interaction_id, d, start_indices[d], 3);
-      evals[d][1] = constants_3b(interaction_id, d, start_indices[d] - 1, 4);
-      evals[d][1] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 1, 5);
-      evals[d][1] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 1, 6);
-      evals[d][1] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 1, 7);
-      evals[d][2] = constants_3b(interaction_id, d, start_indices[d] - 2, 8);
-      evals[d][2] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 2, 9);
-      evals[d][2] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 2, 10);
-      evals[d][2] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 2, 11);
-      evals[d][3] = constants_3b(interaction_id, d, start_indices[d] - 3, 12);
-      evals[d][3] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 3, 13);
-      evals[d][3] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 3, 14);
-      evals[d][3] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 3, 15);
-    }
+    // Calculate energy
+    evals[d][0] = constants_3b(interaction_id, d, start_indices[d], 0);
+    evals[d][0] += r_values[1] * constants_3b(interaction_id, d, start_indices[d], 1);
+    evals[d][0] += r_values[2] * constants_3b(interaction_id, d, start_indices[d], 2);
+    evals[d][0] += r_values[3] * constants_3b(interaction_id, d, start_indices[d], 3);
+    evals[d][1] = constants_3b(interaction_id, d, start_indices[d] - 1, 4);
+    evals[d][1] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 1, 5);
+    evals[d][1] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 1, 6);
+    evals[d][1] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 1, 7);
+    evals[d][2] = constants_3b(interaction_id, d, start_indices[d] - 2, 8);
+    evals[d][2] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 2, 9);
+    evals[d][2] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 2, 10);
+    evals[d][2] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 2, 11);
+    evals[d][3] = constants_3b(interaction_id, d, start_indices[d] - 3, 12);
+    evals[d][3] += r_values[1] * constants_3b(interaction_id, d, start_indices[d] - 3, 13);
+    evals[d][3] += r_values[2] * constants_3b(interaction_id, d, start_indices[d] - 3, 14);
+    evals[d][3] += r_values[3] * constants_3b(interaction_id, d, start_indices[d] - 3, 15);
+
     dnevals[d][0] = dnconstants_3b(interaction_id, d, start_indices[d] - 1, 0);
     dnevals[d][0] += r_values[1] * dnconstants_3b(interaction_id, d, start_indices[d] - 1, 1);
     dnevals[d][0] += r_values[2] * dnconstants_3b(interaction_id, d, start_indices[d] - 1, 2);
