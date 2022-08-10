@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
- *    Contributing authors: Ajinkya Hire(U of Florida), 
+ *    Contributing authors: Ajinkya Hire (U of Florida), 
  *                          Hendrik Kraß (U of Constance),
  *                          Richard Hennig (U of Florida)
  * ---------------------------------------------------------------------- */
@@ -72,7 +72,7 @@ void PairUF3::settings(int narg, char **arg)
 
   if (narg != 2)
     error->all(FLERR, "UF3: Invalid number of argument in pair settings\n\
-            Are you running 2-bordy or 2 & 3-body UF potential\n\
+            Are you running 2-body or 2 & 3-body UF potential\n\
             Also how many elements?");
   nbody_flag = utils::numeric(FLERR, arg[0], true, lmp);
   num_of_elements = utils::numeric(FLERR, arg[1], true, lmp);    // atom->ntypes;
@@ -417,14 +417,14 @@ double PairUF3::init_one(int i /*i*/, int /*j*/ j)
 
 void PairUF3::compute(int eflag, int vflag)
 {
-  int i, j, k, ii, jj, kk, inum, jnum, knum, itype, jtype, ktype;
+  int i, j, k, ii, jj, kk, inum, jnum, itype, jtype, ktype;
   double xtmp, ytmp, ztmp, delx, dely, delz, evdwl, fpair, fx, fy, fz;
   double del_rji[3], del_rki[3], del_rkj[3];
   double fij[3], fik[3], fjk[3];
   double fji[3], fki[3], fkj[3];
   double Fi[3], Fj[3], Fk[3];
   double rsq, rij, rik, rjk;
-  int *ilist, *jlist, *klist, *numneigh, **firstneigh;
+  int *ilist, *jlist, *numneigh, **firstneigh;
 
   ev_init(eflag, vflag);
 
@@ -432,7 +432,6 @@ void PairUF3::compute(int eflag, int vflag)
   double **f = atom->f;
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  double *special_lj = force->special_lj;
   int newton_pair = force->newton_pair;
 
   inum = list->inum;
@@ -491,6 +490,7 @@ void PairUF3::compute(int eflag, int vflag)
         f[j][0] -= fx;
         f[j][1] -= fy;
         f[j][2] -= fz;
+
         if (eflag) evdwl = pair_eval[0];
 
         if (evflag) {
@@ -626,8 +626,8 @@ void PairUF3::compute(int eflag, int vflag)
             if (vflag_either && cvflag_atom) {
               double ric[3];
               ric[0] = THIRD * (-del_rji[0] - del_rki[0]);
-              ric[1] = THIRD * (-del_rji[0] - del_rki[0]);
-              ric[2] = THIRD * (-del_rji[0] - del_rki[0]);
+              ric[1] = THIRD * (-del_rji[1] - del_rki[1]);
+              ric[2] = THIRD * (-del_rji[2] - del_rki[2]);
 
               cvatom[i][0] += ric[0] * Fi[0];
               cvatom[i][1] += ric[1] * Fi[1];

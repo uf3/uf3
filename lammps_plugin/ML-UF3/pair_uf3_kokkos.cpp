@@ -904,8 +904,8 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
 
             F_FLOAT ric[3];
             ric[0] = THIRD * (-del_rji[0] - del_rki[0]);
-            ric[1] = THIRD * (-del_rji[0] - del_rki[0]);
-            ric[2] = THIRD * (-del_rji[0] - del_rki[0]);
+            ric[1] = THIRD * (-del_rji[1] - del_rki[1]);
+            ric[2] = THIRD * (-del_rji[2] - del_rki[2]);
             a_cvatom(i, 0) += ric[0] * (-Fj[0] - Fk[0]);
             a_cvatom(i, 1) += ric[1] * (-Fj[1] - Fk[1]);
             a_cvatom(i, 2) += ric[2] * (-Fj[2] - Fk[2]);
