@@ -547,8 +547,8 @@ class WeightedLinearModel(BasicLinearModel):
             solution = solution["solution"]
         for key in solution:
             if isinstance(key, tuple):
-                sorted_key = composition.sort_elements(key)
-                if tuple(sorted_key) != key:
+                sorted_key = composition.sort_interaction_symbols(key)
+                if sorted_key != key:
                     solution[sorted_key] = solution[key]
         # consistency check with bspline_config
         component_len = self.bspline_config.get_interaction_partitions()[0]
