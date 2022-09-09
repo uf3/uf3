@@ -329,15 +329,21 @@ def unpack_szudzik_hash(hash_list: np.ndarray, n_iter: int) -> np.ndarray:
     return np.vstack(columns).T
 
 
-def get_pair_hashes(species_set,
+def get_pair_hashes(species_set, symbols_set,
                     pair_idx):
     """Convenience function for working with element pairs."""
     i_spec, j_spec = species_set
+    i_sym, j_sym = symbols_set
     i_where, j_where = pair_idx
     i_spec = i_spec[i_where]
     j_spec = j_spec[j_where]
+    i_eln = [reference_X[x] for x in np.array(i_sym)[i_where]]
+    j_eln = [reference_X[x] for x in np.array(j_sym)[j_where]]
+    pair_eln = np.vstack([i_eln, j_eln]).T
+    idx = list(np.ogrid[[slice(x) for x in pair_eln.shape]])
+    idx[1] = pair_eln.argsort(1)
     pair_spec = np.vstack([i_spec, j_spec]).T
-    pair_spec = np.sort(pair_spec, axis=1)
+    pair_spec = pair_spec[tuple(idx)]
     hashes = get_szudzik_hash(pair_spec)
     return hashes
 
