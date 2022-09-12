@@ -312,11 +312,13 @@ def identify_ij(geom: ase.Atoms,
     r_max = np.max(knots_flat)
     sup_positions = supercell.get_positions()
     geo_positions = geom.get_positions()
+
     # mask atoms that aren't close to any unit-cell atom
-    dist_matrix = distance.cdist(geo_positions, sup_positions)
-    cutoff_mask = dist_matrix < r_max  # ignore atoms without in-cell neighbors
-    cutoff_mask = np.any(cutoff_mask, axis=0)
-    sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
+    # dist_matrix = distance.cdist(geo_positions, sup_positions)
+    # cutoff_mask = dist_matrix < r_max  # ignore atoms without in-cell neighbors
+    # cutoff_mask = np.any(cutoff_mask, axis=0)
+    # sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
+    
     # enforce distance cutoffs
     n_geo = len(geo_positions)
     dist_matrix = distance.cdist(sup_positions, sup_positions)
