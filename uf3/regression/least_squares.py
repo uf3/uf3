@@ -547,8 +547,8 @@ class WeightedLinearModel(BasicLinearModel):
             solution = solution["solution"]
         for key in solution:
             if isinstance(key, tuple):
-                sorted_key = composition.sort_elements(key)
-                if tuple(sorted_key) != key:
+                sorted_key = composition.sort_interaction_symbols(key)
+                if sorted_key != key:
                     solution[sorted_key] = solution[key]
         # consistency check with bspline_config
         component_len = self.bspline_config.get_interaction_partitions()[0]
@@ -571,7 +571,8 @@ class WeightedLinearModel(BasicLinearModel):
                 component = np.array(solution[trio])
                 if len(np.shape(component)) > 1:
                     vector = self.bspline_config.compress_3B(component,
-                                                             trio)
+                                                             trio,
+                                                             loading = True)
                     solution[trio] = vector
             n_provided = len(solution[trio])
             if n_provided != n_target:

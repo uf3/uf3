@@ -151,7 +151,9 @@ class DataAnalyzer:
         pair_idx = np.where(cut_mask)
         species_set = (geom.get_atomic_numbers(),
                        supercell.get_atomic_numbers())
-        hashes = composition.get_pair_hashes(species_set, pair_idx)
+        symbols_set = (geom.get_chemical_symbols(),
+                       supercell.get_chemical_symbols())
+        hashes = composition.get_pair_hashes(species_set, symbols_set, pair_idx)
         return dists, hashes
 
     def process_geometry(self,
