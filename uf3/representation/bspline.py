@@ -549,7 +549,7 @@ class BSplineBasis:
             self.flat_weights[trio] = template_flat[template_mask]
             self.templates[trio] = template
 
-    def compress_3B(self, grid, interaction):
+    def compress_3B(self, grid, interaction, loading = False):
         """
 
         Args:
@@ -564,7 +564,7 @@ class BSplineBasis:
         elif self.symmetry[interaction] == 2:
             vec = grid + grid.transpose(1, 0, 2)
             vec = vec.flat[self.template_mask[interaction]]
-            vec = vec * self.flat_weights[interaction]
+            vec = vec * (0.5 if loading else self.flat_weights[interaction])
         elif self.symmetry[interaction] == 3:
             vec = (grid
                    + grid.transpose(0, 2, 1)
