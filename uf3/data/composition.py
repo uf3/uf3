@@ -160,6 +160,7 @@ class ChemicalSystem:
             element_combinations = self.interactions_map[n]
             numbers = np.array([ase_symbols.symbols2numbers(el_tuple)
                                 for el_tuple in element_combinations])
+            numbers[:, 1:] = np.sort(numbers[:, 1:], axis=1)
             hash_list = get_szudzik_hash(numbers)
             interaction_hashes[n] = hash_list
         return interaction_hashes
