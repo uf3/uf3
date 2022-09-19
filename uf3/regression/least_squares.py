@@ -572,7 +572,7 @@ class WeightedLinearModel(BasicLinearModel):
                 if len(np.shape(component)) > 1:
                     vector = self.bspline_config.compress_3B(component,
                                                              trio,
-                                                             loading = True)
+                                                             fitting = False)
                     solution[trio] = vector
             n_provided = len(solution[trio])
             if n_provided != n_target:
