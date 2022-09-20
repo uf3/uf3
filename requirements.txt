@@ -12,7 +12,6 @@ tables
 tqdm
 EXTRAS_REQUIRE
 -ELASTIC_CONSTANTS
-setuptools_scm
 elastic
 -PHONON_SPECTRA
 phonopy>=2.6.0
