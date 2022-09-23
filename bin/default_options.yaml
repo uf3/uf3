@@ -1,0 +1,62 @@
+verbose: 20
+outputs_path: ./outputs
+elements: W
+degree: 2
+seed: 0
+
+data:
+    db_path: data.db
+    max_per_file: -1
+    min_diff: 0.0
+    generate_stats: yes
+    progress: bar
+    vasp_pressure: no
+    sources:
+        path: ./w-14.xyz
+        pattern: "*"
+    keys:
+        atoms_key: geometry
+        energy_key: energy
+        force_key: force
+        size_key: size
+    pickle_path: data1.pkl
+
+basis:
+    r_min: 0
+    r_max: 5.5
+    resolution: 15
+    fit_offsets: yes
+    trailing_trim: 3
+    leading_trim: 0
+    mask_trim: yes
+    knot_strategy: linear
+    knots_path: knots.json
+    load_knots: no
+    dump_knots: no
+    
+features:
+    db_path: data.db
+    features_path: features.h5
+    n_cores: 4
+    parallel: python
+    fit_forces: yes
+    column_prefix: x
+    batch_size: 100
+    table_template: features_{}
+
+model:
+    model_path: model.json
+
+learning:
+    features_path: features.h5
+    splits_path: splits.json
+    weight: 0.5
+    model_path: model.json
+    batch_size: 2500
+    regularizer:
+        ridge_1b: 1.0e-8
+        curvature_1b: 0
+        ridge_2b: 0
+        curvature_2b: 1.0e-8
+        ridge_3b: 1.0e-5
+        curvature_3b: 1.0e-8
