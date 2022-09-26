@@ -31,39 +31,44 @@ class ThreeBodyPlotter:
         for k, n in zip(self.knots_set, n_samples):
             vector = np.linspace(k[0], k[-1], n)
             sample_dims.append(vector)
+        c_min = np.min(sample_dims[2])
+        c_max = np.max(sample_dims[2])
 
         if self.theta:
             sample_dims[2] = np.linspace(0, np.pi, n_samples[2])
 
         sample_mesh = np.meshgrid(*sample_dims)
-        sample_mesh = [v.flatten() for v in sample_mesh]
-        sample_mesh = np.vstack(sample_mesh).T
 
         if self.theta:
-            a = sample_mesh[:, 0]
-            b = sample_mesh[:, 1]
-            theta = sample_mesh[:, 2].copy()
-            sample_mesh[:, 2] = np.sqrt(
-                a**2 + b**2 - (2 * a * b * np.cos(theta)))
+            a = sample_mesh[0]
+            b = sample_mesh[1]
+
+            print(c_min, c_max)
+            theta = sample_mesh[2].copy()
             self.z_plot = theta
+            c = np.sqrt(a**2 + b**2 - (2 * a * b * np.cos(theta)))
+            mask = np.logical_or(c < c_min, c > c_max)
+            sample_mesh = (a, b, c)
         else:
-            self.z_plot = sample_mesh[:, 2]
-        self.values = self.nds(sample_mesh)
+            self.z_plot = sample_mesh[2]
+
+        self.values = self.nds(np.stack(sample_mesh, axis=-1))
+        if self.theta:
+            self.values[mask] = 0.0
         self.mesh = sample_mesh
-        self.x_plot = sample_mesh[:, 0]
-        self.y_plot = sample_mesh[:, 1]
+        self.x_plot = sample_mesh[0]
+        self.y_plot = sample_mesh[1]
 
-
-    def plot_slices(self, n_slices=10, **kwargs):
+    def plot_slices(self, n_slices=5, axes=None, **kwargs):
         if self.values is None:
             raise ValueError("Values must be generated with sample_uniformly.")
         v_slice = np.linspace(np.min(self.z_plot),
                               np.max(self.z_plot),
                               n_slices + 1)
 
-        x_plot = self.x_plot
-        y_plot = self.y_plot
-        z_plot = self.z_plot
+        x_plot = self.x_plot[0, :, 0]
+        y_plot = self.y_plot[:, 0, 0]
+        z_plot = self.z_plot[0, 0, :]
         values = self.values
 
         if self.theta:
@@ -71,24 +76,31 @@ class ThreeBodyPlotter:
         else:
             ztitle = "$r_{jk}$ slice"
 
-        default_kwargs = dict(s=90, marker="s", edgecolor="none",
-                              vmin=-0.1, vmax=0.1, cmap="coolwarm")
+        default_kwargs = dict(vmin=-0.1,
+                              vmax=0.1,
+                              cmap="coolwarm")
         default_kwargs.update(kwargs)
 
-        figures = []
+        if axes is None:
+            axes = [plt.subplots(figsize=(3.5, 3.5))[1]
+                    for _ in range(n_slices)]
         for i in range(len(v_slice) - 1):
+            ax = axes[i]
             mask = np.logical_and(z_plot >= v_slice[i],
                                   z_plot < v_slice[i + 1])
-            fig = plt.figure(figsize=(3.5, 3.5), dpi=100)
-            plt.title(f"{ztitle}: {v_slice[i]:.2f} - {v_slice[i + 1]:.2f}")
-            plt.scatter(x_plot[mask],
-                        y_plot[mask],
-                        c=values[mask],
-                        **default_kwargs)
-            plt.xlabel("$r_{ij}$")
-            plt.ylabel("$r_{ik}$")
-            figures.append(fig)
-        return figures
+            z_min = np.rad2deg(v_slice[i])
+            z_max = np.rad2deg(v_slice[i + 1])
+            ax.set_title(f"{ztitle}: {z_min:.2f}° - {z_max:.2f}°")
+            grid = np.mean(values[:, :, mask], axis=2)
+            ax.imshow(grid, extent=(x_plot[0], x_plot[-1],
+                                    y_plot[0], y_plot[-1]),
+                      origin="lower",
+                      **default_kwargs,
+                      )
+            ax.set_xlabel("$r_{ij}$")
+            ax.set_ylabel("$r_{ik}$")
+        return axes
+
 
     def plot_uniform(self,
                      filename=None,
@@ -99,11 +111,15 @@ class ThreeBodyPlotter:
                      surface_count=21,
                      opacity=0.1,
                      val_limit=0.1,
-                     scale=1):
-        x_plot = self.x_plot
-        y_plot = self.y_plot
-        z_plot = self.z_plot
-        values = self.values
+                     scale=1,
+                     height=400,
+                     width=350,
+                     aspect=None,
+                     margin=None,):
+        x_plot = self.x_plot.flatten()
+        y_plot = self.y_plot.flatten()
+        z_plot = self.z_plot.flatten()
+        values = self.values.flatten()
 
         if self.theta:
             z_plot = np.rad2deg(z_plot)
@@ -148,6 +164,10 @@ class ThreeBodyPlotter:
             eye=dict(x=eye_x, y=eye_y, z=eye_z),
             projection=dict(type="orthographic", ),
         )
+        if aspect is None:
+            aspect = dict(x=0.7, y=0.7, z=1.4)
+        if margin is None:
+            margin = dict(r=20, l=10, b=10, t=10)
 
         fig.update_layout(scene_camera=camera,
                           title={
@@ -157,7 +177,7 @@ class ThreeBodyPlotter:
                               'xanchor': 'center',
                               'yanchor': 'top'},
                           scene_aspectmode="manual",
-                          scene_aspectratio=dict(x=0.7, y=0.7, z=1.4),
+                          scene_aspectratio=aspect,
                           scene=dict(
                               xaxis=dict(tickvals=list(range(0, int(x_max))),
                                          range=[0, x_max],
@@ -178,9 +198,9 @@ class ThreeBodyPlotter:
                               yaxis_title=r"r<sub>ik</sub>  [Å]",
                               zaxis_title=ztitle,
                           ),
-                          height=400,
-                          width=350,
-                          margin=dict(r=20, l=10, b=10, t=10),
+                          height=height,
+                          width=width,
+                          margin=margin,
                           )
 
         fig.update_traces(colorbar=dict(title=dict(text="[eV]", side="top"),
