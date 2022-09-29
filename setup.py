@@ -27,7 +27,7 @@ test_requires = ['pytest']
 if __name__ == "__main__":
     setuptools.setup(
         name='uf3',
-        version='0.3.1',
+        version='0.3.2',
         description='Ultra-Fast Force Fields for molecular dynamics',
         long_description=long_description,
         url='https://github.com/uf3/uf3',
