@@ -24,16 +24,28 @@ new issues for feature requests and bug reports.
 Setup
 -----
 
+.. Recommended: Install UF3 in a new conda environment:
+
+.. .. code:: bash
+
+..    conda create -n uf3_env python=3.8
+..    conda activate uf3_env
+
+UF3 can be installed in two different ways:
+
+1. Download and install automatically from PyPI (recommended):
+
 .. code:: bash
 
-   conda create --name uf3_env python=3.7
-   conda activate uf3_env
+   pip install uf3
+
+2. Download and install manually from GitHub:
+
+.. code:: bash
+
    git clone https://github.com/uf3/uf3.git
    cd uf3
-   pip install wheel
-   pip install -r requirements.txt
-   pip install numba
-   pip install -e .
+   pip install .
 
 Getting Started
 ---------------
@@ -54,15 +66,13 @@ Elastic constants:
 ::
 
    pip install setuptools_scm
-   pip install "elastic>=5.1.0.17"
+   pip install uf3[elastic_constants]
 
 Phonon spectra:
 
 ::
 
-   pip install spglib
-   pip install seekpath
-   pip install "phonopy>=2.6.0"
+   pip install uf3[phonon_spectra]
 
 LAMMPS interface:
 
@@ -83,6 +93,12 @@ Dependencies
    training.
 -  B-spline evaluations use scipy, numba, and ndsplines.
 -  PyTables is used for reading/writing HDF5 files.
+-  Matplotlib is used for plotting.
+-  We use sklearn for regression.
+-  We use tqdm for progress bars.
+-  We use plotly for interactive plots.
+-  We use PyYaml for configuration files.
+-  We use numpy for array operations.
 
 
 .. |Tests| image:: https://github.com/uf3/uf3/workflows/Tests/badge.svg
