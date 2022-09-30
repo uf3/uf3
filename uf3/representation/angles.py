@@ -18,7 +18,8 @@ def featurize_energy_3b(geom: ase.Atoms,
                         basis_functions: List,
                         hashes: List,
                         supercell: ase.Atoms = None,
-                        trailing_trim: int = 0,
+                        n_lead: int = 0,
+                        n_trail: int = 0,
                         ) -> List[np.ndarray]:
     """
     Args:
@@ -28,7 +29,7 @@ def featurize_energy_3b(geom: ase.Atoms,
             for each interaction
         hashes (list): list of three-body hashes.
         supercell (ase.Atoms): optional supercell.
-        trailing_trim (int): number of basis functions at trailing edge
+        n_trail (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
@@ -65,7 +66,8 @@ def featurize_energy_3b(geom: ase.Atoms,
                 r_n,
                 basis_functions[interaction_idx],
                 knot_sets[interaction_idx],
-                trailing_trim=trailing_trim)
+                n_lead=n_lead,
+                n_trail=n_trail)
             grids[interaction_idx] += arrange_3b(tuples_3b,
                                                  idx_lmn,
                                                  L[interaction_idx],
@@ -140,7 +142,8 @@ def featurize_force_3b(geom: ase.Atoms,
                        basis_functions: List[List],
                        trio_hashes: Dict[int, np.ndarray],
                        supercell: ase.Atoms = None,
-                       trailing_trim: int = 0,
+                       n_lead: int = 0,
+                       n_trail: int = 0,
                        ) -> List[List[List[np.ndarray]]]:
     """
     Generate features per force component per atom for a configuration.
@@ -152,7 +155,7 @@ def featurize_force_3b(geom: ase.Atoms,
             for each chemical interaction
         trio_hashes (dict): map of interaction to integer hashes.
         supercell (ase.Atoms): optional supercell.
-        trailing_trim (int): number of
+        n_trail (int): number of
 
     Returns:
         grid_3b (list): array-like list of shape
@@ -194,7 +197,8 @@ def featurize_force_3b(geom: ase.Atoms,
                 r_n,
                 basis_functions[interaction_idx],
                 knot_sets[interaction_idx],
-                trailing_trim=trailing_trim)
+                n_lead=n_lead,
+                n_trail=n_trail)
 
             drij_dr = distances.compute_direction_cosines(coords,
                                                           matrix,
@@ -304,25 +308,27 @@ def identify_ij(geom: ase.Atoms,
         supercell = geom
     knots_flat = np.concatenate([sequence for set_ in knot_sets
                                  for sequence in set_])
-    r_min = np.min(knots_flat)
+    r_min = max(np.min(knots_flat), 0)
     r_max = np.max(knots_flat)
     sup_positions = supercell.get_positions()
     geo_positions = geom.get_positions()
+
     # mask atoms that aren't close to any unit-cell atom
-    dist_matrix = distance.cdist(geo_positions, sup_positions)
-    cutoff_mask = dist_matrix < r_max  # ignore atoms without in-cell neighbors
-    cutoff_mask = np.any(cutoff_mask, axis=0)
-    sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
+    # dist_matrix = distance.cdist(geo_positions, sup_positions)
+    # cutoff_mask = dist_matrix < r_max  # ignore atoms without in-cell neighbors
+    # cutoff_mask = np.any(cutoff_mask, axis=0)
+    # sup_positions = sup_positions[cutoff_mask, :]  # reduced distance matrix
+    
     # enforce distance cutoffs
     n_geo = len(geo_positions)
     dist_matrix = distance.cdist(sup_positions, sup_positions)
     if square is False:
         cut_matrix = dist_matrix[:n_geo, :]
-        dist_mask = (cut_matrix >= r_min) & (cut_matrix <= r_max)
+        dist_mask = (cut_matrix > r_min) & (cut_matrix <= r_max)
         i_where, j_where = np.where(dist_mask)
         return dist_matrix, i_where, j_where
     else:
-        dist_mask = (dist_matrix >= r_min) & (dist_matrix <= r_max)
+        dist_mask = (dist_matrix > r_min) & (dist_matrix <= r_max)
         i_where, j_where = np.where(dist_mask)
         return sup_positions, dist_matrix, i_where, j_where
 
@@ -418,7 +424,6 @@ def generate_triplets(i_where: np.ndarray,
 
         ijk_hash = composition.get_szudzik_hash(comp_tuples)
 
-
         grouped_triplets = [None] * n_hashes
         for j, hash_ in enumerate(hashes):
             ituples = tuples[ijk_hash == hash_]
@@ -453,7 +458,8 @@ def evaluate_triplet_distances(r_l: np.ndarray,
                                r_n: np.ndarray,
                                basis_functions: List[List],
                                knot_sequences: List[np.ndarray],
-                               trailing_trim: int = 0,
+                               n_lead: int = 0,
+                               n_trail: int = 0,
                                ):
     """
     Identify non-zero basis functions for each point and call functions.
@@ -466,7 +472,7 @@ def evaluate_triplet_distances(r_l: np.ndarray,
         r_n (np.ndarray): vector of j-k distances.
         basis_functions (list): list of lists of of callable basis functions.
         knot_sequences (list of np.ndarray): list of knot sequences.
-        trailing_trim (int): number of basis functions at trailing edge
+        n_trail (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
@@ -479,20 +485,20 @@ def evaluate_triplet_distances(r_l: np.ndarray,
     r_m, idx_rm = bspline.find_spline_indices(r_m, m_knots)
     r_n, idx_rn = bspline.find_spline_indices(r_n, n_knots)
     # evaluate splines per dimension
-    L = len(l_knots) - 4 - trailing_trim
-    M = len(m_knots) - 4 - trailing_trim
-    N = len(n_knots) - 4 - trailing_trim
+    L = len(l_knots) - 4
+    M = len(m_knots) - 4
+    N = len(n_knots) - 4
     n_tuples = len(r_l)
     values_3b = np.zeros((n_tuples, 3))  # array of basis-function values
-    for l_idx in range(L):
+    for l_idx in range(n_lead, L - n_trail):
         mask = (idx_rl == l_idx)
         points = r_l[mask]
         values_3b[mask, 0] = basis_functions[0][l_idx](points)
-    for m_idx in range(M):
+    for m_idx in range(n_lead, M - n_trail):
         mask = (idx_rm == m_idx)
         points = r_m[mask]
         values_3b[mask, 1] = basis_functions[1][m_idx](points)
-    for n_idx in range(N):
+    for n_idx in range(n_lead, N - n_trail):
         mask = (idx_rn == n_idx)
         points = r_n[mask]
         values_3b[mask, 2] = basis_functions[2][n_idx](points)
@@ -512,7 +518,8 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
                                  r_n: np.ndarray,
                                  basis_functions: List[List],
                                  knot_sequences: List[np.ndarray],
-                                 trailing_trim: int = 0,
+                                 n_lead: int = 0,
+                                 n_trail: int = 0,
                                  ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Identify non-zero basis functions for each point and call functions.
@@ -525,7 +532,7 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
         r_n (np.ndarray): vector of j-k distances.
         basis_functions (list): list of lists of of callable basis functions.
         knot_sequences (list of np.ndarray)
-        trailing_trim (int): number of basis functions at trailing edge
+        n_trail (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
@@ -540,22 +547,22 @@ def evaluate_triplet_derivatives(r_l: np.ndarray,
     r_m, idx_rm = bspline.find_spline_indices(r_m, m_knots)
     r_n, idx_rn = bspline.find_spline_indices(r_n, n_knots)
     # evaluate splines per dimension
-    L = len(l_knots) - 4 - trailing_trim
-    M = len(m_knots) - 4 - trailing_trim
-    N = len(n_knots) - 4 - trailing_trim
+    L = len(l_knots) - 4
+    M = len(m_knots) - 4
+    N = len(n_knots) - 4
     n_tuples = len(r_l)
     values_3b = np.zeros((n_tuples, 6))  # array of basis-function values
-    for l_idx in range(L):
+    for l_idx in range(n_lead, L - n_trail):
         mask = (idx_rl == l_idx)
         points = r_l[mask]
         values_3b[mask, 0] = basis_functions[0][l_idx](points)
         values_3b[mask, 3] = basis_functions[0][l_idx](points, nu=1)
-    for m_idx in range(M):
+    for m_idx in range(n_lead, M - n_trail):
         mask = (idx_rm == m_idx)
         points = r_m[mask]
         values_3b[mask, 1] = basis_functions[1][m_idx](points)
         values_3b[mask, 4] = basis_functions[1][m_idx](points, nu=1)
-    for n_idx in range(N):
+    for n_idx in range(n_lead, N - n_trail):
         mask = (idx_rn == n_idx)
         points = r_n[mask]
         values_3b[mask, 2] = basis_functions[2][n_idx](points)
@@ -610,14 +617,15 @@ def get_symmetry_weights(symmetry: int,
                          l_space: np.ndarray,
                          m_space: np.ndarray,
                          n_space: np.ndarray,
-                         trailing_trim: int = 3,
+                         n_lead: int = 0,
+                         n_trail: int = 3,
                          ) -> np.ndarray:
     """
     Args:
         symmetry (int): Symmetry considered in system. Default is 2, resulting
             in one mirror plane along the l=m plane.
         {l, m, n}_space (np.ndarray): knot sequences along three dimensions.
-        trailing_trim (int): number of basis functions at trailing edge
+        n_trail (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
@@ -652,8 +660,14 @@ def get_symmetry_weights(symmetry: int,
         elif m_space[j + 4] + n_space[k + 4] <= l_space[i]:
             template[i, j, k] = 0
 
-    if trailing_trim > 0:
-        for trim_idx in range(1, trailing_trim + 1):
+    if n_lead > 0:
+        for trim_idx in range(n_lead):
+            template[trim_idx, :, :] = 0
+            template[:, trim_idx, :] = 0
+            template[:, :, trim_idx] = 0
+
+    if n_trail > 0:
+        for trim_idx in range(1, n_trail + 1):
             template[-trim_idx, :, :] = 0
             template[:, -trim_idx, :] = 0
             template[:, :, -trim_idx] = 0
