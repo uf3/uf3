@@ -106,8 +106,10 @@ def plot_slices(model,
                                        y_grid,
                                        grid_neg,
                                        cutoff=cutoff)
-        centroids_pos = centroids_pos[np.argsort(centroids_pos[:, 0])]
-        centroids_neg = centroids_neg[np.argsort(centroids_neg[:, 0])]
+        if len(centroids_pos) > 0:
+            centroids_pos = centroids_pos[np.argsort(centroids_pos[:, 0])]
+        if len(centroids_neg) > 0:
+            centroids_neg = centroids_neg[np.argsort(centroids_neg[:, 0])]
         for cx, cy, v in centroids_pos:
             ax = pos_set[(j * 2) + i_pos]
             ax_square = axes[j]
