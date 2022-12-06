@@ -2,7 +2,7 @@
 
 import os
 import setuptools
-
+import shutil
 
 module_dir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(module_dir, 'readme.rst'), "r") as f:
@@ -25,6 +25,14 @@ with open("requirements.txt", "r") as f:
 test_requires = ['pytest']
 
 if __name__ == "__main__":
+
+    if not os.path.exists('bin'):
+        os.makedirs('bin')
+    try:
+        shutil.copyfile('bin/uf3_cli.py', 'bin/uf3_cli')
+    except FileNotFoundError as e:
+        print("File not found (skipping):", e)
+
     setuptools.setup(
         name='uf3',
         version='0.3.2',
@@ -43,4 +51,5 @@ if __name__ == "__main__":
                      'Operating System :: OS Independent',
                      'Topic :: Scientific/Engineering'],
         tests_require=test_requires,
+        scripts=["bin/uf3_cli"]
     )
