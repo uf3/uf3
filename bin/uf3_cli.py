@@ -28,18 +28,23 @@ def find_files():
 
 def main(args):
 
-    # function_map = {
-    #     'featurize': yt.featurize,
-    #     'fit': yt.fit,
-    #     'list': list,
-    #     'help': help,
-    # }
-
     # Argparse Setup
     parser = argparse.ArgumentParser(prog='uf3',
                                      usage='%(prog)s',
                                      description='Utilities for training and testing UF3 models.')
     subparsers = parser.add_subparsers()
+
+    # Generate starting configuration
+
+    parser_featurize = subparsers.add_parser(
+        'config', help='generate a starting config')
+    parser_featurize.set_defaults(func=yt.config)
+    parser_featurize.add_argument(
+        'degree', type=int, help='degree of n-body terms (2 or 3)', default=False)
+    parser_featurize.add_argument(
+        'atoms', type=str, help='list of atoms', nargs='+', default=False)
+
+    # Collect Data
 
     parser_collect = subparsers.add_parser(
         'collect', help='collect data and export to pickled file')
@@ -50,11 +55,15 @@ def main(args):
     group.add_argument('-f', '--file', type=str,
                        help='single data file to pickle to \'data.pkl\'', default=False)
 
+    # Generate features
+
     parser_featurize = subparsers.add_parser(
         'featurize', help='compute feature vectors')
     parser_featurize.set_defaults(func=yt.featurize)
     parser_featurize.add_argument(
         'settings', type=str, help='settings .yaml file', default=False)
+
+    # Fit coefficients
 
     parser_fit = subparsers.add_parser('fit', help='fit model to data')
     parser_fit.set_defaults(func=yt.fit)

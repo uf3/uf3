@@ -20,10 +20,73 @@ def find_files():
             files.append(file)
     return files
 
-# Parse data files
+def get_settings(args):
+    if isinstance(args, dict):
+        if "settings" in args:
+            settings = yaml.load(open(args['settings'], 'r'), Loader=yaml.FullLoader)
+        else:
+            settings = args
+    elif isinstance(args, str):
+        settings = yaml.load(open(args, 'r'), Loader=yaml.FullLoader)
+    else:
+        raise ValueError("Invalid argument. Must be args passed from console, settings dict or path to settings file.")
+    return settings
+
+
+def generate_config_json(degree, atoms):
+    """
+    Generate config JSON file
+    """
+
+    import copy
+    settings = copy.deepcopy(default_settings)
+
+    from uf3.data import composition
+    chemical_system = composition.ChemicalSystem(element_list=atoms,
+                                             degree=degree)
+
+    r_min_map = {}
+    r_max_map = {}
+    res_map   = {}
+    for interaction in ["-".join(i) for i in chemical_system.interactions_map[2]]:
+        r_min_map[interaction] = 0
+        r_max_map[interaction] = 5
+        res_map[interaction]   = 15
+
+    if degree == 3:
+        for interaction in ["-".join(i) for i in chemical_system.interactions_map[3]]:
+            r_min_map[interaction] = [0,0,0]
+            r_max_map[interaction] = [3,3,6]
+            res_map[interaction]   = [3,3,6]
+
+    settings['basis']['r_min'] = r_min_map
+    settings['basis']['r_max'] = r_max_map
+    settings['basis']['resolution'] = res_map
+    settings['elements'] = atoms
+    settings['degree'] = degree
+
+    return settings
+
+
+def config(settings):
+    """
+    Generate a config file
+    """
+
+    if settings["atoms"] is None:
+        print("Please provide a list of atoms, separated by spaces.")
+
+    if not settings["degree"] in range(2,4):
+        print("Valid degrees are 2 and 3.")
+
+    print(generate_config_json(settings["degree"], settings["atoms"]))
 
 
 def parse_data_files(settings, data_files):
+    """
+    Parse data files
+    """
+
     from uf3.data import io
     data_coordinator = io.DataCoordinator(atoms_key=settings.get('data', {}).get('keys', {}).get('atoms_key', default_settings['data']['keys']['atoms_key']),
                                           energy_key=settings.get('data', {}).get('keys', {}).get(
@@ -107,6 +170,10 @@ def create_bspline_config(settings, degree, chemical_system):
         r_min_map = {i: r_min if len(i) == 2 else [
             r_min, r_min, r_min * 2] for i in interactions}
     elif isinstance(r_min, dict):
+
+        from uf3.util.json_io import decode_interaction_map
+        r_min = decode_interaction_map(r_min)
+
         for i in interactions:
             if not i in r_min:
                 logging.warning(
@@ -134,6 +201,10 @@ def create_bspline_config(settings, degree, chemical_system):
         r_max_map = {i: r_max if len(i) == 2 else [
             r_max, r_max, r_max * 2] for i in interactions}
     elif isinstance(r_max, dict):
+
+        from uf3.util.json_io import decode_interaction_map
+        r_max = decode_interaction_map(r_max)
+
         for i in interactions:
             if not i in r_max:
                 logging.warning(
@@ -159,6 +230,10 @@ def create_bspline_config(settings, degree, chemical_system):
         resolution_map = {i: resolution if len(
             i) == 2 else [resolution, resolution, resolution * 2] for i in interactions}
     elif isinstance(resolution, dict):
+
+        from uf3.util.json_io import decode_interaction_map
+        resolution = decode_interaction_map(resolution)
+
         for i in interactions:
             if not i in resolution:
                 logging.warning(
@@ -332,7 +407,7 @@ def featurize(args):
     logging.info("Featurizing data")
 
     # Load settings
-    settings = yaml.load(open(args['settings'], 'r'), Loader=yaml.FullLoader)
+    settings = get_settings(args)
 
     # Set verbosity
     logging.getLogger().setLevel(settings.get(
@@ -413,12 +488,12 @@ def featurize(args):
 
 def get_features_filename(settings):
     filename = settings.get('features', {}).get(
-        'filename', default_settings['features']['features_path'])
+        'features_path', default_settings['features']['features_path'])
     if not isinstance(filename, str):
         logging.error("Filename must be a string. Exiting.")
         sys.exit(1)
 
-    logging.info(f"Saving features to {filename}.")
+    logging.info(f"Features stored at {filename}.")
     return filename
 
 
@@ -427,14 +502,23 @@ def fit(args):
     logging.info("Fitting model")
 
     # Load settings
-    settings = yaml.load(open(args['settings'], 'r'), Loader=yaml.FullLoader)
+    settings = get_settings(args)
 
     # Set verbosity
     logging.getLogger().setLevel(settings.get(
         'verbose', default_settings['verbose']))
 
     # Load data
-    df_data = load_data(settings)
+    import pandas as pd
+    if "data" in settings:
+        if "train_pickle" in settings["data"]:
+            pickle_path = settings["data"]["train_pickle"]
+        else:
+            pickle_path = settings.get(
+                'data', default_settings['data']).get('pickle_path')
+    if os.path.isfile(pickle_path):
+        logging.info("Loading data from pickle {pickle_path}")
+        df_data = pd.read_pickle(pickle_path)
 
     # Elements
     element_list = get_element_list(settings)
@@ -507,3 +591,60 @@ def fit(args):
     model.to_json(model_path)
 
     logging.info(f"Model fit complete and stored to {model_path}.")
+
+
+def predict(args):
+
+    # Load settings
+    settings = get_settings(args)
+
+    # Set verbosity
+    logging.getLogger().setLevel(settings.get(
+        'verbose', default_settings['verbose']))
+
+    # Load data
+    import pandas as pd
+    if "data" in settings:
+        if "test_pickle" in settings["data"]:
+            pickle_path = settings["data"]["test_pickle"]
+        else:
+            pickle_path = settings.get(
+                'data', default_settings['data']).get('pickle_path')
+    if os.path.isfile(pickle_path):
+        logging.info("Loading data from pickle {pickle_path}")
+        df_data = pd.read_pickle(pickle_path)
+
+    # Locate features
+    filename = get_features_filename(settings)
+
+    # Load model
+    from uf3.regression import least_squares
+    model_path = settings.get('learning', {}).get(
+        'model_path', default_settings['learning']['model_path'])
+    model = least_squares.WeightedLinearModel.from_json(model_path)
+
+    logging.info("Predicting with model {model_path}")
+
+    # Batched predict
+    y_e, p_e, y_f, p_f, rmse_e, rmse_f = model.batched_predict(
+        filename, keys=list(df_data.index))
+
+    return y_e, p_e, y_f, p_f, rmse_e, rmse_f
+
+def error(args):
+
+    y_e, p_e, y_f, p_f, rmse_e, rmse_f = predict(args)
+
+    logging.info("Calculating errors")
+    
+    import numpy as np
+    mae_e = np.mean(np.abs(y_e - p_e))  # (eV/atom)
+    mae_f = np.mean(np.abs(y_f - p_f))  # (eV/Angstrom)
+
+    # Print results
+    logging.info(f"RMSE (eV/atom): {rmse_e:.4f}")
+    logging.info(f"RMSE (eV/Angstrom): {rmse_f:.4f}")
+    logging.info(f"MAE (eV/atom): {mae_e:.4f}")
+    logging.info(f"MAE (eV/Angstrom): {mae_f:.4f}")
+
+    return rmse_e, rmse_f, mae_e, mae_f
