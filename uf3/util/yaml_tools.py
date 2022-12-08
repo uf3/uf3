@@ -79,7 +79,7 @@ def config(settings):
     if not settings["degree"] in range(2,4):
         print("Valid degrees are 2 and 3.")
 
-    print(generate_config_json(settings["degree"], settings["atoms"]))
+    yaml.dump(generate_config_json(settings["degree"], settings["atoms"]), open("input.yaml", 'w'), default_flow_style=None)
 
 
 def parse_data_files(settings, data_files):
@@ -156,6 +156,8 @@ def create_bspline_config(settings, degree, chemical_system):
         interactions += chemical_system.interactions_map[3]
     logging.info(f"Determined interactions: {interactions}")
 
+    disabled_interactions = []
+
     # Minimum cutoff
     if not 'basis' in settings or not 'r_min' in settings['basis']:
         logging.warning(f"No minimum cutoff specified in settings.")
@@ -176,9 +178,10 @@ def create_bspline_config(settings, degree, chemical_system):
 
         for i in interactions:
             if not i in r_min:
-                logging.warning(
-                    f"No minimum cutoff specified for interaction {i}. Defaulting to {default_settings['basis']['r_min']}.")
-                r_min[i] = default_settings['basis']['r_min']
+                disabled_interactions.append(i)
+                # logging.warning(
+                #     f"No minimum cutoff specified for interaction {i}. This interaction will not be modeled.")
+                r_min[i] = 0 if len(i) == 2 else [0, 0, 0]
         r_min_map = r_min
     else:
         logging.error(
@@ -207,9 +210,10 @@ def create_bspline_config(settings, degree, chemical_system):
 
         for i in interactions:
             if not i in r_max:
-                logging.warning(
-                    f"No maximum cutoff specified for interaction {i}. Defaulting to {default_settings['basis']['r_max']}.")
-                r_max[i] = default_settings['basis']['r_max']
+                disabled_interactions.append(i)
+                # logging.warning(
+                #     f"No maximum cutoff specified for interaction {i}. This interaction will not be modeled.")
+                r_max[i] = 0 if len(i) == 2 else [0, 0, 0]
         r_max_map = r_max
     else:
         logging.error(
@@ -236,14 +240,21 @@ def create_bspline_config(settings, degree, chemical_system):
 
         for i in interactions:
             if not i in resolution:
-                logging.warning(
-                    f"No resolution specified for interaction {i}. Defaulting to {default_settings['basis']['resolution']}.")
-                resolution[i] = default_settings['basis']['resolution']
+                disabled_interactions.append(i)
+                # logging.warning(
+                #     f"No resolution specified for interaction {i}. This interaction will not be modeled.")
+                resolution[i] = 0 if len(i) == 2 else [0, 0, 0]
         resolution_map = resolution
     else:
         logging.error(
             "Resolution must be a dict, string, or integer. Exiting.")
         sys.exit(1)
+
+    if disabled_interactions:
+        keys = list(dict.fromkeys(disabled_interactions))
+        logging.warning(
+                    f"Several interactions were not specified and are not modeled. Specify cutoffs and resolution to include them in the fit: {keys}")
+        
 
     logging.info(f"Using resolutions: {resolution_map}")
 
@@ -517,7 +528,7 @@ def fit(args):
             pickle_path = settings.get(
                 'data', default_settings['data']).get('pickle_path')
     if os.path.isfile(pickle_path):
-        logging.info("Loading data from pickle {pickle_path}")
+        logging.info(f"Loading data from pickle {pickle_path}")
         df_data = pd.read_pickle(pickle_path)
 
     # Elements
@@ -611,7 +622,7 @@ def predict(args):
             pickle_path = settings.get(
                 'data', default_settings['data']).get('pickle_path')
     if os.path.isfile(pickle_path):
-        logging.info("Loading data from pickle {pickle_path}")
+        logging.info("Loading data from pickle f{pickle_path}")
         df_data = pd.read_pickle(pickle_path)
 
     # Locate features
@@ -623,7 +634,7 @@ def predict(args):
         'model_path', default_settings['learning']['model_path'])
     model = least_squares.WeightedLinearModel.from_json(model_path)
 
-    logging.info("Predicting with model {model_path}")
+    logging.info(f"Predicting with model {model_path}")
 
     # Batched predict
     y_e, p_e, y_f, p_f, rmse_e, rmse_f = model.batched_predict(
