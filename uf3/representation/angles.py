@@ -223,9 +223,7 @@ def featurize_force_3b(geom: ase.Atoms,
                                      L[interaction_idx],
                                      M[interaction_idx],
                                      N[interaction_idx])
-            for a in range(n_atoms):
-                for c in range(3):
-                    force_grids[interaction_idx][a][c] -= grids[a][c]
+            force_grids[interaction_idx] -= grids
     return force_grids
 
 
@@ -256,10 +254,7 @@ def arrange_deriv_3b(triangle_values: np.ndarray,
     n_atoms = len(drij_dr)
     n_values = len(triangle_values)
     n_triangles = int(n_values / 4)
-    force_grids = [(np.zeros((L, M, N)),
-                    np.zeros((L, M, N)),
-                    np.zeros((L, M, N)))
-                   for _ in range(n_atoms)]
+    force_grids = np.zeros((n_atoms, 3, L, M, N))
     for a in range(n_atoms):  # atom index
         for c in range(3):  # cartesian directions
             for tri_idx in range(n_triangles):
