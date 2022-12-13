@@ -516,6 +516,61 @@ class WeightedLinearModel(BasicLinearModel):
                                      filename=filename,
                                      write=True)
 
+
+    def to_lammps(self, path = ".", filename_prefix = "lammps_", overwrite = False):
+        """Creates potential files for the UF3 LAMMPS implementation.
+
+        Args:
+            path (str, optional): The output path where the files are stored. Defaults to ".".
+            filename_prefix (str, optional): A filename prefix for the per-interaction files. Defaults to "lammps_".
+            overwrite (bool, optional): Whether the method should overwrite existing potential files. Defaults to False.
+        """
+        files = {}
+        element_indices = composition.sort_interaction_symbols(self.bspline_config.chemical_system.element_list)
+
+        for interaction in self.bspline_config.interactions_map[2]:
+            key = '-'.join(interaction)
+            files[key] = "#UF3 POT\n"
+            files[key] += "2B\n"
+            files[key] += str(element_indices.index(interaction[0]) + 1) + " " + str(element_indices.index(interaction[1]) + 1) + " " + str(self.bspline_config.r_max_map[interaction]) + " " + str(len(self.bspline_config.knots_map[interaction]))+"\n"
+            files[key] += " ".join(['{:.17g}'.format(v) for v in self.bspline_config.knots_map[interaction]]) + "\n"
+            files[key] += str(self.bspline_config.get_interaction_partitions()[0][interaction]) + "\n"
+            start_index = self.bspline_config.get_interaction_partitions()[1][interaction]
+            length = self.bspline_config.get_interaction_partitions()[0][interaction]
+            files[key] += " ".join(['{:.17g}'.format(v) for v in self.coefficients[start_index:start_index + length]]) + "\n"
+            files[key] += "#"
+
+        if 3 in self.bspline_config.interactions_map:
+            for interaction in self.bspline_config.interactions_map[3]:
+                key = '-'.join(interaction)
+                files[key] = "#UF3 POT\n"
+                files[key] += "3B\n"
+                files[key] += str(element_indices.index(interaction[0]) + 1) + " " + str(element_indices.index(interaction[1]) + 1) + " " + str(element_indices.index(interaction[2]) + 1) + " "
+                files[key] += str(self.bspline_config.r_max_map[interaction][2]) + " " + str(self.bspline_config.r_max_map[interaction][1]) + " " + str(self.bspline_config.r_max_map[interaction][0]) + " "
+                files[key] += str(len(self.bspline_config.knots_map[interaction][2])) + " " + str(len(self.bspline_config.knots_map[interaction][1])) + " " + str(len(self.bspline_config.knots_map[interaction][0])) + "\n"
+                files[key] += " ".join(['{:.17g}'.format(v) for v in self.bspline_config.knots_map[interaction][2]]) + "\n"
+                files[key] += " ".join(['{:.17g}'.format(v) for v in self.bspline_config.knots_map[interaction][1]]) + "\n"
+                files[key] += " ".join(['{:.17g}'.format(v) for v in self.bspline_config.knots_map[interaction][0]]) + "\n"
+
+                solutions = arrange_coefficients(self.coefficients, self.bspline_config)
+                decompressed = self.bspline_config.decompress_3B(solutions[(interaction[0], interaction[1],interaction[2])], (interaction[0], interaction[1],interaction[2]))
+
+                files[key] += str(decompressed.shape[0]) + " " + str(decompressed.shape[1]) + " " + str(decompressed.shape[2]) + "\n"
+
+                for i in range(decompressed.shape[0]):
+                    for j in range(decompressed.shape[1]):
+                        files[key] += ' '.join(map(str, decompressed[i,j]))
+                        files[key] += "\n"
+
+                files[key] += "#"
+                        
+        for k, v in files.items():
+            if not overwrite and os.path.exists(path.rstrip(os.sep) + os.sep + filename_prefix + k):
+                print("WARNING: File " + path.rstrip(os.sep) + os.sep + filename_prefix + k + " already exists. To overwrite, specify overwrite=True.")
+                continue
+            with open(path.rstrip(os.sep) + os.sep + filename_prefix + k, "w") as f:
+                f.write(v)
+
     def dump(self):
         """Legacy alias"""
         return self.as_dict()
