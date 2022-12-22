@@ -281,13 +281,17 @@ def create_bspline_config(settings, degree, chemical_system):
 
     logging.info(f"Using trailing trim of {trailing_trim}.")
 
+    offset_1b = settings.get('basis', {}).get(
+        'fit_offsets', default_settings['basis']['fit_offsets'])
+
     from uf3.representation import bspline
     bspline_config = bspline.BSplineBasis(chemical_system,
                                           r_min_map=r_min_map,
                                           r_max_map=r_max_map,
                                           resolution_map=resolution_map,
                                           leading_trim=leading_trim,
-                                          trailing_trim=trailing_trim)
+                                          trailing_trim=trailing_trim,
+                                          offset_1b=offset_1b)
 
     return bspline_config
 
@@ -451,14 +455,17 @@ def featurize(args):
 
     # Featurize
     from uf3.representation import process
-    from concurrent.futures import ProcessPoolExecutor
     representation = process.BasisFeaturizer(bspline_config)
 
     if settings.get('features', {}).get('parallel', default_settings['features']['parallel']) == 'python':
+        from concurrent.futures import ProcessPoolExecutor
         client = ProcessPoolExecutor(max_workers=n_cores)
+    elif settings.get('features', {}).get('parallel', default_settings['features']['parallel']) == 'mpi':
+        import mpi4py.futures as mpf
+        client = mpf.MPIPoolExecutor(max_workers=n_cores)
     else:
         logging.error(
-            "Only python multiprocessing is supported at this time. Exiting.")
+            "Only Python and MPI multiprocessing is supported at this time. Exiting.")
         sys.exit(1)
 
     filename = get_features_filename(settings)
@@ -622,8 +629,10 @@ def predict(args):
             pickle_path = settings.get(
                 'data', default_settings['data']).get('pickle_path')
     if os.path.isfile(pickle_path):
-        logging.info("Loading data from pickle f{pickle_path}")
+        logging.info(f"Loading data from pickle {pickle_path}")
         df_data = pd.read_pickle(pickle_path)
+    else:
+        logging.error(f"Data not available at {pickle_path}.")
 
     # Locate features
     filename = get_features_filename(settings)
