@@ -504,8 +504,8 @@ class WeightedLinearModel(BasicLinearModel):
         if score:
             rmse_e = rmse_metric(y_e, p_e)
             rmse_f = rmse_metric(y_f, p_f)
-            print(f"RMSE (energy): {rmse_e:.3F}")
-            print(f"RMSE (forces): {rmse_f:.3F}")
+            #print(f"RMSE (energy): {rmse_e:.3F}")
+            #print(f"RMSE (forces): {rmse_f:.3F}")
             return y_e, p_e, y_f, p_f, rmse_e, rmse_f
         else:
             return y_e, p_e, y_f, p_f
@@ -570,6 +570,29 @@ class WeightedLinearModel(BasicLinearModel):
                 continue
             with open(path.rstrip(os.sep) + os.sep + filename_prefix + k, "w") as f:
                 f.write(v)
+
+    def lammps_pair_style(self, path = ".", filename_prefix = "lammps_", style_suffix = ""):
+        """Generates the pairstyle to be used in LAMMPS.
+
+        Args:
+            path (str, optional): Path where potentials files are stored. Defaults to ".".
+            filename_prefix (str, optional): Filename prefix of the potential files. Defaults to "lammps_".
+        """
+
+        n_species = len(self.bspline_config.chemical_system.element_list)
+        degree = 2
+        interactions = ['-'.join(interaction) for interaction in self.bspline_config.interactions_map[2]]
+        if 3 in self.bspline_config.interactions_map:
+            interactions += ['-'.join(interaction) for interaction in self.bspline_config.interactions_map[3]]
+            degree = 3
+
+        files = map(lambda i: path.rstrip(os.sep) + os.sep + filename_prefix + i, interactions)
+        files_str = " ".join(files)
+        if len(style_suffix) > 0:
+            style_suffix = "/" + style_suffix.lstrip("/")
+
+        return f"pair_style uf3{style_suffix} {degree} {n_species}\npair_coeff * * {files_str}"
+
 
     def dump(self):
         """Legacy alias"""
@@ -661,6 +684,11 @@ class WeightedLinearModel(BasicLinearModel):
         self.coefficients = np.array(flattened_coefficients)
 
     def fix_repulsion_2b(self, pair, r_target=None, min_curvature=2.0):
+
+        if self.bspline_config.knots_map[pair][-1] == 0:
+            print(f"{pair} Correction: Interaction has r_max of 0. No fix applied.")
+            return
+
         components = self.bspline_config.get_interaction_partitions()
         component_sizes, component_offsets = components
         offset = component_offsets[pair]
