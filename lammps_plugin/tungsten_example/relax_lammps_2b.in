@@ -9,7 +9,7 @@ mass		1 183.84
 neighbor	0.0 bin
 # ============= force field
 pair_style zero 10.0
-pair_style 	uf3 2
+pair_style 	uf3 2 1
 pair_coeff      * * W_W
 
 #----------------------Run Minimization-------------------------
