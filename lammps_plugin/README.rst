@@ -51,6 +51,8 @@ Structure of UF3 lammps potential file
 
 This section describes the format of the UF3 lammps potential file. Not following the format can lead to unexpected error in the MD simulation and sometimes unexplained core dumps.
 
+We recommend using the :code:`generate_uf3_lammps_pots.py` script (`found here <https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/scripts>`_) for generating the UF3 lammps potential files.
+
 2-body potential
 ====
 
