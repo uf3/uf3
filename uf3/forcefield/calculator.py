@@ -11,8 +11,8 @@ import numpy as np
 from scipy import interpolate
 import ase
 from ase import optimize as ase_optim
-from ase import constraints as ase_constraints
-from ase.calculators import calculator as ase_calc
+from ase import constraints as ase_constraint
+from ase.calculators.calculator import Calculator, all_changes
 
 from uf3.data import geometry
 from uf3.representation import distances
@@ -36,15 +36,22 @@ try:
 except ImportError:
     _use_elastic = False
 
-
-class UFCalculator(ase_calc.Calculator):
+    
+class UFCalculator(Calculator):
     """
     ASE Calculator for energies, forces, and stresses using a fit UF potential.
     Optionally compute elastic constants and phonon spectra.
     """
+    implemented_properties = ['energy', 'forces', 'stress']
+    discard_results_on_any_change = True
+    name = 'ufp'
+    parameters = {}
+    results = {}
+
     def __init__(self,
                  model: least_squares.WeightedLinearModel):
-        # super().__init__()  # TODO: improve compatibility with ASE protocol
+        super().__init__()
+        self._directory = '.'       
         self.bspline_config = model.bspline_config
         self.model = model
         self.solutions = coefficients_by_interaction(self.element_list,
@@ -56,6 +63,15 @@ class UFCalculator(ase_calc.Calculator):
         if self.degree > 2:
             self.trio_potentials = construct_trio_potentials(
                 self.solutions, self.bspline_config)
+
+
+    def calculate(self, atoms=None, properties=['energy','forces','stress'],
+                  system_changes=all_changes):
+            Calculator.calculate(self, atoms, properties, system_changes)
+            self.results['energy'] = self.get_potential_energy(atoms)
+            self.results['forces'] = self.get_forces(atoms)
+            self.results['stress'] = self.get_stress(atoms)
+            
 
     def __repr__(self):
         summary = ["UFCalculator:",
@@ -71,6 +87,7 @@ class UFCalculator(ase_calc.Calculator):
     def __str__(self):
         return self.__repr__()
 
+    
     @property
     def degree(self):
         return self.bspline_config.degree
@@ -111,31 +128,35 @@ class UFCalculator(ase_calc.Calculator):
     def chemical_system(self):
         return self.bspline_config.chemical_system
 
+
     def get_potential_energy(self,
                              atoms: ase.Atoms = None,
                              force_consistent: bool = None
                              ) -> float:
         """Evaluate the total energy of a configuration."""""
-        if any(atoms.pbc):
-            supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
+        if atoms == None:
+           energy = 0
         else:
-            supercell = atoms
-
-        if force_consistent is not True:
-            e_1b = self.energy_1b(atoms)
-        else:
-            e_1b = 0.0
-
-        if self.degree >= 2:
-            e_2b = self.energy_2b(atoms, supercell)
-        else:
-            e_2b = 0.0
-
-        if self.degree >= 3:
-            e_3b = self.energy_3b(atoms, supercell)
-        else:
-            e_3b = 0.0
-        energy = e_1b + e_2b + e_3b
+            if any(atoms.pbc):
+                supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
+            else:
+                supercell = atoms
+        
+            if force_consistent is not True:
+                e_1b = self.energy_1b(atoms)
+            else:
+                e_1b = 0.0
+        
+            if self.degree >= 2:
+                e_2b = self.energy_2b(atoms, supercell)
+            else:
+                e_2b = 0.0
+        
+            if self.degree >= 3:
+                e_3b = self.energy_3b(atoms, supercell)
+            else:
+                e_3b = 0.0
+            energy = e_1b + e_2b + e_3b
         return energy
 
     def energy_1b(self, atoms):
@@ -199,23 +220,26 @@ class UFCalculator(ase_calc.Calculator):
 
     def get_forces(self, atoms: ase.Atoms = None) -> np.ndarray:
         """Return the forces in a configuration."""
-        n_atoms = len(atoms)
-        if any(atoms.pbc):
-            supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
+        if atoms == None:
+            forces = 0
         else:
-            supercell = atoms
-
-        f_shape = np.zeros((n_atoms, 3))
-        if self.degree >= 2:
-            f_2b = self.forces_2b(atoms, supercell)
-        else:
-            f_2b = np.zeros_like(f_shape)
-
-        if self.degree >= 3:
-            f_3b = self.forces_3b(atoms, supercell)
-        else:
-            f_3b = np.zeros_like(f_shape)
-        forces = f_2b + f_3b
+            n_atoms = len(atoms)
+            if any(atoms.pbc):
+                supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
+            else:
+                supercell = atoms
+        
+            f_shape = np.zeros((n_atoms, 3))
+            if self.degree >= 2:
+                f_2b = self.forces_2b(atoms, supercell)
+            else:
+                f_2b = np.zeros_like(f_shape)
+        
+            if self.degree >= 3:
+                f_3b = self.forces_3b(atoms, supercell)
+            else:
+                f_3b = np.zeros_like(f_shape)
+            forces = f_2b + f_3b
         return forces
 
     def forces_2b(self, atoms, supercell):
@@ -352,7 +376,13 @@ class UFCalculator(ase_calc.Calculator):
                    **kwargs
                    ) -> np.ndarray:
         """Return the (numerical) stress."""
-        return self.calculate_numerical_stress(atoms, **kwargs)
+        if atoms == None:
+            stress = 0
+        else:
+            atoms_copy = atoms.copy()
+            atoms_copy.set_calculator(self)
+            stress = self.calculate_numerical_stress(atoms_copy, **kwargs)
+        return stress
 
     def relax_fmax(self,
                    geom: ase.Atoms,
@@ -387,14 +417,8 @@ class UFCalculator(ase_calc.Calculator):
         return geom
 
     def calculation_required(self, atoms: ase.Atoms, quantities: List) -> bool:
-        """Check if a calculation is required."""
-        if any([q in quantities for q in ['magmom', 'stress', 'charges']]):
-            return True
-        if 'energy' in quantities and 'energy' not in atoms.info:
-            return True
-        if 'force' in quantities and 'fx' not in atoms.arrays:
-            return True
-        return False
+        """Check if a calculation is required."""        
+        return True
 
     def get_elastic_constants(self,
                               atoms: ase.Atoms,
