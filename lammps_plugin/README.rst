@@ -61,6 +61,14 @@ As an example for a multicomponet system containing elements 'A' and 'B' the abo
    pair_style uf3 3 2
    pair_coeff * * A_A B_B A_B A_A_A A_A_B A_B_B B_A_A B_A_B B_B_B
    
+Alternatively, if the user wishes to use only the 2-body interactions from a model containing both two and three body interaction simply change the number next to :code:`uf3` to :code:`2` and don't list the three body interaction files in the :code:`pair_coeff` line. Beware! Using only the 2-body interaction from a model containing both 2 and 3-body is not recommended and will give wrong results!
+
+.. code:: bash
+
+   pair_style uf3 2 2
+   pair_coeff * * A_A A_B B_B
+   
+   
 
 =====
 Structure of UF3 lammps potential file
