@@ -171,13 +171,14 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
     for k, v in files.items():
         if not overwrite and os.path.exists(pot_dir + k):
             continue
-        with open(pot_dir + k, "w") as f:
+        with open(pot_dir +"/"+ k, "w") as f:
             f.write(v)
     return files.keys()
 
 
 if len(model_elements.intersection(struct_elements))==len(struct_elements):
-    chemical_sys = composition.ChemicalSystem(element_list=struct_elements, degree=model.bspline_config.degree)
+    chemical_sys = composition.ChemicalSystem(element_list=list(struct_elements),\
+            degree=model.bspline_config.degree)
     element_map = create_element_map_for_lammps(chemical_sys)
     write_lammps_ip_struct(struct_obj=struct,element_map=element_map)
     pot_files = write_uf3_lammps_pot_files(chemical_sys=chemical_sys,model=model,pot_dir=pot_dir)
@@ -185,7 +186,7 @@ if len(model_elements.intersection(struct_elements))==len(struct_elements):
     lines = "pair_style uf3 %i %i\n"%(model.bspline_config.degree,len(struct_elements))
     lines += "pair_coeff * *"
     for i in pot_files:
-        lines += " %s%s"%(pot_dir,i)
+        lines += " %s/%s"%(pot_dir,i)
     print("***Add the following lines to the lammps input script***")
     print(lines)
 else:
