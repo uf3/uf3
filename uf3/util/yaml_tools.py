@@ -631,7 +631,7 @@ def fit(args):
         model_repulsion_suffix = settings.get('learning', {}).get(
             'repulsion_suffix', default_settings['learning']['repulsion_suffix'])
 
-        model.to_json("".join(model_path.split(".")[:-1]) + model_repulsion_suffix + ".json")
+        model.to_json(".".join(model_path.split(".")[:-1]) + model_repulsion_suffix + ".json")
 
 
 def predict(args):
