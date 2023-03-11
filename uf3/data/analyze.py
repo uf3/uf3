@@ -220,6 +220,7 @@ class DataAnalyzer:
                 smooth: bool = True,
                 filter_width: int = 9,
                 filter_degree: int = 3,
+                show_suggested_cutoffs = True
                 ) -> Dict:
         """
         Construct histogram of distances per pair interaction across
@@ -274,9 +275,10 @@ class DataAnalyzer:
                                               smooth=smooth,
                                               filter_width=filter_width,
                                               filter_degree=filter_degree)
-            suggest_cutoffs(self.lower_bounds[pair],
-                            self.valleys[pair],
-                            bond_ref[pair])
+            if show_suggested_cutoffs:
+                suggest_cutoffs(self.lower_bounds[pair],
+                                self.valleys[pair],
+                                bond_ref[pair])
         analysis = dict(histograms=self.histogram_values,
                         bin_edges=self.bin_edges,
                         reference=reference,
