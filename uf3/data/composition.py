@@ -61,12 +61,21 @@ class ChemicalSystem:
         self.interaction_hashes = self.get_interaction_hashes()
 
     @staticmethod
-    def from_config(config: Dict[Any, Any]):
+    def from_config(config):
+        return ChemicalSystem.from_dict(config)
+
+    @staticmethod
+    def from_dict(config: Dict[Any, Any]):
         """Instantiate from configuration dictionary"""
         keys = ['element_list',
                 'degree']
-        config = {k: v for k, v in config.items() if k in keys}
+        config = {k: config[k] for k in keys}
         return ChemicalSystem(**config)
+
+    def as_dict(self):
+        dump = dict(element_list=self.element_list,
+                    degree=self.degree)
+        return dump
 
     def __repr__(self):
         summary = ["ChemicalSystem:",
@@ -76,6 +85,12 @@ class ChemicalSystem:
                    ]
         if self.degree > 2:
             summary.append(f"    Trios: {self.interactions_map[3]}")
+        # summary.append("    Hashes:")
+        # for n in range(2, self.degree + 1):
+        #     element_combinations = self.interactions_map[n]
+        #     hash_list = self.interaction_hashes[n]
+        #     for k, v in zip(element_combinations, hash_list):
+        #         summary.append(" " * 8 + f"{str(k)}: {str(v)}")
         return "\n".join(summary)
 
     def __str__(self):
@@ -111,7 +126,8 @@ class ChemicalSystem:
         interactions_map[1] = self.element_list
         cwr = itertools.combinations_with_replacement(self.element_list, 2)
         cwr = [sort_interaction_symbols(symbols) for symbols in cwr]
-        interactions_map[2] = sorted(cwr)
+        interactions_map[2] = sorted(cwr,
+                                     key=lambda c: [reference_X[x] for x in c])
         for d in range(3, self.degree + 1):
             combinations = get_element_combinations(self.element_list, d)
             interactions_map[d] = combinations
@@ -144,9 +160,29 @@ class ChemicalSystem:
             element_combinations = self.interactions_map[n]
             numbers = np.array([ase_symbols.symbols2numbers(el_tuple)
                                 for el_tuple in element_combinations])
+            numbers[:, 1:] = np.sort(numbers[:, 1:], axis=1)
             hash_list = get_szudzik_hash(numbers)
             interaction_hashes[n] = hash_list
         return interaction_hashes
+
+
+def interactions_to_numbers(interactions):
+    if isinstance(interactions, tuple):
+        return tuple(ase_symbols.symbols2numbers(interactions))
+    elif isinstance(interactions, list):
+        return [interactions_to_numbers(item) for item in interactions]
+    elif isinstance(interactions, dict):
+        return {k: interactions_to_numbers(v)
+                for k, v in interactions.items()}
+    elif isinstance(interactions, str):
+        return ase_symbols.atomic_numbers[interactions]
+    else:
+        raise ValueError
+
+
+def sort_elements(symbols):
+    symbols = sorted(symbols, key=lambda el: reference_X[el])
+    return symbols
 
 
 def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
@@ -154,18 +190,18 @@ def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
     return {sort_interaction_symbols(k): v for k, v in imap.items()}
 
 
-def sort_interaction_symbols(symbols: Collection[str]) -> Tuple[str]:
+def sort_interaction_symbols(symbols: Collection[str]) -> Tuple:
     """
     Sort interaction tuple by electronegativities.
     For consistency, many-body interactions (i.e. >2) are sorted while fixing
     the first (center) element."""
     if len(symbols) >= 3:
         center = symbols[0]
-        symbols = sorted(symbols[1:], key=lambda el: reference_X[el])
+        symbols = sort_elements(symbols[1:])
         symbols.insert(0, center)
         return tuple(symbols)
     else:
-        return tuple(sorted(symbols, key=lambda el: reference_X[el]))
+        return tuple(sort_elements(symbols))
 
 
 def get_electronegativity_sort(numbers: Collection[int]) -> np.ndarray:
@@ -292,3 +328,47 @@ def unpack_szudzik_hash(hash_list: np.ndarray, n_iter: int) -> np.ndarray:
         hash_list = unpacked[:, 0]
     columns.insert(0, hash_list)
     return np.vstack(columns).T
+
+
+def get_pair_hashes(species_set, symbols_set,
+                    pair_idx):
+    """Convenience function for working with element pairs."""
+    i_spec, j_spec = species_set
+    i_sym, j_sym = symbols_set
+    i_where, j_where = pair_idx
+    i_spec = i_spec[i_where]
+    j_spec = j_spec[j_where]
+    i_eln = [reference_X[x] for x in np.array(i_sym)[i_where]]
+    j_eln = [reference_X[x] for x in np.array(j_sym)[j_where]]
+    pair_eln = np.vstack([i_eln, j_eln]).T
+    idx = list(np.ogrid[[slice(x) for x in pair_eln.shape]])
+    idx[1] = pair_eln.argsort(1)
+    pair_spec = np.vstack([i_spec, j_spec]).T
+    pair_spec = pair_spec[tuple(idx)]
+    hashes = get_szudzik_hash(pair_spec)
+    return hashes
+
+
+def hash_gather(values, hashes):
+    """Arrange entries by hash, given vectors."""
+    value_ref = {}
+    hash_set = np.sort(np.unique(hashes))
+
+    for pair in hash_set:
+        pair_mask = (hashes == pair)
+        pair_dists = values[pair_mask]
+        value_ref[int(pair)] = pair_dists
+    return value_ref
+
+
+def symbols_to_hash(symbols):
+    numbers = [ase_symbols.atomic_numbers[symbol]
+               for symbol in symbols]
+    numbers = np.array([numbers])
+    return get_szudzik_hash(numbers)[0]
+
+
+def hash_to_symbols(hash_, n=2):
+    pair = unpack_szudzik_hash([hash_], n)[0]
+    return tuple([ase_symbols.chemical_symbols[int(idx)]
+                  for idx in pair])

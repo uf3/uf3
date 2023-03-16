@@ -58,6 +58,7 @@ PairUF3::~PairUF3()
       memory->destroy(setflag_3b);
       memory->destroy(cut_3b);
       memory->destroy(cut_3b_list);
+      memory->destroy(min_cut_3b)
       memory->destroy(neighshort);
     }
   }
@@ -177,11 +178,20 @@ void PairUF3::allocate()
     // Contains info about 3-body cutoff distance for type i, j and k
     // for constructing 3-body list
     memory->create(cut_3b_list, num_of_elements + 1, num_of_elements + 1, "pair:cut_3b_list");
+    // Contains info about minimum 3-body cutoff distance for type i, j and k
+    memory->create(min_cut_3b, num_of_elements + 1, num_of_elements + 1, num_of_elements + 1, 3,
+                    "pair:min_cut_3b");
+
     // setting cut_3b and setflag = 0
     for (int i = 1; i < num_of_elements + 1; i++) {
       for (int j = 1; j < num_of_elements + 1; j++) {
         cut_3b_list[i][j] = 0;
-        for (int k = 1; k < num_of_elements + 1; k++) cut_3b[i][j][k] = 0;
+        for (int k = 1; k < num_of_elements + 1; k++) {
+          cut_3b[i][j][k] = 0;
+          min_cut_3b[i][j][k][0] = 0;
+          min_cut_3b[i][j][k][1] = 0;
+          min_cut_3b[i][j][k][2] = 0;
+        }
       }
     }
     n3b_knot_matrix.resize(num_of_elements + 1);
@@ -314,6 +324,12 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][0][i];
     }
 
+    min_cut_3b[temp_type1][temp_type2][temp_type3][0] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][0][0];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][0] = min_cut_3b[temp_type1][temp_type3][temp_type2][0];
+    if (comm->me == 0)
+      utils::logmesg(lmp, "UF3: 3b min cutoff 0 {} {}\n", potf_name,
+                     min_cut_3b[temp_type1][temp_type2][temp_type3][0], min_cut_3b[temp_type1][temp_type3][temp_type2][0]);
+
     temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp5th_line(temp_line);
@@ -325,6 +341,12 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1][i];
     }
 
+    min_cut_3b[temp_type1][temp_type2][temp_type3][1] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1][0];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][1] = min_cut_3b[temp_type1][temp_type3][temp_type2][1];
+    if (comm->me == 0)
+      utils::logmesg(lmp, "UF3: 3b min cutoff 1 {} {}\n", potf_name,
+                     min_cut_3b[temp_type1][temp_type2][temp_type3][1], min_cut_3b[temp_type1][temp_type3][temp_type2][1]);
+
     temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp6th_line(temp_line);
@@ -335,6 +357,12 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
       n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2][i] =
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][i];
     }
+
+    min_cut_3b[temp_type1][temp_type2][temp_type3][2] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][0];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][2] = min_cut_3b[temp_type1][temp_type3][temp_type2][2];
+    if (comm->me == 0)
+      utils::logmesg(lmp, "UF3: 3b min cutoff 2 {} {}\n", potf_name,
+                     min_cut_3b[temp_type1][temp_type2][temp_type3][2], min_cut_3b[temp_type1][temp_type3][temp_type2][2]);
 
     temp_line = txtfilereader.next_line(3);
     ValueTokenizer fp7th_line(temp_line);
@@ -565,13 +593,17 @@ void PairUF3::compute(int eflag, int vflag)
         rik = sqrt(
             ((del_rki[0] * del_rki[0]) + (del_rki[1] * del_rki[1]) + (del_rki[2] * del_rki[2])));
 
-        if ((rij < cut_3b[itype][jtype][ktype]) && (rik < cut_3b[itype][ktype][jtype])) {
+        if ((rij <= cut_3b[itype][jtype][ktype]) && (rik <= cut_3b[itype][ktype][jtype]) &&
+                (rij >= min_cut_3b[itype][jtype][ktype][0]) && 
+                (rik >= min_cut_3b[itype][jtype][ktype][1])) {
 
           del_rkj[0] = x[k][0] - x[j][0];
           del_rkj[1] = x[k][1] - x[j][1];
           del_rkj[2] = x[k][2] - x[j][2];
           rjk = sqrt(
               ((del_rkj[0] * del_rkj[0]) + (del_rkj[1] * del_rkj[1]) + (del_rkj[2] * del_rkj[2])));
+
+          if (rjk >= min_cut_3b[itype][jtype][ktype][2]){
 
           double *triangle_eval = UFBS3b[itype][jtype][ktype].eval(rij, rik, rjk);
 

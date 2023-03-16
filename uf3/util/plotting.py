@@ -5,6 +5,7 @@ from matplotlib import axes
 from scipy import stats
 from scipy import interpolate
 from scipy import linalg
+from uf3.util import cubehelix
 
 
 def round_lims(values, round_factor=0.5):
@@ -90,7 +91,7 @@ def density_scatter(references,
     if 's' not in scatter_kwargs.keys():
         scatter_kwargs['s'] = 1  # default marker size
     if cmap is None:
-        cmap = cm.viridis
+        cmap = cubehelix.c_rainbow
     x = np.array(references)
     y = np.array(predictions)
     # Compute metrics, e.g. RMSE, before selecting random subset.
@@ -189,6 +190,7 @@ def visualize_splines(coefficients,
                       knot_sequence,
                       ax=None,
                       cmap=None,
+                      show_components=True,
                       show_total=True):
     r_min = knot_sequence[0]
     r_max = knot_sequence[-1]
@@ -197,9 +199,11 @@ def visualize_splines(coefficients,
     else:
         fig = ax.get_figure()
     if cmap is None:
-        cmap = cm.gnuplot
+        cmap = cubehelix.c_rainbow
     colors = cmap(np.linspace(0, 1, len(coefficients)))
     x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+
     for i, c in enumerate(coefficients):
         kn = knot_sequence[i:i + 5]
         kno = np.concatenate([np.repeat(kn[0], 3),
@@ -210,25 +214,156 @@ def visualize_splines(coefficients,
                                  3,
                                  extrapolate=False)
         y_plot = bs(x_plot)
-        ax.plot(x_plot,
-                y_plot,
-                color=colors[i],
-                linewidth=1)
+
+        if show_components:
+            ax.plot(x_plot,
+                    y_plot,
+                    color=colors[i],
+                    linewidth=1)
         y_plot[np.isnan(y_plot)] = 0
-    bs_t = interpolate.BSpline(knot_sequence,
-                               coefficients,
-                               3,
-                               extrapolate=False)
-    y_total = bs_t(x_plot)
-    s_min = np.min(y_total)
-    s_max = np.max(y_total)
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
     if show_total:
-        ax.plot(x_plot, bs_t(x_plot),
+        ax.plot(x_plot,
+                y_total,
                 c='k',
-                linewidth=2,
-                linestyle=(0, (1, 1)))
+                linewidth=2)
     ax.set_xlim(r_min, r_max)
     ax.set_ylim(s_min, s_max)
     ax.set_xlabel("r")
     ax.set_ylabel("B(r)")
     return fig, ax
+
+
+def visualize_basis_functions(coefficients,
+                              knot_sequence,
+                              ax=None,
+                              cmap=None):
+    r_min = knot_sequence[0]
+    r_max = knot_sequence[-1]
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+    if cmap is None:
+        cmap = cubehelix.c_rainbow
+    colors = cmap(np.linspace(0, 1, len(coefficients)))
+    x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+
+    for i, c in enumerate(coefficients):
+        kn = knot_sequence[i:i + 5]
+        kno = np.concatenate([np.repeat(kn[0], 3),
+                              kn,
+                              np.repeat(kn[-1], 3)])
+        bs = interpolate.BSpline(kno,
+                                 np.array([0, 0, 0, c, 0, 0, 0]),
+                                 3,
+                                 extrapolate=False)
+        y_plot = bs(x_plot)
+
+        ax.plot(x_plot,
+                y_plot,
+                color=colors[i],
+                linewidth=1)
+        y_plot[np.isnan(y_plot)] = 0
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
+    ax.set_xlim(r_min, r_max)
+    ax.set_ylim(s_min, s_max)
+    ax.set_xlabel("r")
+    ax.set_ylabel("B(r)")
+    return fig, ax
+
+
+def visualize_pair_potential(coefficients,
+                             knot_sequence,
+                             ax=None,
+                             **kwargs):
+    r_min = knot_sequence[0]
+    r_max = knot_sequence[-1]
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
+    if "linewidth" not in kwargs:
+        kwargs["linewidth"] = 2
+    if "color" not in kwargs:
+        kwargs["color"] = "black"
+
+    x_plot = np.linspace(r_min, r_max, 1000)
+    basis_components = []
+    for i, c in enumerate(coefficients):
+        kn = knot_sequence[i:i + 5]
+        kno = np.concatenate([np.repeat(kn[0], 3),
+                              kn,
+                              np.repeat(kn[-1], 3)])
+        bs = interpolate.BSpline(kno,
+                                 np.array([0, 0, 0, c, 0, 0, 0]),
+                                 3,
+                                 extrapolate=False)
+        y_plot = bs(x_plot)
+        y_plot[np.isnan(y_plot)] = 0
+        basis_components.append(y_plot)
+    y_total = np.sum(basis_components, axis=0)
+    s_min = np.min(y_total[~np.isnan(y_total)])
+    s_max = np.max(y_total[~np.isnan(y_total)])
+    ax.plot(x_plot,
+            y_total,
+            **kwargs)
+    ax.set_xlim(r_min, r_max)
+    ax.set_ylim(s_min, s_max)
+    ax.set_xlabel("r")
+    ax.set_ylabel("B(r)")
+    return fig, ax
+
+
+def plot_pair_distributions(analysis,
+                            pair_order=None,
+                            x_max=None,
+                            y_max=2.0,
+                            show_cutoffs=False,
+                            figsize=(3.5, 3),
+                            dpi=100):
+    frequencies = analysis["rdfs"]
+    bin_edges = analysis["bin_edges"]
+    valleys = analysis["valleys"]
+    if pair_order is None:
+        pair_order = list(frequencies.keys())
+    if x_max is None:
+        x_max = bin_edges[-1]
+    bar_width = bin_edges[1] - bin_edges[0]
+    canvases = []
+    for i, pair in enumerate(pair_order):
+        fig, ax = plt.subplots(figsize=figsize,
+                               dpi=dpi)
+        ax.set_title(" - ".join(pair))
+        ax.set_xlim(0, x_max)
+        if y_max is None:
+            vector = frequencies[pair]
+            vector = vector[np.nonzero(vector)]
+            y_lim = np.mean(vector) * 2
+        else:
+            y_lim = y_max
+        ax.set_ylim(0, y_lim)
+        ax.bar(bin_edges[:-1],
+               frequencies[pair],
+               width=bar_width)
+        ax.plot([0, x_max],
+                [1.0, 1.0],
+                linestyle='--',
+                color='k')
+        if show_cutoffs:
+            ax.vlines(valleys.get(pair, []),
+                      0,
+                      y_lim,
+                      color="orange",
+                      linestyle=":")
+        ax.set_xlabel("Pair distance (angstroms)")
+        ax.set_ylabel("Normalized Frequency")
+        canvases.append((fig, ax))
+    return canvases

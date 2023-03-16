@@ -38,15 +38,8 @@ jobs:
         gcc -v
         python --version
         pip install -U pip pytest
-        pip install wheel
-        pip install -r requirements.txt
-        pip install numba
-        pip install .
         pip install setuptools_scm
-        # pip install elastic>=5.1.0.17 --no-deps  # Dependency issues with docutils on 11/04/2021 but not reproducible on local machine.
-        pip install spglib
-        pip install seekpath
-        pip install phonopy==2.11.0
+        pip install .[ELASTIC_CONSTANTS,PHONON_SPECTRA]
     - name: Test with pytest
       run: |
         pytest

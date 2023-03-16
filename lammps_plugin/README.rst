@@ -1,7 +1,12 @@
 This document describes how to use UF3 potentials in `lammps <https://www.lammps.org/>`_ MD code. See the `tungsten_example <https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/tungsten_example>`_ directory for an example of lammps input file and UF3 lammps potential files.
 
+.. contents:: Contents
+	:depth: 1
+	:local: 
+
+=====
 Compiling lammps with UF3 library
------
+=====
 
 Before running lammps with UF3 potentials, lammps must be re-compiled with the :code:`pair_uf3` and other supporting libraries contained in :code:`ML-UF3` directory.
 
@@ -67,8 +72,9 @@ To compile LAMMPS with MPI, OpenMP, and CUDA support, use:
 
 Note: Check the `documentation <https://docs.lammps.org/Build_extras.html#kokkos>`_ to choose the correct Kokkos_ARCH_GPUARCH flag for your system. More build options suitable to individual requirements can be found in the `LAMMPS build guide <https://docs.lammps.org/Build_extras.html#kokkos>`_.
 
+=====
 Running lammps with UF3 potential
------
+=====
 
 To use UF3 potentials in lammps just add the following tags to the lammps input file-
 
@@ -79,7 +85,23 @@ To use UF3 potentials in lammps just add the following tags to the lammps input 
 
 The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. The last number of this line specifies the number of elemnts in the system. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions on a system containing only 1 element.
 
-The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. The two asterisks on this line are not used in the current implementation but should be present. After the asterisks list all the 2 and 3-body UF3 lammps potential files seperated by space. Make sure these files are present in the current run directory or in directories where lammps can find them.
+The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. We recommend using the :code:`generate_uf3_lammps_pots.py` script (`found here <https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/scripts>`_) for generating the UF3 lammps potential files. It will also additionally print lines that should be added to the lammps input file for using UF3 lammps potential files.
+
+The two asterisks on this line are not used in the current implementation but should be present. After the asterisks list all the 2 and 3-body UF3 lammps potential files for all the components in the system seperated by space. Make sure these files are present in the current run directory or in directories where lammps can find them.
+
+As an example for a multicomponet system containing elements 'A' and 'B' the above lines should be-
+
+.. code:: bash
+
+   pair_style uf3 3 2
+   pair_coeff * * A_A B_B A_B A_A_A A_A_B A_B_B B_A_A B_A_B B_B_B
+   
+Alternatively, if the user wishes to use only the 2-body interactions from a model containing both two and three body interaction simply change the number next to :code:`uf3` to :code:`2` and don't list the three body interaction files in the :code:`pair_coeff` line. Beware! Using only the 2-body interaction from a model containing both 2 and 3-body is not recommended and will give wrong results!
+
+.. code:: bash
+  pair_style uf3 2 2
+  pair_coeff * * A_A A_B B_B
+  
 
 Kokkos
 =====
@@ -94,11 +116,15 @@ Running with Kokkos on 2 MPI ranks with 20 threads each while not explicitly spe
 .. code:: bash
 
     mpirun -np 2 lmp_kokkos -k on t 20 -sf kk -in in.lammps
+   
+   
 
+=====
 Structure of UF3 lammps potential file
------
+=====
 
 This section describes the format of the UF3 lammps potential file. Not following the format can lead to unexpected error in the MD simulation and sometimes unexplained core dumps.
+
 
 2-body potential
 ====

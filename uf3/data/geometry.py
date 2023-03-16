@@ -33,34 +33,20 @@ def get_supercell(geometry: ase.Atoms,
     z = list(geometry.get_atomic_numbers())
 
     cell = geometry.get_cell()
-    supercell_factors = get_supercell_factors(cell, r_cut)
-    radius_indices = [np.arange(n + 1) for n in supercell_factors]
-    diameter_indices = [np.repeat(v, 2)[1:] for v in radius_indices]
-    for i in range(3):
-        diameter_indices[i][::2] *= -1
-    a_indices, b_indices, c_indices = diameter_indices
-    if sort_indices is False:
-        sup_z = []
-        sup_positions = []
-        for a_idx in a_indices:
-            for b_idx in b_indices:
-                for c_idx in c_indices:
-                    img_offset = np.dot([a_idx, b_idx, c_idx], cell)
-                    img_positions = positions + img_offset
-                    sup_positions.extend(img_positions.tolist())
-                    sup_z.extend(z)
-    else:  # sort images by distance to origin.
-        a_grid, b_grid, c_grid = sort_image_indices(a_indices,
-                                                    b_indices,
-                                                    c_indices,
-                                                    cell)
-        n_images = len(a_grid)
-        sup_z = np.tile(z, n_images)
-        sup_positions = []
-        for a_idx, b_idx, c_idx in zip(a_grid, b_grid, c_grid):
-            img_offset = np.dot([a_idx, b_idx, c_idx], cell)
-            img_positions = positions + img_offset
-            sup_positions.extend(img_positions.tolist())
+    pbc = geometry.get_pbc()
+    periodic_indices = generate_periodic_image_indices(cell, r_cut)
+    # low-dimensional support
+    for dim in range(len(periodic_indices)):
+        if not pbc[dim]:
+            periodic_indices[dim] = periodic_indices[dim][:1]
+    # optionally sort images by distance to origin.
+    periodic_grid = sort_image_indices(*periodic_indices,
+                                       cell,
+                                       sort=sort_indices)
+    sup_positions, sup_z = tile_periodic_images(z,
+                                                positions,
+                                                cell,
+                                                *periodic_grid)
     supercell = ase.Atoms(sup_z, positions=sup_positions)
     return supercell
 
@@ -100,7 +86,8 @@ def get_supercell_factors(cell: Union[ase_cell.Cell, np.ndarray],
 def sort_image_indices(a_indices: np.ndarray,
                        b_indices: np.ndarray,
                        c_indices: np.ndarray,
-                       cell: np.ndarray
+                       cell: np.ndarray,
+                       sort: bool = True,
                        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Sort image indices based on distance to origin.
@@ -113,6 +100,7 @@ def sort_image_indices(a_indices: np.ndarray,
         c_indices (np.ndarray): flattened coordinate array of image indices
             in c direction.
         cell (np.ndarray): 3x3 array of a, b, c lattice vectors.
+        sort (bool): whether to perform sorting.
 
     Returns:
         Sorted, flattened coordinate arrays of image indices in each direction.
@@ -124,6 +112,10 @@ def sort_image_indices(a_indices: np.ndarray,
     a_grid = a_grid.flatten()
     b_grid = b_grid.flatten()
     c_grid = c_grid.flatten()
+
+    if not sort:
+        return a_grid, b_grid, c_grid
+
     img_centroids = [np.dot([a_idx, b_idx, c_idx], cell)
                      for a_idx, b_idx, c_idx
                      in zip(a_grid, b_grid, c_grid)]
@@ -134,6 +126,27 @@ def sort_image_indices(a_indices: np.ndarray,
     b_grid = b_grid[centroid_sort]
     c_grid = c_grid[centroid_sort]
     return a_grid, b_grid, c_grid
+
+
+def generate_periodic_image_indices(cell, r_cut):
+    supercell_factors = get_supercell_factors(cell, r_cut)
+    radius_indices = [np.arange(n + 1) for n in supercell_factors]
+    diameter_indices = [np.repeat(v, 2)[1:] for v in radius_indices]
+    for i in range(3):
+        diameter_indices[i][::2] *= -1
+    a_indices, b_indices, c_indices = diameter_indices
+    return [a_indices, b_indices, c_indices]
+
+
+def tile_periodic_images(z, positions, cell, a_grid, b_grid, c_grid):
+    n_images = len(a_grid)
+    sup_z = np.tile(z, n_images)
+    sup_positions = []
+    for a_idx, b_idx, c_idx in zip(a_grid, b_grid, c_grid):
+        img_offset = np.dot([a_idx, b_idx, c_idx], cell)
+        img_positions = positions + img_offset
+        sup_positions.extend(img_positions.tolist())
+    return sup_positions, sup_z
 
 
 def generate_displacements_from_forces(geom: ase.Atoms,
