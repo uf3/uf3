@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
- *    Contributing authors: Ajinkya Hire(U of Florida), 
+ *    Contributing authors: Ajinkya Hire (U of Florida), 
  *                          Hendrik Kraß (U of Constance),
  *                          Richard Hennig (U of Florida)
  * ---------------------------------------------------------------------- */
@@ -25,6 +25,7 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "math_const.h"
 #include "memory.h"
 #include "neigh_list.h"
 #include "neighbor.h"
@@ -33,6 +34,7 @@
 #include <cmath>
 
 using namespace LAMMPS_NS;
+using namespace MathConst;
 
 PairUF3::PairUF3(LAMMPS *lmp) : Pair(lmp)
 {
@@ -40,7 +42,7 @@ PairUF3::PairUF3(LAMMPS *lmp) : Pair(lmp)
   restartinfo = 0;      // 1 if pair style writes restart info
   maxshort = 10;
   neighshort = nullptr;
-  centroidstressflag = CENTROID_NOTAVAIL;
+  centroidstressflag = CENTROID_AVAIL;
   manybody_flag = 1;
   one_coeff = 1;
 }
@@ -71,7 +73,7 @@ void PairUF3::settings(int narg, char **arg)
 
   if (narg != 2)
     error->all(FLERR, "UF3: Invalid number of argument in pair settings\n\
-            Are you running 2-bordy or 2 & 3-body UF potential\n\
+            Are you running 2-body or 2 & 3-body UF potential\n\
             Also how many elements?");
   nbody_flag = utils::numeric(FLERR, arg[0], true, lmp);
   num_of_elements = utils::numeric(FLERR, arg[1], true, lmp);    // atom->ntypes;
@@ -443,14 +445,14 @@ double PairUF3::init_one(int i /*i*/, int /*j*/ j)
 
 void PairUF3::compute(int eflag, int vflag)
 {
-  int i, j, k, ii, jj, kk, inum, jnum, knum, itype, jtype, ktype;
+  int i, j, k, ii, jj, kk, inum, jnum, itype, jtype, ktype;
   double xtmp, ytmp, ztmp, delx, dely, delz, evdwl, fpair, fx, fy, fz;
   double del_rji[3], del_rki[3], del_rkj[3];
   double fij[3], fik[3], fjk[3];
   double fji[3], fki[3], fkj[3];
-  double Fj[3], Fk[3];
+  double Fi[3], Fj[3], Fk[3];
   double rsq, rij, rik, rjk;
-  int *ilist, *jlist, *klist, *numneigh, **firstneigh;
+  int *ilist, *jlist, *numneigh, **firstneigh;
 
   ev_init(eflag, vflag);
 
@@ -458,7 +460,6 @@ void PairUF3::compute(int eflag, int vflag)
   double **f = atom->f;
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  double *special_lj = force->special_lj;
   int newton_pair = force->newton_pair;
 
   inum = list->inum;
@@ -483,11 +484,8 @@ void PairUF3::compute(int eflag, int vflag)
       j = jlist[jj];
       j &= NEIGHMASK;
 
-      // delx = x[j][0] - xtmp;
       delx = xtmp - x[j][0];
-      // dely = x[j][1] - ytmp;
       dely = ytmp - x[j][1];
-      // delz = x[j][2] - ztmp;
       delz = ztmp - x[j][2];
 
       rsq = delx * delx + dely * dely + delz * delz;
@@ -517,15 +515,47 @@ void PairUF3::compute(int eflag, int vflag)
         f[i][0] += fx;
         f[i][1] += fy;
         f[i][2] += fz;
-        if (newton_pair || j < nlocal) {
-          f[j][0] -= fx;
-          f[j][1] -= fy;
-          f[j][2] -= fz;
-        }
+        f[j][0] -= fx;
+        f[j][1] -= fy;
+        f[j][2] -= fz;
+
         if (eflag) evdwl = pair_eval[0];
 
-        if (evflag)
+        if (evflag) {
           ev_tally_xyz(i, j, nlocal, newton_pair, evdwl, 0.0, fx, fy, fz, delx, dely, delz);
+
+          // Centroid Stress
+          if (vflag_either && cvflag_atom) {
+            double v[6];
+
+            v[0] = delx * fx;
+            v[1] = dely * fy;
+            v[2] = delz * fz;
+            v[3] = delx * fy;
+            v[4] = delx * fz;
+            v[5] = dely * fz;
+
+            cvatom[i][0] += 0.5 * v[0];
+            cvatom[i][1] += 0.5 * v[1];
+            cvatom[i][2] += 0.5 * v[2];
+            cvatom[i][3] += 0.5 * v[3];
+            cvatom[i][4] += 0.5 * v[4];
+            cvatom[i][5] += 0.5 * v[5];
+            cvatom[i][6] += 0.5 * v[3];
+            cvatom[i][7] += 0.5 * v[4];
+            cvatom[i][8] += 0.5 * v[5];
+
+            cvatom[j][0] += 0.5 * v[0];
+            cvatom[j][1] += 0.5 * v[1];
+            cvatom[j][2] += 0.5 * v[2];
+            cvatom[j][3] += 0.5 * v[3];
+            cvatom[j][4] += 0.5 * v[4];
+            cvatom[j][5] += 0.5 * v[5];
+            cvatom[j][6] += 0.5 * v[3];
+            cvatom[j][7] += 0.5 * v[4];
+            cvatom[j][8] += 0.5 * v[5];
+          }
+        }
       }
     }
 
@@ -598,27 +628,79 @@ void PairUF3::compute(int eflag, int vflag)
           fjk[2] = *(triangle_eval + 3) * (del_rkj[2] / rjk);
           fkj[2] = -fjk[2];
 
-          f[i][0] += fij[0] + fik[0];
-          f[i][1] += fij[1] + fik[1];
-          f[i][2] += fij[2] + fik[2];
+          Fi[0] = fij[0] + fik[0];
+          Fi[1] = fij[1] + fik[1];
+          Fi[2] = fij[2] + fik[2];
+          f[i][0] += Fi[0];
+          f[i][1] += Fi[1];
+          f[i][2] += Fi[2];
 
-          f[j][0] += fji[0] + fjk[0];
           Fj[0] = fji[0] + fjk[0];
-          f[j][1] += fji[1] + fjk[1];
           Fj[1] = fji[1] + fjk[1];
-          f[j][2] += fji[2] + fjk[2];
           Fj[2] = fji[2] + fjk[2];
+          f[j][0] += Fj[0];
+          f[j][1] += Fj[1];
+          f[j][2] += Fj[2];
 
-          f[k][0] += fki[0] + fkj[0];
           Fk[0] = fki[0] + fkj[0];
-          f[k][1] += fki[1] + fkj[1];
           Fk[1] = fki[1] + fkj[1];
-          f[k][2] += fki[2] + fkj[2];
           Fk[2] = fki[2] + fkj[2];
+          f[k][0] += Fk[0];
+          f[k][1] += Fk[1];
+          f[k][2] += Fk[2];
 
           if (eflag) evdwl = *triangle_eval;
 
-          if (evflag) { ev_tally3(i, j, k, evdwl, 0, Fj, Fk, del_rji, del_rki); }
+          if (evflag) {
+            ev_tally3(i, j, k, evdwl, 0, Fj, Fk, del_rji, del_rki);
+
+            // Centroid stress 3-body term
+            if (vflag_either && cvflag_atom) {
+              double ric[3];
+              ric[0] = THIRD * (-del_rji[0] - del_rki[0]);
+              ric[1] = THIRD * (-del_rji[1] - del_rki[1]);
+              ric[2] = THIRD * (-del_rji[2] - del_rki[2]);
+
+              cvatom[i][0] += ric[0] * Fi[0];
+              cvatom[i][1] += ric[1] * Fi[1];
+              cvatom[i][2] += ric[2] * Fi[2];
+              cvatom[i][3] += ric[0] * Fi[1];
+              cvatom[i][4] += ric[0] * Fi[2];
+              cvatom[i][5] += ric[1] * Fi[2];
+              cvatom[i][6] += ric[1] * Fi[0];
+              cvatom[i][7] += ric[2] * Fi[0];
+              cvatom[i][8] += ric[2] * Fi[1];
+
+              double rjc[3];
+              rjc[0] = THIRD * (del_rji[0] - del_rkj[0]);
+              rjc[1] = THIRD * (del_rji[1] - del_rkj[1]);
+              rjc[2] = THIRD * (del_rji[2] - del_rkj[2]);
+
+              cvatom[j][0] += rjc[0] * Fj[0];
+              cvatom[j][1] += rjc[1] * Fj[1];
+              cvatom[j][2] += rjc[2] * Fj[2];
+              cvatom[j][3] += rjc[0] * Fj[1];
+              cvatom[j][4] += rjc[0] * Fj[2];
+              cvatom[j][5] += rjc[1] * Fj[2];
+              cvatom[j][6] += rjc[1] * Fj[0];
+              cvatom[j][7] += rjc[2] * Fj[0];
+              cvatom[j][8] += rjc[2] * Fj[1];
+
+              double rkc[3];
+              rkc[0] = THIRD * (del_rki[0] + del_rkj[0]);
+              rkc[1] = THIRD * (del_rki[1] + del_rkj[1]);
+              rkc[2] = THIRD * (del_rki[2] + del_rkj[2]);
+
+              cvatom[k][0] += rkc[0] * Fk[0];
+              cvatom[k][1] += rkc[1] * Fk[1];
+              cvatom[k][2] += rkc[2] * Fk[2];
+              cvatom[k][3] += rkc[0] * Fk[1];
+              cvatom[k][4] += rkc[0] * Fk[2];
+              cvatom[k][5] += rkc[1] * Fk[2];
+              cvatom[k][6] += rkc[1] * Fk[0];
+              cvatom[k][7] += rkc[2] * Fk[0];
+              cvatom[k][8] += rkc[2] * Fk[1];
+            }
           }
         }
       }
