@@ -8,7 +8,7 @@ All the simulations utilized perodic boundary conditions and the `NVE fix <https
 
 In the following tables performance of the current implementation is given.
 
-.. list-table:: Nb3Sn 2x2x2 supercell- 64 atoms, 1fs timestep
+.. list-table:: Nb3Sn 2x2x2 supercell- 64 atoms, 1fs timestep, 1 core
     :header-rows: 1
 
     * - Potential
@@ -20,7 +20,7 @@ In the following tables performance of the current implementation is given.
     * - UF3
       - 193.933
 
-.. list-table:: Nb3Sn 4x4x4 supercell- 512 atoms, 1fs timestep
+.. list-table:: Nb3Sn 4x4x4 supercell- 512 atoms, 1fs timestep, 1 core
     :header-rows: 1
 
     * - Potential
@@ -33,7 +33,7 @@ In the following tables performance of the current implementation is given.
       - 23.588
 
 
-.. list-table:: Performance of UF3 with system size, 1fs timestep
+.. list-table:: Performance of UF3 with system size, 1fs timestep, 1 core
     :header-rows: 1
 
     * - Supercell size
