@@ -40,9 +40,10 @@ Kokkos
 =====
 To enable Kokkos support, first copy :code:`pair_uf3_kokkos.cpp` and :code:`pair_uf3_kokkos.h` from :code:`ML-UF3_KOKKOS`-
 
-.. cdoe:: bash
+.. code:: bash
 
- cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
+  cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
+  
 
 For building the kokkos version additional build flags are required.
 
