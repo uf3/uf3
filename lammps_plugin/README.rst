@@ -42,7 +42,7 @@ To enable Kokkos support, first copy :code:`pair_uf3_kokkos.cpp` and :code:`pair
 
 .. cdoe:: bash
 
-  cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
+ cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
 
 For building the kokkos version additional build flags are required.
 
