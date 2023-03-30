@@ -38,8 +38,13 @@ If you want to compile with MPI support enabled, you additionally have to set th
 
 Kokkos
 =====
+To enable Kokkos support, first copy :code:`pair_uf3_kokkos.cpp` and :code:`pair_uf3_kokkos.h` from :code:`ML-UF3_KOKKOS`-
 
-To enable Kokkos support, additional build flags are required.
+.. cdoe:: bash
+
+  cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
+
+For building the kokkos version additional build flags are required.
 
 To enable support for MPI and OpenMP threads, use the following command:
 
