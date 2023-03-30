@@ -123,10 +123,10 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
 
   DAT::tdual_efloat_1d k_eatom;
   DAT::tdual_virial_array k_vatom;
-  DAT::tdual_centroid_virial_array k_cvatom;
+  //DAT::tdual_centroid_virial_array k_cvatom;
   typename AT::t_efloat_1d d_eatom;
   typename AT::t_virial_array d_vatom;
-  typename AT::t_centroid_virial_array d_cvatom;
+  //typename AT::t_centroid_virial_array d_cvatom;
 
   using ScatterFType = Kokkos::Experimental::ScatterView<F_FLOAT *[3], Kokkos::LayoutRight,
                                                          typename DeviceType::memory_space>;
