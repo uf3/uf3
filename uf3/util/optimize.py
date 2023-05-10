@@ -17,7 +17,7 @@ def get_bspline_config(chemical_system,
     Function for getting bspline_config object. We recommend using this function
     to get bspling_config object for- 
         1. creating the HDF5 file with larger cutoffs
-        2. fitting model with lowe cutoffs
+        2. fitting model with lower cutoffs
     The rmax_2b and rmax_3b values in the returned bspline_config object can be 
     slightly different depending on the knot_spacing
     
@@ -36,11 +36,13 @@ def get_bspline_config(chemical_system,
         raise ValueError("Currrent version is only tested for rmin=0")
 
     if (rmax_2b-rmin)%knot_spacing!=0:
-        raise ValueError("Provided rmax_2b does not conatin integer number of \
+        if not np.isclose((rmax_2b-rmin)%knot_spacing,knot_spacing):
+            raise ValueError("Provided rmax_2b does not conatin integer number of \n\
                 knots, seperated by knot_spacing")
 
     if (rmax_3b-rmin)%knot_spacing!=0:
-        raise ValueError("Provided rmax_2b does not conatin integer number of \
+        if not np.isclose((rmax_3b-rmin)%knot_spacing,knot_spacing):
+            raise ValueError("Provided rmax_2b does not conatin integer number of \n\
                 knots, seperated by knot_spacing")
 
     half_rmax_3b = rmax_3b/2
@@ -69,7 +71,7 @@ def get_bspline_config(chemical_system,
     return bspline_config
 
 
-def possible_lower_cutoffs(original_bspline_config):
+def get_possible_lower_cutoffs(original_bspline_config):
     """
     Function for getting cutoff values obtainable by droping columns of HDF5 file
 
@@ -117,17 +119,17 @@ def get_columns_to_drop_2b(original_bspline_config,
         columns_to_drop_2b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
-    column_names = original_bspline_config.get_columns()
+    column_names = original_bspline_config.get_column_names()
     interaction_partitions_num = original_bspline_config.get_interaction_partitions()[0]
     interaction_partitions_posn = original_bspline_config.get_interaction_partitions()[1]
 
     columns_to_drop_2b = [] 
     for interaction in original_bspline_config.interactions_map[2]:
-    num_columns_to_drop_2b = round((original_bspline_config.knots_map[interaction][-4]-modify_2b_cutoff)/knot_spacing)
+        num_columns_to_drop_2b = round((original_bspline_config.knots_map[interaction][-4]-modify_2b_cutoff)/knot_spacing)
 
-    start_ind_2b = 1+interaction_partitions_posn[interaction]
-    end_ind_2b = start_ind_2b+interaction_partitions_num[interaction]
-    columns_to_drop_2b.extend(column_names[end_ind_2b-num_columns_to_drop_2b-3:end_ind_2b-3])
+        start_ind_2b = 1+interaction_partitions_posn[interaction]
+        end_ind_2b = start_ind_2b+interaction_partitions_num[interaction]
+        columns_to_drop_2b.extend(column_names[end_ind_2b-num_columns_to_drop_2b-3:end_ind_2b-3])
     return columns_to_drop_2b
 
 def get_columns_to_drop_3b(original_bspline_config,
@@ -149,6 +151,7 @@ def get_columns_to_drop_3b(original_bspline_config,
         columns_to_drop_3b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
+    column_names = original_bspline_config.get_column_names()
     interaction_partitions_num = original_bspline_config.get_interaction_partitions()[0]
     interaction_partitions_posn = original_bspline_config.get_interaction_partitions()[1]
 
