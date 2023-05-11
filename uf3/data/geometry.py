@@ -129,7 +129,9 @@ def sort_image_indices(a_indices: np.ndarray,
 
 
 def generate_periodic_image_indices(cell, r_cut):
-    supercell_factors = get_supercell_factors(cell, r_cut)
+    #In some cases (extremely tilted cells) it was found that the supercell_factors
+    # are not correct. Increasing their size by 1 solves the issue.
+    supercell_factors = get_supercell_factors(cell, r_cut) + np.array([1,1,1])
     radius_indices = [np.arange(n + 1) for n in supercell_factors]
     diameter_indices = [np.repeat(v, 2)[1:] for v in radius_indices]
     for i in range(3):
