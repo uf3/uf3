@@ -134,19 +134,19 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Calculate energies
 
-  double basis_ij[4];
+  double __attribute__((aligned(8))) basis_ij[4];
   basis_ij[0] = bsplines_ij[iknot_ij].eval3(rth_ij, rsq_ij, value_rij);
   basis_ij[1] = bsplines_ij[iknot_ij + 1].eval2(rth_ij, rsq_ij, value_rij);
   basis_ij[2] = bsplines_ij[iknot_ij + 2].eval1(rth_ij, rsq_ij, value_rij);
   basis_ij[3] = bsplines_ij[iknot_ij + 3].eval0(rth_ij, rsq_ij, value_rij);
 
-  double basis_ik[4];
+  double __attribute__((aligned(8))) basis_ik[4];
   basis_ik[0] = bsplines_ik[iknot_ik].eval3(rth_ik, rsq_ik, value_rik);
   basis_ik[1] = bsplines_ik[iknot_ik + 1].eval2(rth_ik, rsq_ik, value_rik);
   basis_ik[2] = bsplines_ik[iknot_ik + 2].eval1(rth_ik, rsq_ik, value_rik);
   basis_ik[3] = bsplines_ik[iknot_ik + 3].eval0(rth_ik, rsq_ik, value_rik);
 
-  double basis_jk[4];
+  double __attribute__((aligned(8))) basis_jk[4];
   basis_jk[0] = bsplines_jk[iknot_jk].eval3(rth_jk, rsq_jk, value_rjk);
   basis_jk[1] = bsplines_jk[iknot_jk + 1].eval2(rth_jk, rsq_jk, value_rjk);
   basis_jk[2] = bsplines_jk[iknot_jk + 2].eval1(rth_jk, rsq_jk, value_rjk);
@@ -174,48 +174,65 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Calculate forces
 
-  double dnbasis_ij[4];
+  double __attribute__((aligned(8))) dnbasis_ij[4];
   dnbasis_ij[0] = dnbsplines_ij[iknot_ij].eval2(rsq_ij, value_rij);
   dnbasis_ij[1] = dnbsplines_ij[iknot_ij + 1].eval1(rsq_ij, value_rij);
   dnbasis_ij[2] = dnbsplines_ij[iknot_ij + 2].eval0(rsq_ij, value_rij);
   dnbasis_ij[3] = 0;
 
-  double dnbasis_ik[4];
+  double __attribute__((aligned(8))) dnbasis_ik[4];
   dnbasis_ik[0] = dnbsplines_ik[iknot_ik].eval2(rsq_ik, value_rik);
   dnbasis_ik[1] = dnbsplines_ik[iknot_ik + 1].eval1(rsq_ik, value_rik);
   dnbasis_ik[2] = dnbsplines_ik[iknot_ik + 2].eval0(rsq_ik, value_rik);
   dnbasis_ik[3] = 0;
 
-  double dnbasis_jk[4];
+  double __attribute__((aligned(8))) dnbasis_jk[4];
   dnbasis_jk[0] = dnbsplines_jk[iknot_jk].eval2(rsq_jk, value_rjk);
   dnbasis_jk[1] = dnbsplines_jk[iknot_jk + 1].eval1(rsq_jk, value_rjk);
   dnbasis_jk[2] = dnbsplines_jk[iknot_jk + 2].eval0(rsq_jk, value_rjk);
   dnbasis_jk[3] = 0;
 
   for (int i = 0; i < 3; i++) {
+    double dnbasis_iji = dnbasis_ij[i];
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[1] += dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk + k] * dnbasis_ij[i] *
-            basis_ik[j] * basis_jk[k];
-      }
+      double factor = dnbasis_iji * basis_ik[j];
+      double* slice = &dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp0 = slice[0] * basis_jk[0];
+      double tmp1 = slice[1] * basis_jk[1];
+      double tmp2 = slice[2] * basis_jk[2];
+      double tmp3 = slice[3] * basis_jk[3];
+      double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
+      sum *= factor;
+      ret_val[1] += sum;
     }
   }
 
   for (int i = 0; i < 4; i++) {
+    double basis_iji = basis_ij[i];
     for (int j = 0; j < 3; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[2] += dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk + k] * basis_ij[i] *
-            dnbasis_ik[j] * basis_jk[k];
-      }
+      double factor = basis_iji * dnbasis_ik[j];
+      double* slice = &dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp0 = slice[0] * basis_jk[0];
+      double tmp1 = slice[1] * basis_jk[1];
+      double tmp2 = slice[2] * basis_jk[2];
+      double tmp3 = slice[3] * basis_jk[3];
+      double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
+      sum *= factor;
+      ret_val[2] += sum;
     }
   }
 
   for (int i = 0; i < 4; i++) {
+    double basis_iji = basis_ij[i];
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 3; k++) {
-        ret_val[3] += dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk + k] * basis_ij[i] *
-            basis_ik[j] * dnbasis_jk[k];
-      }
+      double factor = basis_iji * basis_ik[j];
+      double* slice = &dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp0 = slice[0] * dnbasis_jk[0];
+      double tmp1 = slice[1] * dnbasis_jk[1];
+      double tmp2 = slice[2] * dnbasis_jk[2];
+      double sum = (tmp0 + tmp1) + tmp2;
+      sum *= factor;
+      ret_val[3] += sum;
     }
   }
 
