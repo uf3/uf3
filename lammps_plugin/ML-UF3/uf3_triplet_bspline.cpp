@@ -158,11 +158,17 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
   ret_val[3] = 0;
 
   for (int i = 0; i < 4; i++) {
+    double basis_iji = basis_ij[i];
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[0] += coeff_matrix[i + iknot_ij][j + iknot_ik][k + iknot_jk] * basis_ij[i] *
-            basis_ik[j] * basis_jk[k];
-      }
+      double factor = basis_iji * basis_ik[j];
+      double* slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk];
+      double tmp0 = slice[0] * basis_jk[0];
+      double tmp1 = slice[1] * basis_jk[1];
+      double tmp2 = slice[2] * basis_jk[2];
+      double tmp3 = slice[3] * basis_jk[3];
+      double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
+      sum *= factor;
+      ret_val[0] += sum;
     }
   }
 
