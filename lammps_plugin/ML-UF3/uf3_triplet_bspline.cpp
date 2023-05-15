@@ -167,8 +167,7 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
       double tmp2 = slice[2] * basis_jk[2];
       double tmp3 = slice[3] * basis_jk[3];
       double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
-      sum *= factor;
-      ret_val[0] += sum;
+      ret_val[0] += factor * sum;
     }
   }
 
@@ -202,8 +201,7 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
       double tmp2 = slice[2] * basis_jk[2];
       double tmp3 = slice[3] * basis_jk[3];
       double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
-      sum *= factor;
-      ret_val[1] += sum;
+      ret_val[1] += factor * sum;
     }
   }
 
@@ -217,8 +215,7 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
       double tmp2 = slice[2] * basis_jk[2];
       double tmp3 = slice[3] * basis_jk[3];
       double sum = (tmp0 + tmp1) + (tmp2 + tmp3);
-      sum *= factor;
-      ret_val[2] += sum;
+      ret_val[2] += factor * sum;
     }
   }
 
@@ -231,8 +228,7 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
       double tmp1 = slice[1] * dnbasis_jk[1];
       double tmp2 = slice[2] * dnbasis_jk[2];
       double sum = (tmp0 + tmp1) + tmp2;
-      sum *= factor;
-      ret_val[3] += sum;
+      ret_val[3] += factor * sum;
     }
   }
 
