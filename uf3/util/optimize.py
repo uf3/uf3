@@ -36,12 +36,14 @@ def get_bspline_config(chemical_system,
         raise ValueError("Currrent version is only tested for rmin=0")
 
     if (rmax_2b-rmin)%knot_spacing!=0:
-        if not np.isclose((rmax_2b-rmin)%knot_spacing,knot_spacing):
+        if not (np.isclose((rmax_2b-rmin)%knot_spacing,knot_spacing) or \
+                np.isclose((rmax_2b-rmin)%knot_spacing,0)):
             raise ValueError("Provided rmax_2b does not conatin integer number of \n\
                 knots, seperated by knot_spacing")
 
     if (rmax_3b-rmin)%knot_spacing!=0:
-        if not np.isclose((rmax_3b-rmin)%knot_spacing,knot_spacing):
+        if not (np.isclose((rmax_3b-rmin)%knot_spacing,knot_spacing) or \
+                np.isclose((rmax_3b-rmin)%knot_spacing,0)):
             raise ValueError("Provided rmax_2b does not conatin integer number of \n\
                 knots, seperated by knot_spacing")
 
