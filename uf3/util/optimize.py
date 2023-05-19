@@ -44,10 +44,14 @@ def get_bspline_config(chemical_system,
     if (rmax_3b-rmin)%knot_spacing!=0:
         if not (np.isclose((rmax_3b-rmin)%knot_spacing,knot_spacing) or \
                 np.isclose((rmax_3b-rmin)%knot_spacing,0)):
-            raise ValueError("Provided rmax_2b does not conatin integer number of \n\
+            raise ValueError("Provided rmax_3b does not conatin integer number of \n\
                 knots, seperated by knot_spacing")
 
     half_rmax_3b = rmax_3b/2
+    if (half_rmax_3b%knot_spacing)!=0:
+        raise ValueError("Provided rmax_3b contains integer number of knots sperated \n\
+                by knot_spacing, but half_rmax_3b does not. Consider changing rmax_3b \n\
+                to "+str(rmax_3b+knot_spacing))
 
     reso_2b = round((rmax_2b - rmin)/knot_spacing)
     reso_3b = round((rmax_3b - rmin)/knot_spacing)
