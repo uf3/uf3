@@ -73,7 +73,7 @@ class ChemicalSystem:
         """Instantiate from configuration dictionary"""
         keys = ['element_list',
                 'degree']
-        if len(self.mag_element_list) > 0:
+        if 'mag_element_list' in config.keys():
             keys.append('mag_element_list')
         config = {k: config[k] for k in keys}
         return ChemicalSystem(**config)
