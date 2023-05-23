@@ -36,6 +36,7 @@ class ChemicalSystem:
     """
     degree: int
     element_list: Collection[str]
+    mag_element_list: Collection[str]   # !let the user decide which elements would paticipate in magnetic interaction
     numbers: List[int]
     interactions: List[Tuple[str]]
     interactions_map: Dict[int, Collection[Tuple[str]]]
@@ -43,7 +44,8 @@ class ChemicalSystem:
 
     def __init__(self,
                  element_list: Collection[str],
-                 degree: int = 2
+                 mag_element_list: Collection[str] = list(),   #!
+                 degree: int = 2   # ! currently for UF2&3, magnetic degree is always set to 2
                  ) -> None:
         """
         Args:
@@ -54,10 +56,12 @@ class ChemicalSystem:
         """
         self.degree = degree
         self.element_list = sort_interaction_symbols(element_list)
+        self.mag_element_list = sort_interaction_symbols(mag_element_list) # ! list of magnetic atoms
         self.numbers = [ase_symbols.symbols2numbers(el).pop()
                         for el in self.element_list]
         self.interactions_map = self.get_interactions_map()
         self.interactions = self.get_interactions_list()
+        self.magnetic_interactions = self.get_magnetic_interactions_list()
         self.interaction_hashes = self.get_interaction_hashes()
 
     @staticmethod
@@ -69,19 +73,23 @@ class ChemicalSystem:
         """Instantiate from configuration dictionary"""
         keys = ['element_list',
                 'degree']
+        if 'mag_element_list' in config.keys():
+            keys.append('mag_element_list')
         config = {k: config[k] for k in keys}
         return ChemicalSystem(**config)
 
     def as_dict(self):
         dump = dict(element_list=self.element_list,
                     degree=self.degree)
+        if len(self.mag_element_list) > 0:
+            dump.update(mag_element_list=self.mag_element_list)
         return dump
 
     def __repr__(self):
         summary = ["ChemicalSystem:",
                    f"    Elements: {self.element_list}",
                    f"    Degree: {self.degree}",
-                   f"    Pairs: {self.interactions_map[2]}",
+                   f"    Pairs: {self.interactions_map[2]}"
                    ]
         if self.degree > 2:
             summary.append(f"    Trios: {self.interactions_map[3]}")
@@ -91,6 +99,9 @@ class ChemicalSystem:
         #     hash_list = self.interaction_hashes[n]
         #     for k, v in zip(element_combinations, hash_list):
         #         summary.append(" " * 8 + f"{str(k)}: {str(v)}")
+        if len(self.mag_element_list) > 0:
+            summary.append(f"    Magnetic Elements: {self.mag_element_list}")
+            summary.append(f"    Magnetic_interactions: {self.interactions_map['Magnetic_interaction']}")    #! get "magnetic interaction terms"
         return "\n".join(summary)
 
     def __str__(self):
@@ -131,6 +142,13 @@ class ChemicalSystem:
         for d in range(3, self.degree + 1):
             combinations = get_element_combinations(self.element_list, d)
             interactions_map[d] = combinations
+            
+        if len(self.mag_element_list) > 0:
+            interactions_map['Magnetic_interaction'] = []
+            for pair in interactions_map[2]:
+                if pair[0] in self.mag_element_list:
+                    if pair[1] in self.mag_element_list:
+                        interactions_map['Magnetic_interaction'].append(pair)
         return interactions_map
 
     def get_interactions_list(self) -> List[Tuple[str]]:
@@ -146,6 +164,15 @@ class ChemicalSystem:
         for i in range(2, self.degree + 1):
             interactions_list.extend(list(self.interactions_map[i]))
         return interactions_list
+    
+    def get_magnetic_interactions_list(self) -> List[Tuple[str]]:
+        """
+        Return flattened list of magnetic interactions from interactions map.
+        """
+        magnetic_interactions_list = list()
+        if len(self.mag_element_list) > 0:
+            magnetic_interactions_list.extend(list(self.interactions_map['Magnetic_interaction']))
+        return magnetic_interactions_list
 
     def get_interaction_hashes(self) -> Dict[int, np.ndarray]:
         """
@@ -163,8 +190,14 @@ class ChemicalSystem:
             numbers[:, 1:] = np.sort(numbers[:, 1:], axis=1)
             hash_list = get_szudzik_hash(numbers)
             interaction_hashes[n] = hash_list
+        if len(self.mag_element_list) > 0:
+            element_combinations = self.interactions_map['Magnetic_interaction']
+            numbers = np.array([ase_symbols.symbols2numbers(el_tuple)
+                                for el_tuple in element_combinations])
+            numbers[:, 1:] = np.sort(numbers[:, 1:], axis=1)
+            hash_list = get_szudzik_hash(numbers)
+            interaction_hashes['Magnetic_interaction'] = hash_list
         return interaction_hashes
-
 
 def interactions_to_numbers(interactions):
     if isinstance(interactions, tuple):
