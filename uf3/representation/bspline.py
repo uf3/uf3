@@ -596,7 +596,343 @@ class BSplineBasis:
         grid = grid + grid.transpose(1, 0, 2)
         return grid
 
+class BSplineBasis_with_magnetism(BSplineBasis):
+    def __init__(self,
+                 chemical_system,
+                 r_min_map=None,
+                 r_max_map=None,
+                 resolution_map=None,
+                 knot_strategy='linear',
+                 offset_1b=True,
+                 leading_trim=0,
+                 trailing_trim=3,
+                 knots_map=None,
+                 magnetic_r_min_map=None,
+                 magnetic_r_max_map=None,
+                 magnetic_resolution_map=None,
+                 magnetic_knots_map=None):
+        super().__init__(chemical_system=chemical_system,
+                         r_min_map=r_min_map,
+                         r_max_map=r_max_map,
+                         resolution_map=resolution_map,
+                         knot_strategy=knot_strategy,
+                         offset_1b=offset_1b,
+                         leading_trim=leading_trim,
+                         trailing_trim=trailing_trim,
+                         knots_map=knots_map)
+        
+        self.magnetic_r_min_map = {}
+        self.magnetic_r_max_map = {}
+        self.magnetic_resolution_map = {}
+        self.magnetic_knots_map = {}
+        self.magnetic_knot_subintervals = {}
+        self.magnetic_basis_functions = {}
+        
+        self.knots_map["Magnetic_interaction"] = {}
+        self.knot_subintervals["Magnetic_interaction"] = {}
+        self.basis_functions["Magnetic_interaction"] = {}
+        
+        
+        self.update_magentic_knots(magnetic_r_max_map=magnetic_r_max_map,
+                                   magnetic_r_min_map=magnetic_r_min_map,
+                                   magnetic_resolution_map=magnetic_resolution_map,
+                                   magnetic_knots_map=magnetic_knots_map)
+        self.update_magnetic_basis_functions()
+    
+    @staticmethod
+    def from_config(config):
+        return BSplineBasis_with_magnetism.from_dict(config)
+    
+    @staticmethod
+    def from_dict(config):
+        """Instantiate from configuration dictionary"""
+        """In the current implementation there's no magnetic equivalent
+        for knots_path and load_knots"""
+        #TODO: Write magnetic equivalent for load_knots and knots_path
+        chemical_system = composition.ChemicalSystem.from_dict(config)
+        basis_settings = BSplineBasis.from_dict(config).as_dict()
+        keys = ['element_list','degree','mag_element_list']
+        for key in keys:
+            basis_settings.pop(key)
+        
+        aliases = dict(magnetic_r_min_map="magnetic_r_min_map",
+                       magnetic_r_max_map="magnetic_r_max_map",
+                       magnetic_resolution_map="magnetic_resolution_map")
 
+        for key, alias in aliases.items():
+            if key in config:
+                basis_settings[alias] = config[key]
+            if alias in config:  # higher priority in case of duplicate
+                basis_settings[alias] = config[alias]
+                
+        keys = ["magnetic_interaction",
+                "magnetic_r_min_map",
+                "magnetic_r_max_map",
+                "magnetic_resolution_map",
+                "magnetic_knots_map"]
+        
+        basis_settings.update({k: v for k, v in config.items() if k in keys})
+        
+        bspline_config_with_magnetism = BSplineBasis_with_magnetism(chemical_system, **basis_settings)
+        
+        return bspline_config_with_magnetism
+        
+    def as_dict(self):
+        dump = super().as_dict().copy()
+        dump["knots_map"].update(dict(magnetic_knots_map=self.magnetic_knots_map))
+        
+        return dump
+    
+    @property
+    def degree(self):
+        return self.chemical_system.degree
+
+    @property
+    def element_list(self):
+        return self.chemical_system.element_list
+
+    @property
+    def interactions_map(self):
+        return self.chemical_system.interactions_map
+
+    @property
+    def interactions(self):
+        return self.chemical_system.interactions
+    
+    @property
+    def magnetic_interactions(self):
+        return self.chemical_system.magnetic_interactions
+    
+    @property
+    def n_feats(self) -> int:
+        return int(np.sum(self.modify_feature_partition_sizes()))
+    
+    def __repr__(self):
+        summary = ["BSplineBasis:",
+                   f"    Basis functions:"]
+        sizes = self.get_interaction_partitions()[0]
+        for n in range(2, self.degree + 1):
+            for interaction in self.interactions_map[n]:
+                size = sizes[interaction]
+                summary.append(" " * 8 + f"{str(interaction)}: {size:d}")
+                
+        
+        summary.append(" " * 8+f"Magnetic Interactions:")
+        sizes = 555
+        for interaction in self.interactions_map["Magnetic_interaction"]:
+            size = 555
+            summary.append(" " * 16 +f"{str(interaction)}: {size:d}")
+            
+        summary.append(self.chemical_system.__repr__())
+        return "\n".join(summary)
+    
+    def __str__(self):
+        return self.__repr__()
+    
+    def get_cutoff(self):
+        return super().get_cutoff()
+    
+    def update_magentic_knots(self,
+                              magnetic_r_max_map = None,
+                              magnetic_r_min_map = None,
+                              magnetic_resolution_map = None,
+                              magnetic_knots_map = None):
+        """
+        
+        Args:
+            magnetic_r_max_map:
+            magnetic_r_min_map:
+            magnetic_resolution_map:
+            magnetic_knots_map:
+
+        Returns:
+        
+        """
+
+    
+        # lower and upper distance cutoffs
+        if magnetic_r_min_map is None:
+            magnetic_r_min_map = {}
+        if magnetic_r_max_map is None:
+            magnetic_r_max_map = {}
+        if magnetic_resolution_map is None:
+            magnetic_resolution_map = {}
+        magnetic_r_min_map = composition.sort_interaction_map(magnetic_r_min_map)
+        self.magnetic_r_min_map.update(magnetic_r_min_map)
+        self.r_min_map["Magnetic_interaction"] = magnetic_r_min_map
+        
+        magnetic_r_max_map = composition.sort_interaction_map(magnetic_r_max_map)
+        self.magnetic_r_max_map.update(magnetic_r_max_map)
+        self.r_max_map["Magnetic_interaction"] = magnetic_r_max_map
+        
+        magnetic_resolution_map = composition.sort_interaction_map(magnetic_resolution_map)
+        self.magnetic_resolution_map.update(magnetic_resolution_map)
+        self.resolution_map["Magnetic_interaction"] = magnetic_resolution_map
+        
+        # Update with pregenerated knots_map
+        if magnetic_knots_map is not None:
+            magnetic_knots_map = composition.sort_interaction_map(magnetic_knots_map)
+            self.update_magnetic_knots_from_dict(magnetic_knots_map)
+        
+        # Update with provided and default values
+        pair_list = self.interactions_map.get("Magnetic_interaction", [])
+        for map_ in [self.magnetic_r_min_map, self.magnetic_r_max_map, self.magnetic_resolution_map]:
+            magnetic_tuple_consistency_check(map_, self.interactions_map)
+        for pair in pair_list:
+            self.magnetic_r_min_map[pair] = self.magnetic_r_min_map.get(pair, 1.0)
+            self.r_min_map["Magnetic_interaction"][pair] = self.magnetic_r_min_map.get(pair, 1.0)
+                                                                                 
+            self.magnetic_r_max_map[pair] = self.magnetic_r_max_map.get(pair, 4)
+            self.r_max_map["Magnetic_interaction"][pair] = self.magnetic_r_max_map.get(pair, 4)
+                                                                                 
+            self.magnetic_resolution_map[pair] = self.magnetic_resolution_map.get(pair, 8)
+            self.resolution_map["Magnetic_interaction"][pair] = self.magnetic_resolution_map.get(pair, 8)
+    
+    #TODO: implement update_magnetic_knots_from_dict
+    
+    def update_magnetic_basis_functions(self):
+        for pair in self.interactions_map["Magnetic_interaction"]:
+            if pair not in self.knots_map["Magnetic_interaction"]:
+                r_min = self.r_min_map["Magnetic_interaction"][pair]
+                r_max = self.r_max_map["Magnetic_interaction"][pair]
+                n_intervals = self.resolution_map["Magnetic_interaction"][pair]
+                knot_sequence = self.knot_spacer(r_min, r_max, n_intervals)
+                if r_min is None:
+                    self.magnetic_r_min_map[pair] = knot_sequence[0]
+                    self.r_min_map["Magnetic_interaction"][pair] = knot_sequence[0]
+                self.magnetic_knots_map[pair] = knot_sequence
+                self.knots_map["Magnetic_interaction"][pair] = knot_sequence
+            subintervals = get_knot_subintervals(self.knots_map["Magnetic_interaction"][pair])
+            
+            self.magnetic_knot_subintervals[pair] = subintervals
+            self.knot_subintervals["Magnetic_interaction"][pair] = subintervals
+            
+            self.magnetic_basis_functions[pair] = generate_basis_functions(subintervals)
+            self.basis_functions["Magnetic_interaction"][pair] = generate_basis_functions(subintervals)
+            
+        self.partition_sizes_w_magnetism = self.modify_feature_partition_sizes()
+        ci, cf = self.modify_frozen_indices(offset_1b=self.offset_1b,
+                                            n_lead=self.leading_trim,
+                                            n_trail=self.trailing_trim)
+        
+        self.col_idx = ci
+        self.frozen_c = cf
+    
+    def modify_feature_partition_sizes(self):
+        """Get partition sizes: for two-body magnetic terms"""
+        partition_sizes_w_magnetism = super().get_feature_partition_sizes()
+        interactions = self.chemical_system.interactions_map["Magnetic_interaction"]
+        for interaction in interactions:
+            size = self.resolution_map["Magnetic_interaction"][interaction]+3
+            partition_sizes_w_magnetism.append(size)
+        self.partition_sizes_w_magnetism = partition_sizes_w_magnetism
+        return partition_sizes_w_magnetism
+    
+    def modify_interaction_partitions(self):
+        component_sizes, component_offsets = super().get_interaction_partitions()
+        component_sizes["Magnetic_interaction"] = {}
+        component_offsets["Magnetic_interaction"] = {}
+        interactions_list = self.interactions
+        magnetic_interactions_list = self.magnetic_interactions
+        partition_sizes_w_magnetism = self.partition_sizes_w_magnetism
+        offsets = np.cumsum(partition_sizes_w_magnetism)
+        offsets = np.insert(offsets, 0, 0)
+        for j in range(len(interactions_list),len(interactions_list)+len(magnetic_interactions_list)):
+            interaction = magnetic_interactions_list[j-len(interactions_list)]
+            component_sizes["Magnetic_interaction"][interaction] = partition_sizes_w_magnetism[j]
+            component_offsets["Magnetic_interaction"][interaction] = offsets[j]
+        return component_sizes, component_offsets
+    
+    def modify_frozen_indices(self,
+                              offset_1b: bool = True,
+                              n_lead: int = 0,
+                              n_trail: int = 3,
+                              value: float = 0.0):
+        
+        """
+
+
+        Args:
+            offset_1b:
+            n_lead:
+            n_trail:
+            value:
+
+        Returns:
+
+        """
+        magnetic_interactions = self.interactions_map["Magnetic_interaction"]
+        component_sizes, component_offsets = self.modify_interaction_partitions()
+        col_idx, frozen_c = self.generate_frozen_indices(offset_1b=self.offset_1b,
+                                                         n_lead=self.leading_trim,
+                                                         n_trail=self.trailing_trim)
+        col_idx = col_idx.tolist()
+        frozen_c = frozen_c.tolist()
+        for pair in self.interactions_map["Magnetic_interaction"]:
+            offset = component_offsets["Magnetic_interaction"][pair]
+            size = component_sizes["Magnetic_interaction"][pair]
+            for trim_idx in range(n_lead):
+                idx = offset + trim_idx
+                col_idx.append(idx)
+                frozen_c.append(value)
+            for trim_idx in range(1, n_trail + 1):
+                idx = offset + size - trim_idx
+                col_idx.append(idx)
+                frozen_c.append(value)
+                
+        col_idx = np.array(col_idx, dtype=int)
+        frozen_c = np.array(frozen_c)
+        return col_idx, frozen_c
+        
+        
+    def modify_column_names(self):
+        column_names = self.get_column_names()
+        magnetic_feature_columns = []
+        sizes = self.modify_interaction_partitions()[0]
+        for interaction in self.interactions_map["Magnetic_interaction"]:
+            size = sizes[interaction]
+            interaction = "".join(interaction)
+            interaction = "mag_"+interaction
+            names = [interaction + str(i) for i in range(size)]
+            magnetic_feature_columns.extend(names)
+        column_names.extend(magnetic_feature_columns)
+        return column_names
+    
+    def modify_regularization_matrix(self,ridge_map={},
+                                     curvature_map={},
+                                     **kwargs):
+        if "ridge_Magnetic_interaction" in kwargs.keys():
+            ridge_map_for_magnetism = {"ridge_Magnetic_interaction":kwargs["ridge_Magnetic_interaction"]}
+            kwargs.pop("ridge_Magnetic_interaction")
+        else:
+            ridge_map_for_magnetism = {"ridge_Magnetic_interaction":1e-5}
+            
+        if "curve_Magnetic_interaction" in kwargs.keys():
+            curve_map_for_magnetism={"curve_Magnetic_interaction":kwargs[curve_Magnetic_interaction]}
+            kwargs.pop("curve_Magnetic_interaction")
+        else:
+            curve_map_for_magnetism = {"curve_Magnetic_interaction":regularize.DEFAULT_REGULARIZER_GRID["curve_2b"]}
+            
+            
+        regularization_matrix = self.get_regularization_matrix(ridge_map=ridge_map,
+                                                              curvature_map=curvature_map,
+                                                              kwargs=kwargs)
+        matrices = [regularization_matrix]
+        
+        r = ridge_map_for_magnetism["ridge_Magnetic_interaction"]
+        c = curve_map_for_magnetism["curve_Magnetic_interaction"]
+        
+        for interaction in self.interactions_map["Magnetic_interaction"]:
+            size = self.resolution_map["Magnetic_interaction"][interaction]
+            matrix = regularize.get_regularizer_matrix(size+3,
+                                                       ridge=r,
+                                                       curvature=c)
+            matrices.append(matrix)
+        
+        combined_matrix = regularize.combine_regularizer_matrices(matrices)
+        return combined_matrix
+    
+    
 def get_knot_spacer(knot_strategy):
     """
 
@@ -990,4 +1326,10 @@ def tuple_consistency_check(map_, interaction_map):
         interactions.extend(degree_data)
     for entry in map_:
         if entry not in interactions:
+            warnings.warn(f"{entry} specification unused.")
+
+def magnetic_tuple_consistency_check(map_, interaction_map):
+    interactions = []
+    for entry in map_:
+        if entry not in interaction_map["Magnetic_interaction"]:
             warnings.warn(f"{entry} specification unused.")
