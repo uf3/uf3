@@ -134,19 +134,19 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Calculate energies
 
-  double __attribute__((aligned(8))) basis_ij[4];
+  double __attribute__((aligned(8))) basis_ij[4]; // Force memory alignment on 8 byte boundaries
   basis_ij[0] = bsplines_ij[iknot_ij].eval3(rth_ij, rsq_ij, value_rij);
   basis_ij[1] = bsplines_ij[iknot_ij + 1].eval2(rth_ij, rsq_ij, value_rij);
   basis_ij[2] = bsplines_ij[iknot_ij + 2].eval1(rth_ij, rsq_ij, value_rij);
   basis_ij[3] = bsplines_ij[iknot_ij + 3].eval0(rth_ij, rsq_ij, value_rij);
 
-  double __attribute__((aligned(8))) basis_ik[4];
+  double __attribute__((aligned(8))) basis_ik[4]; // Force memory alignment on 8 byte boundaries
   basis_ik[0] = bsplines_ik[iknot_ik].eval3(rth_ik, rsq_ik, value_rik);
   basis_ik[1] = bsplines_ik[iknot_ik + 1].eval2(rth_ik, rsq_ik, value_rik);
   basis_ik[2] = bsplines_ik[iknot_ik + 2].eval1(rth_ik, rsq_ik, value_rik);
   basis_ik[3] = bsplines_ik[iknot_ik + 3].eval0(rth_ik, rsq_ik, value_rik);
 
-  double __attribute__((aligned(8))) basis_jk[4];
+  double __attribute__((aligned(8))) basis_jk[4]; // Force memory alignment on 8 byte boundaries
   basis_jk[0] = bsplines_jk[iknot_jk].eval3(rth_jk, rsq_jk, value_rjk);
   basis_jk[1] = bsplines_jk[iknot_jk + 1].eval2(rth_jk, rsq_jk, value_rjk);
   basis_jk[2] = bsplines_jk[iknot_jk + 2].eval1(rth_jk, rsq_jk, value_rjk);
@@ -158,17 +158,17 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
   ret_val[3] = 0;
 
   for (int i = 0; i < 4; i++) {
-    const double basis_iji = basis_ij[i];
+    const double basis_iji = basis_ij[i]; // prevent repeated access of same memory location
     for (int j = 0; j < 4; j++) {
-      const double factor = basis_iji * basis_ik[j];
-      const double* __restrict__ slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk];
-      double __attribute__((aligned(8))) tmp[4];
+      const double factor = basis_iji * basis_ik[j]; // prevent repeated access of same memory location
+      const double* __restrict__ slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk]; // declare a contigues 1D slice of memory and let the compiler know that the memory that this pointer points to has no overlap with other pointers.
+      double __attribute__((aligned(8))) tmp[4]; // declare tmp array that holds the 4 tmp values so the can be computed simultaniously in 4 separate registeres.
       tmp[0] = slice[0] * basis_jk[0];
       tmp[1] = slice[1] * basis_jk[1];
       tmp[2] = slice[2] * basis_jk[2];
       tmp[3] = slice[3] * basis_jk[3];
       double sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];
-      ret_val[0] += factor * sum;
+      ret_val[0] += factor * sum; // use 1 fused multiply-add (FMA)
     }
   }
 
