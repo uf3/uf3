@@ -53,6 +53,7 @@ PairUF3::~PairUF3()
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
+    memory->destroy(cut);
 
     if (pot_3b) {
       memory->destroy(setflag_3b);
@@ -157,7 +158,12 @@ void PairUF3::allocate()
   memory->create(setflag, num_of_elements + 1, num_of_elements + 1, "pair:setflag");
 
   // Contains info about 2-body cutoff distance for type i and j
+  // cutsq is the global variable
+  // Even though we are making cutsq don't manually change the default values
+  // Lammps take care of setting the value
   memory->create(cutsq, num_of_elements + 1, num_of_elements + 1, "pair:cutsq");
+  // cut is specific to this pair style. We will set the values in cut
+  memory->create(cut, num_of_elements + 1, num_of_elements + 1, "pair:cut");
 
   // Contains knot_vect of 2-body potential for type i and j
   n2b_knot.resize(num_of_elements + 1);
@@ -241,9 +247,9 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
       utils::logmesg(lmp, "UF3: {} file contains 2-body UF3 potential for {} {}\n", potf_name,
                      temp_type1, temp_type2);
 
-    cutsq[temp_type1][temp_type2] = pow(fp3rd_line.next_double(), 2);
+    cut[temp_type1][temp_type2] = fp3rd_line.next_double();//pow(fp3rd_line.next_double(), 2);
     // if(comm->me==0) utils::logmesg(lmp,"UF3: Cutoff {}\n",cutsq[temp_type1][temp_type2]);
-    cutsq[temp_type2][temp_type1] = cutsq[temp_type1][temp_type2];
+    cut[temp_type2][temp_type1] = cut[temp_type1][temp_type2];
 
     int temp_line_len = fp3rd_line.next_int();
 
@@ -440,7 +446,9 @@ void PairUF3::init_list(int /*id*/, class NeighList *ptr)
 ------------------------------------------------------------------------- */
 double PairUF3::init_one(int i /*i*/, int /*j*/ j)
 {
-  return sqrt(cutsq[i][j]);
+  //init_one is called by pair.cpp at line 267 where it is squred
+  //at line 268
+  return cut[i][j];
 }
 
 void PairUF3::compute(int eflag, int vflag)
@@ -714,7 +722,7 @@ double PairUF3::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   double value = 0.0;
   double r = sqrt(rsq);
 
-  if (r < cutsq[itype][jtype]) {
+  if (r < cut[itype][jtype]) {
     double *pair_eval = UFBS2b[itype][jtype].eval(r);
     value = pair_eval[0];
     fforce = factor_lj * pair_eval[1];
