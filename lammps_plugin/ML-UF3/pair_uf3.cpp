@@ -107,7 +107,7 @@ void PairUF3::coeff(int narg, char **arg)
     error->all(FLERR,
                "UF3: UF3 invalid number of argument in pair coeff; Number of potential files "
                "provided is not correct");
-  // open UF3 potential file on proc 0
+  // open UF3 potential file on all proc
   for (int i = 2; i < narg; i++) { uf3_read_pot_file(arg[i]); }
   // setflag check needed here
   for (int i = 1; i < num_of_elements + 1; i++) {
@@ -247,7 +247,8 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
       utils::logmesg(lmp, "UF3: {} file contains 2-body UF3 potential for {} {}\n", potf_name,
                      temp_type1, temp_type2);
 
-    cut[temp_type1][temp_type2] = fp3rd_line.next_double();//pow(fp3rd_line.next_double(), 2);
+    //cut is used in init_one which is called by pair.cpp at line 267 where the return of init_one is squared
+    cut[temp_type1][temp_type2] = fp3rd_line.next_double();
     // if(comm->me==0) utils::logmesg(lmp,"UF3: Cutoff {}\n",cutsq[temp_type1][temp_type2]);
     cut[temp_type2][temp_type1] = cut[temp_type1][temp_type2];
 
