@@ -107,9 +107,9 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
     for interaction in chemical_sys.interactions_map[2]:
         key = '_'.join(interaction)
         files[key] = "#UF3 POT\n"
-        files[key] += "2B\n"
-        files[key] += "%i %i "%(element_map[interaction[0]], \
-                element_map[interaction[1]])
+        files[key] += "2B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+        #files[key] += "%i %i "%(element_map[interaction[0]], \
+        #        element_map[interaction[1]])
 
         files[key] += str(model.bspline_config.r_max_map[interaction]) + " " + \
                 str(len(model.bspline_config.knots_map[interaction]))+"\n"
@@ -131,9 +131,9 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
         for interaction in model.bspline_config.interactions_map[3]:
             key = '_'.join(interaction)
             files[key] = "#UF3 POT\n"
-            files[key] += "3B\n"
-            files[key] += "%i %i %i "%(element_map[interaction[0]], \
-                    element_map[interaction[1]],element_map[interaction[2]])
+            files[key] += "3B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            #files[key] += "%i %i %i "%(element_map[interaction[0]], \
+            #        element_map[interaction[1]],element_map[interaction[2]])
 
             files[key] += str(model.bspline_config.r_max_map[interaction][2]) \
                     + " " + str(model.bspline_config.r_max_map[interaction][1]) \
@@ -180,13 +180,24 @@ if len(model_elements.intersection(struct_elements))==len(struct_elements):
     chemical_sys = composition.ChemicalSystem(element_list=list(struct_elements),\
             degree=model.bspline_config.degree)
     element_map = create_element_map_for_lammps(chemical_sys)
+    print(element_map)
     write_lammps_ip_struct(struct_obj=struct,element_map=element_map)
     pot_files = write_uf3_lammps_pot_files(chemical_sys=chemical_sys,model=model,pot_dir=pot_dir)
     pot_files = list(pot_files)
     lines = "pair_style uf3 %i %i\n"%(model.bspline_config.degree,len(struct_elements))
-    lines += "pair_coeff * *"
-    for i in pot_files:
-        lines += " %s/%s"%(pot_dir,i)
+
+    for interaction in chemical_sys.interactions_map[2]:
+        lines += "pair_coeff %i %i %s/%s\n"%(element_map[interaction[0]],
+                element_map[interaction[1]],pot_dir,'_'.join(interaction))
+
+    if 3 in model.bspline_config.interactions_map:
+        for interaction in model.bspline_config.interactions_map[3]:
+            lines += "pair_coeff %i %i %i %s/%s\n"%(element_map[interaction[0]],
+                    element_map[interaction[1]],element_map[interaction[2]],
+                    pot_dir,'_'.join(interaction))
+
+    #for i in pot_files:
+    #    lines += " %s/%s"%(pot_dir,i)
     print("***Add the following lines to the lammps input script***")
     print(lines)
 else:
