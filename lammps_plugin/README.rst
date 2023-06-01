@@ -165,14 +165,14 @@ The 2-body UF3 lammps potential file should have the following format-
 .. code:: bash
 
     #UF3 POT
-    2B
+    2B LEADING_TRIM TRAILING_TRIM
     Rij_CUTOFF NUM_OF_KNOTS
     BSPLINE_KNOTS
     NUM_OF_COEFF
     COEFF
     #
 
-The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction.
+The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction. This is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message.
 
 The :code:`Rij_CUTOFF` sets the 2-body cutoff for the interaction described by the potential file. :code:`NUM_OF_KNOTS` is the number of knots (or the length of the knot vector) present on the very next line. The :code:`BSPLINE_KNOTS` line should contain all the knots in ascending order. :code:`NUM_OF_COEFF` is the number of coefficients in the :code:`COEFF` line. All the numbers in the BSPLINE_KNOTS and COEFF line should be space-separated. 
 
@@ -186,7 +186,7 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
 .. code:: bash
 
     #UF3 POT
-    3B
+    3B LEADING_TRIM TRAILING_TRIM
     Rjk_CUTOFF Rik_CUTOFF Rij_CUTOFF NUM_OF_KNOTS_JK NUM_OF_KNOTS_IK NUM_OF_KNOTS_IJ
     BSPLINE_KNOTS_FOR_JK
     BSPLINE_KNOTS_FOR_IK
@@ -207,7 +207,8 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
     #
 
 
-The first line is similar to the 2-body potential file and the second line has :code:`3B` characters indicating that this file describes 3-body interaction. 
+The first line is similar to the 2-body potential file and the second line has :code:`3B` characters indicating that this file describes 3-body interaction. The :code:`3B` is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message.
+
 Similar to the 2-body potential file, the third line sets the cutoffs and length of the knots. The cutoff distance between atom-type 1 and 2 is :code:`Rij_CUTOFF`, atom-type 1 and 3 is :code:`Rik_CUTOFF` and between 2 and 3 is :code:`Rjk_CUTOFF`. **Note the current implementation works only for UF3 potentials with cutoff distances for 3-body interactions that follows** :code:`2Rij_CUTOFF=2Rik_CUTOFF=Rjk_CUTOFF` **relation.**
 
 The :code:`BSPLINE_KNOTS_FOR_JK`, :code:`BSPLINE_KNOTS_FOR_IK`, and :code:`BSPLINE_KNOTS_FOR_IJ` lines (note the order) contain the knots in increasing order for atoms J and K, I and K, and atoms I and J respectively. The number of knots is defined by the :code:`NUM_OF_KNOTS_*` characters in the previous line.
