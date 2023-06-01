@@ -108,8 +108,6 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
         key = '_'.join(interaction)
         files[key] = "#UF3 POT\n"
         files[key] += "2B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
-        #files[key] += "%i %i "%(element_map[interaction[0]], \
-        #        element_map[interaction[1]])
 
         files[key] += str(model.bspline_config.r_max_map[interaction]) + " " + \
                 str(len(model.bspline_config.knots_map[interaction]))+"\n"
@@ -132,8 +130,6 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
             key = '_'.join(interaction)
             files[key] = "#UF3 POT\n"
             files[key] += "3B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
-            #files[key] += "%i %i %i "%(element_map[interaction[0]], \
-            #        element_map[interaction[1]],element_map[interaction[2]])
 
             files[key] += str(model.bspline_config.r_max_map[interaction][2]) \
                     + " " + str(model.bspline_config.r_max_map[interaction][1]) \
@@ -196,8 +192,6 @@ if len(model_elements.intersection(struct_elements))==len(struct_elements):
                     element_map[interaction[1]],element_map[interaction[2]],
                     pot_dir,'_'.join(interaction))
 
-    #for i in pot_files:
-    #    lines += " %s/%s"%(pot_dir,i)
     print("***Add the following lines to the lammps input script***")
     print(lines)
 else:
