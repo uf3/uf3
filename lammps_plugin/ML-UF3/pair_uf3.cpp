@@ -84,7 +84,7 @@ void PairUF3::settings(int narg, char **arg)
     if (comm->me == 0)
       utils::logmesg(lmp, "\nUF3: Number of elements provided in the input file and \
 number of elements detected by lammps in the structure are not same\n\
-     proceed with caution");
+     proceed with caution\n");
   }
   if (nbody_flag == 2) {
     pot_3b = false;
