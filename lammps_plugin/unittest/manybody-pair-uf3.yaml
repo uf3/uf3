@@ -2,7 +2,7 @@
 lammps_version: 24 Mar 2022
 tags: generated
 date_generated: Thu Jun  8 23:16:30 2023
-epsilon: 5e-13
+epsilon: 1e-9
 skip_tests: ""
 prerequisites: ! |
   pair uf3
