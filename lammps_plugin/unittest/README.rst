@@ -1,6 +1,6 @@
 This document describes how to add ML-UF3 unittest to LAMMPS. Refer to `this link <https://docs.lammps.org/Developer_unittest.html>`_ for more information on unittest in LAMMPS.
 
-To run the ML-UF3 unittest, copy the contents of :code:'unittest' directory (i.e :code:`A_A.uf3_pot`, :code:`A_A_A.uf3_pot` and :code:`manybody-pair-uf3.yaml`) to the unittest directory of LAMMPS and re-build LAMMPS-
+To run the ML-UF3 unittest, copy the contents of :code:`unittest` directory (i.e :code:`A_A.uf3_pot`, :code:`A_A_A.uf3_pot` and :code:`manybody-pair-uf3.yaml`) to the unittest directory of LAMMPS and re-build LAMMPS-
 
 .. code:: bash
 
