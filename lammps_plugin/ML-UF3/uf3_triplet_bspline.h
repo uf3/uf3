@@ -41,6 +41,8 @@ class uf3_triplet_bspline {
                       const std::vector<std::vector<std::vector<double>>> &ucoeff_matrix);
   ~uf3_triplet_bspline();
   double *eval(double value_rij, double value_rik, double value_rjk);
+
+  double memory_usage();
 };
 }    // namespace LAMMPS_NS
 #endif

@@ -25,6 +25,8 @@ class uf3_bspline_basis3 {
   double eval1(double, double, double);
   double eval2(double, double, double);
   double eval3(double, double, double);
+
+  double memory_usage();
 };
 
 }    // namespace LAMMPS_NS

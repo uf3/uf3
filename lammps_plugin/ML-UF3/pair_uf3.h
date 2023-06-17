@@ -46,6 +46,8 @@ class PairUF3 : public Pair {
   double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
+  double memory_usage() override;
+
  protected:
   void uf3_read_pot_file(char *potf_name);
   void uf3_read_pot_file(int i, int j, char *potf_name);

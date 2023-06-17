@@ -43,6 +43,8 @@ class uf3_pair_bspline {
   ~uf3_pair_bspline();
   double ret_val[2];
   double *eval(double value_rij);
+
+  double memory_usage();
 };
 }    // namespace LAMMPS_NS
 #endif

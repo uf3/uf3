@@ -77,3 +77,12 @@ double uf3_bspline_basis2::eval2(double rsq, double r)
 {
   return rsq * constants[8] + r * constants[7] + constants[6];
 }
+
+double uf3_bspline_basis2::memory_usage()
+{
+  double bytes = 0;
+
+  bytes += (double)constants.size()*sizeof(double);
+
+  return bytes;
+}

@@ -1124,3 +1124,75 @@ double PairUF3::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
 
   return factor_lj * value;
 }
+
+double PairUF3::memory_usage()
+{
+  utils::logmesg(lmp, "\nUF3: memory_usage called");
+  double bytes = Pair::memory_usage();
+
+  bytes = 0;
+
+  bytes += (double)5*sizeof(double);     //num_of_elements, nbody_flag, 
+                                        //n2body_pot_files, n3body_pot_files, 
+                                        //tot_pot_files;
+
+  bytes += (double)5*sizeof(double);    //bsplines_created, coeff_matrix_dim1,
+                                        //coeff_matrix_dim2, coeff_matrix_dim3, 
+                                        //coeff_matrix_elements_len
+  bytes += (double)(num_of_elements+1)*(num_of_elements+1)*\
+           (num_of_elements+1)*sizeof(double);      //***setflag_3b
+
+  bytes += (double)(num_of_elements+1)*(num_of_elements+1)*sizeof(double); //cut 
+
+  bytes += (double)(num_of_elements+1)*(num_of_elements+1)*\
+           (num_of_elements+1)*sizeof(double);      //***cut_3b
+
+  bytes += (double)(num_of_elements+1)*(num_of_elements+1)*sizeof(double); //cut_3b_list
+
+  bytes += (double)(num_of_elements+1)*(num_of_elements+1)*\
+           (num_of_elements+1)*3*sizeof(double);    //min_cut_3b
+
+  for (int i=1; i < num_of_elements+1; i++){
+    for (int j=i; j < num_of_elements+1; j++){
+      bytes += (double)2*n2b_knot[i][j].size()*sizeof(double);      //n2b_knot
+      bytes += (double)2*n2b_coeff[i][j].size()*sizeof(double);     //n2b_coeff
+    }
+    if (pot_3b){
+      for (int j = 1; j < num_of_elements + 1; j++) {
+        for (int k = j; k < num_of_elements + 1; k++) {
+          bytes += (double)2*n3b_knot_matrix[i][j][k][0].size()*sizeof(double);
+          bytes += (double)2*n3b_knot_matrix[i][j][k][1].size()*sizeof(double);
+          bytes += (double)2*n3b_knot_matrix[i][j][k][2].size()*sizeof(double);
+
+          std::string key = std::to_string(i) + std::to_string(j) + std::to_string(k);
+
+          for (int l=0; l < n3b_coeff_matrix[key].size(); l++){
+            for (int m=0; m < n3b_coeff_matrix[key][l].size(); m++){
+              bytes += (double)2*n3b_coeff_matrix[key][l][m].size()*sizeof(double);
+              //key = ijk
+              //key = ikj
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (int i = 1; i < num_of_elements + 1; i++) {
+    for (int j = i; j < num_of_elements + 1; j++){
+        bytes += (double)2*UFBS2b[i][j].memory_usage(); //UFBS2b[i][j] UFBS2b[j][1]
+    }
+    if (pot_3b) {
+      for (int j = 1; j < num_of_elements + 1; j++) {
+        for (int k = j; k < num_of_elements + 1; k++) {
+          bytes += (double)2*UFBS3b[i][j][k].memory_usage();
+        }
+      }
+    }
+  }
+  
+  bytes += (double)(maxshort+1)*sizeof(int);            //neighshort, maxshort
+
+  return bytes;
+}
+

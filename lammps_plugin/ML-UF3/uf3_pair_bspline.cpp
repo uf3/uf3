@@ -87,3 +87,23 @@ double *uf3_pair_bspline::eval(double r)
 
   return ret_val;
 }
+
+double uf3_pair_bspline::memory_usage()
+{
+  double bytes = 0;
+
+  bytes += (double)2*sizeof(int);                           //knot_vect_size,
+                                                            //coeff_vect_size
+  bytes += (double)knot_vect.size()*sizeof(double);         //knot_vect
+  bytes += (double)dnknot_vect.size()*sizeof(double);       //dnknot_vect
+  bytes += (double)coeff_vect.size()*sizeof(double);        //coeff_vect
+  bytes += (double)dncoeff_vect.size()*sizeof(double);      //dncoeff_vect
+
+  for (int i = 0; i < knot_vect.size() - 4; i++)
+    bytes += (double)bspline_bases[i].memory_usage();       //bspline_basis3
+
+  for (int i = 0; i < dnknot_vect.size() - 3; i++)
+    bytes += (double)dnbspline_bases[i].memory_usage();     //bspline_basis2
+
+  bytes += (double)2*sizeof(double);    //ret_val
+}

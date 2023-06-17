@@ -229,3 +229,54 @@ int uf3_triplet_bspline::starting_knot(const std::vector<double> knot_vect, int 
 
   return 0;
 }
+
+double uf3_triplet_bspline::memory_usage()
+{
+  double bytes = 0;
+
+  bytes += (double) 3*sizeof(int);          //knot_vect_size_ij,
+                                            //knot_vect_size_ik,
+                                            //knot_vect_size_jk;
+
+  for (int i=0; i<coeff_matrix.size(); i++)
+    for (int j=0; j<coeff_matrix[i].size(); j++)
+      bytes += (double)coeff_matrix[i][j].size()*sizeof(double);
+
+
+  for (int i=0; i<dncoeff_matrix_ij.size(); i++)
+    for (int j=0; j<dncoeff_matrix_ij[i].size(); j++)
+      bytes += (double)dncoeff_matrix_ij[i][j].size()*sizeof(double);
+
+  for (int i=0; i<dncoeff_matrix_ik.size(); i++)
+    for (int j=0; j<dncoeff_matrix_ik[i].size(); j++)
+      bytes += (double)dncoeff_matrix_ik[i][j].size()*sizeof(double);
+
+  for (int i=0; i<dncoeff_matrix_jk.size(); i++)
+    for (int j=0; j<dncoeff_matrix_jk[i].size(); j++)
+      bytes += (double)dncoeff_matrix_jk[i][j].size()*sizeof(double);
+
+  bytes += (double)knot_matrix[0].size()*sizeof(double);
+  bytes += (double)knot_matrix[1].size()*sizeof(double);
+  bytes += (double)knot_matrix[2].size()*sizeof(double);
+
+  for (int i=0; i < bsplines_ij.size(); i++)
+    bytes += (double)bsplines_ij[i].memory_usage();
+
+  for (int i=0; i < bsplines_ik.size(); i++)
+    bytes += (double)bsplines_ik[i].memory_usage();
+
+  for (int i=0; i < bsplines_jk.size(); i++)
+    bytes += (double)bsplines_jk[i].memory_usage();
+
+  for (int i=0; i < dnbsplines_ij.size(); i++)
+    bytes += (double)dnbsplines_ij[i].memory_usage();
+
+  for (int i=0; i < dnbsplines_ik.size(); i++)
+    bytes += (double)dnbsplines_ik[i].memory_usage();
+
+  for (int i=0; i < dnbsplines_jk.size(); i++)
+    bytes += (double)dnbsplines_jk[i].memory_usage();
+
+  bytes += (double)4*sizeof(double);                        //ret_val
+  return bytes;
+}

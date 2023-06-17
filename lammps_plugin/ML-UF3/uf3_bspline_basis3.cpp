@@ -313,3 +313,12 @@ double uf3_bspline_basis3::eval3(double rth, double rsq, double r)
 {
   return rth * constants[15] + rsq * constants[14] + r * constants[13] + constants[12];
 }
+
+double uf3_bspline_basis3::memory_usage()
+{
+  double bytes = 0;
+
+  bytes += (double)constants.size()*sizeof(double);
+
+  return bytes;
+}
