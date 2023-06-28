@@ -30,7 +30,8 @@ class uf3_triplet_bspline {
   std::vector<std::vector<double>> knot_matrix;
   std::vector<uf3_bspline_basis3> bsplines_ij, bsplines_ik, bsplines_jk;
   std::vector<uf3_bspline_basis2> dnbsplines_ij, dnbsplines_ik, dnbsplines_jk;
-  double ret_val[4];
+  
+  double _alignvar(, 8) ret_val[4]; // Force memory alignment on 8 byte boundaries
 
   int starting_knot(const std::vector<double>, int, double);
 
