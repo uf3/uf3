@@ -5,17 +5,19 @@ from uf3.data import composition
 import numpy as np
 import os, sys
 
-if len(sys.argv) != 4:
-    raise ValueError("Invalid number of arguments. Enter name of the structure\n\
-            file readable by pymatgen, UF3 model file, and name \n\
-            directory to write the UF3 potential files")
+if len(sys.argv) != 3:
+    #raise ValueError("Invalid number of arguments. Enter name of the structure\n\
+    #        file readable by pymatgen, UF3 model file, and name \n\
+    #        directory to write the UF3 potential files")
+    raise ValueError("Invalid number of arguments. Enter UF3 model file and name\n\
+            of directory to write the UF3 potential files")
 
-struct = Structure.from_file(sys.argv[1])
-model = least_squares.WeightedLinearModel.from_json(sys.argv[2])
+#struct = Structure.from_file(sys.argv[1])
+model = least_squares.WeightedLinearModel.from_json(sys.argv[1])
 
-struct_elements = set(struct.symbol_set)
+#struct_elements = set(struct.symbol_set)
 model_elements = set(model.bspline_config.chemical_system.element_list)
-pot_dir = sys.argv[3]
+pot_dir = sys.argv[2]
 
 def create_element_map_for_lammps(uf3_chem_sys):
     """Returns dict
@@ -41,13 +43,13 @@ def create_element_map_for_lammps(uf3_chem_sys):
                 else:
                     pass
     return lemap
-
+"""
 def write_lammps_ip_struct(struct_obj,element_map):
-    """Returns str
+    """#Returns str
 
-    Converts a POSCAR to lammps structure format and writes 'lammps.struct' file
-    Takes pymatgen structure object as the input
-    """
+    #Converts a POSCAR to lammps structure format and writes 'lammps.struct' file
+    #Takes pymatgen structure object as the input
+"""
     struct_dict = struct_obj.as_dict()
 
     w_filename = 'lammps.struct'
@@ -91,7 +93,7 @@ def write_lammps_ip_struct(struct_obj,element_map):
         fp.write("   %i  %i %.6f %.6f %.6f\n"%(i+1,element_map[key],temp_cord[0],temp_cord[1],temp_cord[2]))
     fp.close()
     return w_filename
-
+"""
 def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
     """Returns list
 
@@ -171,7 +173,7 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
             f.write(v)
     return files.keys()
 
-
+"""
 if len(model_elements.intersection(struct_elements))==len(struct_elements):
     chemical_sys = composition.ChemicalSystem(element_list=list(struct_elements),\
             degree=model.bspline_config.degree)
@@ -196,3 +198,22 @@ if len(model_elements.intersection(struct_elements))==len(struct_elements):
     print(lines)
 else:
     raise RuntimeError("Elements in the provided structure file does not match the elements in ")
+"""
+
+chemical_sys = model.bspline_config.chemical_system
+
+pot_files = write_uf3_lammps_pot_files(chemical_sys=chemical_sys,model=model,pot_dir=pot_dir)
+pot_files = list(pot_files)
+lines = "pair_style uf3 %i %i"%(model.bspline_config.degree,len(chemical_sys.element_list))
+
+"""
+for interaction in chemical_sys.interactions_map[2]:
+    lines += " %s/%s"%(pot_dir,'_'.join(interaction))
+
+if 3 in model.bspline_config.interactions_map:
+    for interaction in model.bspline_config.interactions_map[3]:
+        lines += " %s/%s"%(pot_dir,'_'.join(interaction))
+"""
+print("\n\n***Add the following line to the lammps input script followed by the 'pair_coeff' line/s***\n\n")
+print(lines)
+print("\n\n")
