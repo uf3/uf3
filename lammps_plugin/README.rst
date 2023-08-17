@@ -38,45 +38,9 @@ If you want to compile with MPI support enabled, you additionally have to set th
 
 Kokkos
 =====
-To enable Kokkos support, first copy :code:`pair_uf3_kokkos.cpp` and :code:`pair_uf3_kokkos.h` from :code:`ML-UF3_KOKKOS`-
+The kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU support) is under active development. For an early access refer to the :code:`README` at this link_.
 
-.. code:: bash
-
-  cp ML-UF3_KOKKOS/* LAMMPS_BASE_DIR/src/KOKKOS/.
-  
-
-For building the kokkos version additional build flags are required.
-
-To enable support for MPI and OpenMP threads, use the following command:
-
-.. code:: bash
-
- cd LAMMPS_BASE_DIR/build
- cmake ../cmake/ -D PKG_ML-UF3=yes -D BUILD_MPI=yes -D PKG_KOKKOS=yes -D LAMMPS_MACHINE=kokkos_mpi -D Kokkos_ARCH_HOSTARCH=yes -D Kokkos_ENABLE_OPENMP=yes -D BUILD_OMP=yes
- cmake --build .
-
-Note: Check the `documentation <https://docs.lammps.org/Build_extras.html#kokkos>`_ to choose the correct Kokkos_ARCH_XXX flag for your system.
-
-To compile with MPI, OpenMP, and CUDA support, make sure you have the following packages installed (one option is to use :code:`conda install`):
-
-- `cudatoolkit <https://anaconda.org/conda-forge/cudatoolkit>`_
-- `cudatoolkit-dev <https://anaconda.org/conda-forge/cudatoolkit-dev>`_
-- `OpenMPI <https://anaconda.org/conda-forge/cuda-c-compiler>`_
-- gxx
-- libpng (required for LAMMPS image export, possibly required in clean conda environment)
-- libjpeg (required for LAMMPS image export, possibly required in clean conda environment)
-
-In case your HPC provides them as modules (check with :code:`module avail <desired module>`), load them with :code:`module load <desired module>`.
-
-To compile LAMMPS with MPI, OpenMP, and CUDA support, use:
-
-.. code:: bash
-
- cd LAMMPS_BASE_DIR/build
- cmake ../cmake/ -D PKG_ML-UF3=yes -D BUILD_MPI=yes -D PKG_KOKKOS=yes -D LAMMPS_MACHINE=kokkos_mpi -D Kokkos_ARCH_HOSTARCH=yes -D Kokkos_ENABLE_OPENMP=yes -D BUILD_OMP=yes -D -D Kokkos_ENABLE_CUDA=yes -D Kokkos_ARCH_GPUARCH=yes -D CMAKE_CXX_COMPILER=${HOME}/lammps/lib/kokkos/bin/nvcc_wrapper
- cmake --build .
-
-Note: Check the `documentation <https://docs.lammps.org/Build_extras.html#kokkos>`_ to choose the correct Kokkos_ARCH_GPUARCH flag for your system. More build options suitable to individual requirements can be found in the `LAMMPS build guide <https://docs.lammps.org/Build_extras.html#kokkos>`_.
+.. _link: https://github.com/monk-04/uf3/tree/lammps_implementation_v2/lammps_plugin
 
 =====
 Running lammps with UF3 potential
@@ -131,23 +95,6 @@ Alternatively, if the user wishes to use only the 2-body interactions from a mod
   pair_coeff 1 2 A_B
   pair_coeff 2 2 B_B
   
-
-Kokkos
-=====
-
-To run the Kokkos implementation, you can either specify the pair style as :code:`uf3/kk` or use the command-line option :code:`lmp_kokkos -sf kk`. To run with Kokkos, use :code:`lmp_kokkos -k on` .
-
-To enable OpenMP support, set the number of threads with :code:`lmp_kokkos -k on t <number of threads per MPI task>`.
-To enable GPU support, set the number of GPUs using :code:`lmp_kokkos -k on g <number of GPUs>`. Note: Kokkos must be compiled with GPU support, Kokkos requires CUDA and Kokkos expects one MPI rank per GPU.
-
-Running with Kokkos on 2 MPI ranks with 20 threads each while not explicitly specifying the :code:`kk` in the LAMMPS input file could look like this:
-
-.. code:: bash
-
-    mpirun -np 2 lmp_kokkos -k on t 20 -sf kk -in in.lammps
-   
-   
-
 =====
 Structure of UF3 lammps potential file
 =====
