@@ -38,9 +38,9 @@ If you want to compile with MPI support enabled, you additionally have to set th
 
 Kokkos
 =====
-The kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU support) is under active development. For an early access refer to the :code:`README` at this link_.
+The kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU support) is under active development. For an early access refer to the :code:`README` found here_.
 
-.. _link: https://github.com/monk-04/uf3/tree/lammps_implementation_v2/lammps_plugin
+.. _here: https://github.com/monk-04/uf3/tree/lammps_implementation_v2/lammps_plugin#kokkos
 
 =====
 Running lammps with UF3 potential
