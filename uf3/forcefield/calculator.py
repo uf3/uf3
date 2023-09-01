@@ -13,6 +13,7 @@ import ase
 from ase import optimize as ase_optim
 from ase import constraints as ase_constraints
 from ase.calculators import calculator as ase_calc
+from ase import data as ase_data
 
 from uf3.data import geometry
 from uf3.representation import distances
@@ -174,8 +175,10 @@ class UFCalculator(ase_calc.Calculator):
         energy = 0.0
 
         trio_list = self.bspline_config.interactions_map[3]
+        trio_numbers_list = [tuple(ase_data.atomic_numbers[elem] for elem in trio) for trio in trio_list]
         hashes = self.bspline_config.chemical_system.interaction_hashes[3]
-        n_interactions = len(hashes)
+        hash2interaction = {hash: interaction for hash, interaction in zip(hashes, trio_numbers_list)}
+        n_interactions = len(hash2interaction)
         knot_sets = [self.bspline_config.knots_map[trio] for trio in trio_list]
 
         sup_comp = supercell.get_atomic_numbers()
@@ -184,7 +187,7 @@ class UFCalculator(ase_calc.Calculator):
                                                            knot_sets,
                                                            supercell)
         triplet_generator = angles.generate_triplets(
-            i_where, j_where, sup_comp, hashes, dist_matrix, knot_sets)
+            i_where, j_where, sup_comp, hash2interaction, dist_matrix, knot_sets)
 
         for triplet_batch in triplet_generator:
             for interaction_idx in range(n_interactions):
@@ -249,8 +252,10 @@ class UFCalculator(ase_calc.Calculator):
         forces = np.zeros((n_atoms, 3))
 
         trio_list = self.bspline_config.interactions_map[3]
+        trio_numbers_list = [tuple(ase_data.atomic_numbers[elem] for elem in trio) for trio in trio_list]
         hashes = self.bspline_config.chemical_system.interaction_hashes[3]
-        n_interactions = len(hashes)
+        hash2interaction = {hash: interaction for hash, interaction in zip(hashes, trio_numbers_list)}
+        n_interactions = len(hash2interaction)
         knot_sets = [self.bspline_config.knots_map[trio] for trio in trio_list]
 
         sup_comp = supercell.get_atomic_numbers()
@@ -260,7 +265,7 @@ class UFCalculator(ase_calc.Calculator):
                                                               supercell,
                                                               square=True)
         triplet_generator = angles.generate_triplets(
-            x_where, y_where, sup_comp, hashes, matrix, knot_sets)
+            x_where, y_where, sup_comp, hash2interaction, matrix, knot_sets)
 
         for triplet_batch in triplet_generator:
             for interaction_idx in range(n_interactions):

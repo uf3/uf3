@@ -9,6 +9,7 @@ import warnings
 import sqlite3
 import numpy as np
 import pandas as pd
+import ase.data as ase_data
 from uf3.representation import distances
 from uf3.representation import angles
 from uf3.representation import bspline
@@ -308,7 +309,7 @@ class BasisFeaturizer:
                 {(name, 'e'), (name, 'fx'), ...{ instead of {'e', 'fx', ...}
             energy (float): energy of configuration (optional).
             forces (list, np.ndarray): array containing force components
-                fx, fy, fz for each atom. Expected shape is (n_atoms, 3).
+                fx, fy, fz for each atom. Expected shape is (3, natoms).
             energy_key (str): column name for energies, default "energy".
 
         Returns:
@@ -452,13 +453,14 @@ class BasisFeaturizer:
         if supercell is None:
             supercell = geom
         trio_list = self.interactions_map[3]
+        trio_numbers_list = [tuple(ase_data.atomic_numbers[elem] for elem in trio) for trio in trio_list]
         knot_sets = [self.knots_map[trio] for trio in trio_list]
         basis_functions = [self.basis_functions[trio] for trio in trio_list]
-        hashes = self.interaction_hashes[3]
+        hash2interaction = {hash: interaction for hash, interaction in zip(self.interaction_hashes[3], trio_numbers_list)}
         grids = angles.featurize_energy_3b(geom,
                                            knot_sets,
                                            basis_functions,
-                                           hashes,
+                                           hash2interaction,
                                            supercell=supercell,
                                            n_lead=self.leading_trim,
                                            n_trail=self.trailing_trim)
@@ -486,13 +488,14 @@ class BasisFeaturizer:
         if supercell is None:
             supercell = geom
         trio_list = self.interactions_map[3]
+        trio_numbers_list = [tuple(ase_data.atomic_numbers[elem] for elem in trio) for trio in trio_list]
         knot_sets = [self.knots_map[trio] for trio in trio_list]
         basis_functions = [self.basis_functions[trio] for trio in trio_list]
-        hashes = self.interaction_hashes[3]
+        hash2interaction = {hash: interaction for hash, interaction in zip(self.interaction_hashes[3], trio_numbers_list)}
         grids = angles.featurize_force_3b(geom,
                                           knot_sets,
                                           basis_functions,
-                                          hashes,
+                                          hash2interaction,
                                           supercell=supercell,
                                           n_lead=self.leading_trim,
                                           n_trail=self.trailing_trim)
