@@ -48,5 +48,7 @@ learning:
     weight: 0.5
     regularizer:
         ridge_1b: 1.0e-8
+        ridge_2b: 0.0
+        ridge_3b: 1e-5
         curvature_2b: 1.0e-8
         curvature_3b: 1.0e-8
