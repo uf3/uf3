@@ -234,16 +234,38 @@ class BSplineBasis:
             self.r_max_map[trio] = self.r_max_map.get(trio, default_max)
             self.resolution_map[trio] = self.resolution_map.get(trio,
                                                                 default_res)
-            min_set = len(set(self.r_min_map[trio]))
-            max_set = len(set(self.r_max_map[trio]))
-            res_set = len(set(self.resolution_map[trio]))
-            if min_set == 1 and max_set == 1 and res_set == 1:
-                self.symmetry[trio] = 3
-            elif min_set <= 2 and max_set <= 2 and res_set <= 2:
-                self.symmetry[trio] = 2
-            else:
-                self.symmetry[trio] = 1
+            self.find_symmetry_3B(trio)
         self.r_cut = self.get_cutoff()
+
+
+    def find_symmetry_3B(self, trio):
+        """
+        Sets self.symmetry[trio] based on r_min, r_max, and resolution map
+
+        Args:
+            trio (tuple): tuple containing 3 elements
+        Updates:
+            self.symmetry[trio]
+        Returns:
+            None
+        """
+        elem_set = len(set(trio[1:]))
+
+        # 2 neighboring elements are different
+        if elem_set == 2:
+            self.symmetry[trio] = 1
+            return None
+        
+        # 2 neighboring elements are identical
+        configs = set(zip(
+            self.r_min_map[trio],
+            self.r_max_map[trio],
+            self.resolution_map[trio]
+        ))
+
+        # 1->3, 2->2, 3->1
+        self.symmetry[trio] = -1 * (len(configs) - 2) + 2
+
 
     def update_knots_from_dict(self, knots_map):
         """"""
@@ -560,11 +582,11 @@ class BSplineBasis:
 
         """
         if self.symmetry[interaction] == 1:
-            vec = grid.flatten()
+            vec = grid
+            redundancy = self.flat_weights[interaction] if fitting else 1.0
         elif self.symmetry[interaction] == 2:
             vec = grid + grid.transpose(1, 0, 2)
-            vec = vec.flat[self.template_mask[interaction]]
-            vec = vec * (self.flat_weights[interaction] if fitting else 0.5)
+            redundancy = self.flat_weights[interaction] if fitting else 0.5
         elif self.symmetry[interaction] == 3:
             vec = (grid
                    + grid.transpose(0, 2, 1)
@@ -572,9 +594,11 @@ class BSplineBasis:
                    + grid.transpose(1, 2, 0)
                    + grid.transpose(2, 0, 1)
                    + grid.transpose(2, 1, 0))
-            vec = vec.flat[self.template_mask[interaction]]
-            vec = vec * self.flat_weights[interaction]
+            redundancy = self.flat_weights[interaction] if fitting else 1/6
+        vec = vec.flat[self.template_mask[interaction]]
+        vec = vec * redundancy
         return vec
+
 
     def decompress_3B(self, vec, interaction):
         """
@@ -593,7 +617,15 @@ class BSplineBasis:
         N = len(n_space) - 4
         grid = np.zeros((L, M, N))
         grid.flat[self.template_mask[interaction]] = vec
-        grid = grid + grid.transpose(1, 0, 2)
+        if self.symmetry[interaction] == 2:
+            grid = grid + grid.transpose(1, 0, 2)
+        elif self.symmetry[interaction] == 3:
+            grid = (grid
+                    + grid.transpose(0, 2, 1)
+                    + grid.transpose(1, 0, 2)
+                    + grid.transpose(1, 2, 0)
+                    + grid.transpose(2, 0, 1)
+                    + grid.transpose(2, 1, 0))
         return grid
 
 
