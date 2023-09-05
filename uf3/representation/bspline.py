@@ -603,17 +603,7 @@ class BSplineBasis:
                     + grid.transpose(2, 1, 0))
         return grid
 
-"""
-            r_min_map (dict): map of minimum pair distance per interaction.
-                If unspecified, defaults to 1.0 for all interactions.
-                e.g. {(A-A): 2.0, (A-B): 3.0, (B-B): 4.0}
-            r_max_map (dict): map of maximum pair distance per interaction.
-                If unspecified, defaults to 6.0 angstroms for all
-                interactions, which probably encompasses 2nd-nearest neighbors,
-            resolution_map (dict): map of resolution (number of knot intervals)
-                per interaction. If unspecified, defaults to 20 for all two-
-                body interactions and 5 for three-body interactions.
-"""
+
     
 def find_symmetry_3B(trio: Tuple, 
                      r_min: List,
