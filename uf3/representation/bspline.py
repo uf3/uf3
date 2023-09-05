@@ -634,7 +634,10 @@ def find_symmetry_3B(trio: Tuple,
         ))
 
         if configs[0] == configs[1] == configs[2]:
-            return 3
+            if trio[0] == trio[1]:
+                return 3
+            else:
+                return 2
         elif configs[0] == configs[1]:
             return 2
         else:
