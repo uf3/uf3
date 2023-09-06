@@ -39,33 +39,33 @@ def equilateral():
 def isosceles_rmax_rjk():
     return dict(r_min = [0.1,0.1,0.1],
                 r_max = [5.,5.,10.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 @pytest.fixture
 def isosceles_rmax_rij():
     return dict(r_min = [0.1,0.1,0.1],
                 r_max = [5.,10.,5.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 @pytest.fixture
 def isosceles_rmax_rik():
     return dict(r_min = [0.1,0.1,0.1],
                 r_max = [10.,5.,5.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 ### Rmin iso ###
 @pytest.fixture
 def isosceles_rmin_rjk():
     return dict(r_min = [0.1,0.1,0.2],
                 r_max = [8.,8.,8.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 @pytest.fixture
 def isosceles_rmin_rij():
     return dict(r_min = [0.2,0.1,0.1],
                 r_max = [8.,8.,8.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 @pytest.fixture
 def isosceles_rmin_rik():
     return dict(r_min = [0.1,0.2,0.1],
                 r_max = [8.,8.,8.],
-                resolution = [6,6,12])
+                resolution = [6,6,6])
 
 ### Resolution iso ###
 @pytest.fixture
