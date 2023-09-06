@@ -611,6 +611,8 @@ def find_symmetry_3B(trio: Tuple,
                      resolution: List):
 
     """
+    Calculates the symmetry of a 3-body interaction based on r_min, r_max, and
+    resolution map.
 
     Args:
         trio (tuple): Interaction (Si,Si,N)
