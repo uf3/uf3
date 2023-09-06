@@ -29,7 +29,13 @@ def binary_unsym_trio():
     return ('Si','Si','N') 
 
 @pytest.fixture
-def equalateral():
+def SungTest():
+    return dict(r_min = [0.1,0.1,0.2],
+                r_max = [5.,10.,5.],
+                resolution = [10,20,20])
+
+@pytest.fixture
+def equilateral():
     return dict(r_min = [0.1,0.1,0.1],
                 r_max = [8.,8.,8.],
                 resolution = [10,10,10])
@@ -109,14 +115,23 @@ def isosceles_rmax_resolution_scalene_rmin():
                 resolution = [6,6,12])
 
 class TestFindSym3Body:
-    def test_equilateral_unary(self,unary_trio,equalateral):
-        assert find_symmetry_3B(unary_trio,**equalateral) == 3
+    def test_SungTest_unary(self,unary_trio,SungTest):
+        assert find_symmetry_3B(unary_trio,**SungTest) == 1
+
+    def test_SungTest_binary_sym(self,binary_sym_trio,SungTest):
+        assert find_symmetry_3B(binary_sym_trio,**SungTest) == 1
+
+    def test_SungTest_binary_unsym(self,binary_unsym_trio,SungTest):
+        assert find_symmetry_3B(binary_unsym_trio,**SungTest) == 1
+
+    def test_equilateral_unary(self,unary_trio,equilateral):
+        assert find_symmetry_3B(unary_trio,**equilateral) == 3
         
-    def test_equilateral_binary_sym(self,binary_sym_trio,equalateral):   
-        assert find_symmetry_3B(binary_sym_trio,**equalateral) == 2 
+    def test_equilateral_binary_sym(self,binary_sym_trio,equilateral):   
+        assert find_symmetry_3B(binary_sym_trio,**equilateral) == 2 
         
-    def test_equilateral_binary_unsym(self,binary_unsym_trio,equalateral):
-        assert find_symmetry_3B(binary_unsym_trio,**equalateral) == 1        
+    def test_equilateral_binary_unsym(self,binary_unsym_trio,equilateral):
+        assert find_symmetry_3B(binary_unsym_trio,**equilateral) == 1        
         
     def test_isosceles_unary_rmax_rjk(self,unary_trio,isosceles_rmax_rjk):
         assert find_symmetry_3B(unary_trio,**isosceles_rmax_rjk) == 2
