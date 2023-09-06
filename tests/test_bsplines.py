@@ -29,12 +29,6 @@ def binary_unsym_trio():
     return ('Si','Si','N') 
 
 @pytest.fixture
-def SungTest():
-    return dict(r_min = [0.1,0.1,0.2],
-                r_max = [5.,10.,5.],
-                resolution = [10,20,20])
-
-@pytest.fixture
 def equilateral():
     return dict(r_min = [0.1,0.1,0.1],
                 r_max = [8.,8.,8.],
@@ -114,16 +108,13 @@ def isosceles_rmax_resolution_scalene_rmin():
                 r_max = [5.,5.,10.],
                 resolution = [6,6,12])
 
+@pytest.fixture
+def scalene_all_diff():
+    return dict(r_min = [0.1,0.1,0.2],
+                r_max = [5.,10.,5.],
+                resolution = [10,20,20])
+
 class TestFindSym3Body:
-    def test_SungTest_unary(self,unary_trio,SungTest):
-        assert find_symmetry_3B(unary_trio,**SungTest) == 1
-
-    def test_SungTest_binary_sym(self,binary_sym_trio,SungTest):
-        assert find_symmetry_3B(binary_sym_trio,**SungTest) == 1
-
-    def test_SungTest_binary_unsym(self,binary_unsym_trio,SungTest):
-        assert find_symmetry_3B(binary_unsym_trio,**SungTest) == 1
-
     def test_equilateral_unary(self,unary_trio,equilateral):
         assert find_symmetry_3B(unary_trio,**equilateral) == 3
         
@@ -243,7 +234,16 @@ class TestFindSym3Body:
 
     def test_binary_sym_isosceles_rmax_resolution_scalene_rmin(self,binary_sym_trio,isosceles_rmax_resolution_scalene_rmin):
         assert find_symmetry_3B(binary_sym_trio,**isosceles_rmax_resolution_scalene_rmin) == 1
-        
+
+    def test_scalene_unary_all_diff(self,unary_trio,scalene_all_diff):
+        assert find_symmetry_3B(unary_trio,**scalene_all_diff) == 1
+
+    def test_scalene_binary_sym_all_diff(self,binary_sym_trio,scalene_all_diff):
+        assert find_symmetry_3B(binary_sym_trio,**scalene_all_diff) == 1
+
+    def test_scalene_binary_unsym_all_diff(self,binary_unsym_trio,scalene_all_diff):
+        assert find_symmetry_3B(binary_unsym_trio,**scalene_all_diff) == 1
+       
 class TestKnots:
     def test_knot_sequence_from_points(self):
         sequence = knot_sequence_from_points([1, 2, 3])
