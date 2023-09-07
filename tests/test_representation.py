@@ -39,6 +39,14 @@ def atoms_molecule_CCPt():
                       cell = [30.0, 30.0, 30.0])
     yield geom
     
+@pytest.fixture()    
+def atoms_molecule_Yb2La2():
+    geom = ase.Atoms('Yb2La2',
+                      positions = [[0., 0., 0.], [0., 0., 2.], [0., 1.5, 0.],[2.,0,0]],
+                      pbc = True,
+                      cell = [30.0, 30.0, 30.0]) 
+    yield geom
+    
 @pytest.fixture()
 def unary_chemistry():
     element_list = ['Ar']
@@ -61,6 +69,14 @@ def binary_chemistry():
     yield chemistry_config
     
 @pytest.fixture()
+def binary_chemistry_equal_electronegativity():
+    element_list = ['Yb', 'La']
+    chemistry_config_1 = composition.ChemicalSystem(element_list,degree=3)
+    element_list = ['La', 'Yb']
+    chemistry_config_2 = composition.ChemicalSystem(element_list,degree=3)    
+    yield [chemistry_config_1,chemistry_config_2]
+    
+@pytest.fixture()
 def binary_chemistry_3B():
     element_list = ['C', 'Pt']
     chemistry_config = composition.ChemicalSystem(element_list,degree=3)
@@ -68,6 +84,17 @@ def binary_chemistry_3B():
 
     
 class TestBasis:
+    
+    def test_equal_electronegativity(self,binary_chemistry_equal_electronegativity, atoms_molecule_Yb2La2):
+        bspline_config = bspline.BSplineBasis(binary_chemistry_equal_electronegativity[0])
+        bspline_handler = BasisFeaturizer(bspline_config) 
+        feature_1 = bspline_handler.featurize_energy_3B(atoms_molecule_Yb2La2)
+        
+        bspline_config = bspline.BSplineBasis(binary_chemistry_equal_electronegativity[1])
+        bspline_handler = BasisFeaturizer(bspline_config) 
+        feature_2 = bspline_handler.featurize_energy_3B(atoms_molecule_Yb2La2)  
+        assert np.allclose(feature_1,feature_2)
+        
     def test_atom_swap_3B(self,binary_chemistry_3B,simple_molecule_CPtC,atoms_molecule_CCPt):
         bspline_config = bspline.BSplineBasis(binary_chemistry_3B)
         bspline_handler = BasisFeaturizer(bspline_config) 
