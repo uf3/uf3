@@ -45,8 +45,10 @@ def binary_chemistry():
     element_list = ['Ne', 'Xe']
     chemistry_config = composition.ChemicalSystem(element_list)
     yield chemistry_config
-
-
+@pytest.fixture()
+def atom1():
+    yield None
+    
 class TestBasis:
     def test_setup(self, unary_chemistry):
         bspline_config = bspline.BSplineBasis(unary_chemistry)
