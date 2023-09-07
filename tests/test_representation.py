@@ -47,6 +47,7 @@ def binary_chemistry():
     yield chemistry_config
 @pytest.fixture()
 def atom1():
+    x = 1
     yield None
     
 class TestBasis:
