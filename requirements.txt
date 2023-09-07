@@ -6,7 +6,7 @@ numpy
 pandas
 plotly
 PyYAML
-sklearn
+scikit-learn
 scipy
 tables
 tqdm

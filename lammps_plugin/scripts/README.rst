@@ -4,7 +4,7 @@ Usuage-
 
 .. code:: bash
 
-   python generate_uf3_lammps_pots.py NAME_of_POSCAR NAME_of_UF3_model_File DIR_PATH_or_NAME 
+   python generate_uf3_lammps_pots.py NAME_of_UF3_model_File DIR_PATH_or_NAME 
 
 Will create :code:`DIR_PATH_or_NAME` if it does not exists and will write UF3 lammps potential files to :code:`DIR_PATH_or_NAME`. Make sure NAME_of_POSCAR and NAME_of_UF3_model_File are present in the same directory from which :code:`generate_uf3_lammps_pots.py` is executed.
 

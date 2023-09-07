@@ -28,10 +28,20 @@ uf3_pair_bspline::uf3_pair_bspline(LAMMPS *ulmp, const std::vector<double> &ukno
     bspline_bases.push_back(uf3_bspline_basis3(lmp, &knot_vect[i], coeff_vect[i]));
 
   // Initialize Coefficients and Knots for Derivatives
+  // The last coefficient needs to be droped
   for (int i = 0; i < coeff_vect_size - 1; i++) {
     double dntemp4 = 3 / (knot_vect[i + 4] - knot_vect[i + 1]);
     dncoeff_vect.push_back((coeff_vect[i + 1] - coeff_vect[i]) * dntemp4);
   }
+  //What we have is a clamped bspline -->i.e value of the bspline curve at the 
+  //knots with multiplicity equal to the degree of bspline is equal to the coefficient
+  //
+  //Therefore for the derivative bspline the very first and last knot needs to be droped
+  //to change their multiplicity from 4 (necessary condition for clamped cubic bspline)
+  //to 3 (necessary condition for clamped quadratic bspline)
+  //
+  //Also if the coeff vector size of decreases by 1 for the derivative bspline
+  //knots size needs to go down by 2 as ==> knots = coefficient + degree + 1
   for (int i = 1; i < knot_vect_size - 1; i++) dnknot_vect.push_back(knot_vect[i]);
 
   // Initialize B-Spline Derivative Basis Functions
@@ -76,4 +86,24 @@ double *uf3_pair_bspline::eval(double r)
   ret_val[1] += dnbspline_bases[knot_affect_start].eval2(rsq, r);
 
   return ret_val;
+}
+
+double uf3_pair_bspline::memory_usage()
+{
+  double bytes = 0;
+
+  bytes += (double)2*sizeof(int);                           //knot_vect_size,
+                                                            //coeff_vect_size
+  bytes += (double)knot_vect.size()*sizeof(double);         //knot_vect
+  bytes += (double)dnknot_vect.size()*sizeof(double);       //dnknot_vect
+  bytes += (double)coeff_vect.size()*sizeof(double);        //coeff_vect
+  bytes += (double)dncoeff_vect.size()*sizeof(double);      //dncoeff_vect
+
+  for (int i = 0; i < knot_vect.size() - 4; i++)
+    bytes += (double)bspline_bases[i].memory_usage();       //bspline_basis3
+
+  for (int i = 0; i < dnknot_vect.size() - 3; i++)
+    bytes += (double)dnbspline_bases[i].memory_usage();     //bspline_basis2
+
+  bytes += (double)2*sizeof(double);    //ret_val
 }

@@ -46,14 +46,20 @@ class PairUF3 : public Pair {
   double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
+  double memory_usage() override;
+
  protected:
   void uf3_read_pot_file(char *potf_name);
+  void uf3_read_pot_file(int i, int j, char *potf_name);
+  void uf3_read_pot_file(int i, int j, int k, char *potf_name);
   int num_of_elements, nbody_flag, n2body_pot_files, n3body_pot_files, tot_pot_files;
+  int bsplines_created;
   int coeff_matrix_dim1, coeff_matrix_dim2, coeff_matrix_dim3, coeff_matrix_elements_len;
   bool pot_3b;
   int ***setflag_3b;
   double **cut, ***cut_3b, **cut_3b_list, ****min_cut_3b;
   virtual void allocate();
+  void create_bsplines();
   std::vector<std::vector<std::vector<double>>> n2b_knot, n2b_coeff;
   std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> n3b_knot_matrix;
   std::unordered_map<std::string, std::vector<std::vector<std::vector<double>>>> n3b_coeff_matrix;
