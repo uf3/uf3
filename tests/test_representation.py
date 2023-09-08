@@ -4,7 +4,7 @@ from uf3.representation.process import *
 from uf3.representation import bspline
 from uf3.data import composition
 from uf3.data import io
-
+import numpy as np
 
 @pytest.fixture()
 def simple_molecule():
@@ -23,7 +23,30 @@ def simple_water():
                      cell=None)
     yield geom
 
+@pytest.fixture()
+def simple_molecule_CPtC():
+    geom = ase.Atoms('CPtC',
+                      positions = [[0., 0., 0.], [0., 1.5, 0.], [0., 0., 2.]],
+                      pbc = True,
+                      cell = [30.0, 30.0, 30.0])
+    yield geom
 
+@pytest.fixture()
+def atoms_molecule_CCPt():
+    geom = ase.Atoms('C2Pt',
+                      positions = [[0., 0., 0.], [0., 0., 2.], [0., 1.5, 0.]],
+                      pbc = True,
+                      cell = [30.0, 30.0, 30.0])
+    yield geom
+    
+@pytest.fixture()    
+def atoms_molecule_Yb2La2():
+    geom = ase.Atoms('Yb2La2',
+                      positions = [[0., 0., 0.], [0., 0., 2.], [0., 1.5, 0.],[2.,0,0]],
+                      pbc = True,
+                      cell = [30.0, 30.0, 30.0]) 
+    yield geom
+    
 
 @pytest.fixture()
 def unary_chemistry():
@@ -45,9 +68,43 @@ def binary_chemistry():
     element_list = ['Ne', 'Xe']
     chemistry_config = composition.ChemicalSystem(element_list)
     yield chemistry_config
+    
+@pytest.fixture()
+def binary_chemistry_equal_electronegativity():
+    element_list = ['Yb', 'La']
+    chemistry_config_1 = composition.ChemicalSystem(element_list,degree=3)
+    element_list = ['La', 'Yb']
+    chemistry_config_2 = composition.ChemicalSystem(element_list,degree=3)    
+    yield [chemistry_config_1,chemistry_config_2]
+    
+@pytest.fixture()
+def binary_chemistry_3B():
+    element_list = ['C', 'Pt']
+    chemistry_config = composition.ChemicalSystem(element_list,degree=3)
+    yield chemistry_config    
 
-
+    
 class TestBasis:
+    
+    def test_equal_electronegativity(self,binary_chemistry_equal_electronegativity, atoms_molecule_Yb2La2):
+        bspline_config = bspline.BSplineBasis(binary_chemistry_equal_electronegativity[0])
+        bspline_handler = BasisFeaturizer(bspline_config) 
+        feature_1 = bspline_handler.featurize_energy_3B(atoms_molecule_Yb2La2)
+        
+        bspline_config = bspline.BSplineBasis(binary_chemistry_equal_electronegativity[1])
+        bspline_handler = BasisFeaturizer(bspline_config) 
+        feature_2 = bspline_handler.featurize_energy_3B(atoms_molecule_Yb2La2)  
+        assert np.allclose(feature_1,feature_2)
+        
+    def test_atom_swap_3B(self,binary_chemistry_3B,simple_molecule_CPtC,atoms_molecule_CCPt):
+        bspline_config = bspline.BSplineBasis(binary_chemistry_3B)
+        bspline_handler = BasisFeaturizer(bspline_config) 
+        feature_1 = bspline_handler.featurize_energy_3B(simple_molecule_CPtC)
+        feature_1 = feature_1[np.where(feature_1!=0)[0]]
+        feature_2 = bspline_handler.featurize_energy_3B(atoms_molecule_CCPt)
+        feature_2 = feature_2[np.where(feature_2!=0)[0]]
+        assert np.allclose(feature_1,feature_2)
+        
     def test_setup(self, unary_chemistry):
         bspline_config = bspline.BSplineBasis(unary_chemistry)
         bspline_handler = BasisFeaturizer(bspline_config)
@@ -160,3 +217,4 @@ def test_flatten_by_interactions():
     pair_tuples = [('A', 'A'), ('A', 'B'), ('B', 'B')]
     vector = flatten_by_interactions(vector_map, pair_tuples)
     assert np.allclose(vector, [1, 1, 1, 2, 2, 3, 3, 3, 3])
+
