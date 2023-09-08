@@ -58,7 +58,6 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
   if (!copymode) {
     memoryKK->destroy_kokkos(k_eatom, eatom);
     memoryKK->destroy_kokkos(k_vatom, vatom);
-    memoryKK->destroy_kokkos(k_cvatom, cvatom);
     eatom = NULL;
     vatom = NULL;
     cvatom = NULL;
@@ -85,9 +84,13 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::coeff(int narg, char
     error->all(FLERR,
                "UF3Kokkos: UF3 invalid number of argument in pair coeff; Number of potential files "
                "provided is not correct");
+
   // open UF3 potential file on proc 0
+
   for (int i = 2; i < narg; i++) { PairUF3::uf3_read_pot_file(arg[i]); }
+
   // setflag check needed here
+
   for (int i = 1; i < num_of_elements + 1; i++) {
     for (int j = 1; j < num_of_elements + 1; j++) {
       if (setflag[i][j] != 1)
@@ -128,6 +131,7 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::coeff(int narg, char
 
 template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_2b_coefficients()
 {
+
   // Setup interaction pair map
 
   Kokkos::realloc(map2b, num_of_elements + 1, num_of_elements + 1);
@@ -465,7 +469,6 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
     const int itype, const int jtype, const int ktype, const F_FLOAT value_rij,
     const F_FLOAT value_rik, const F_FLOAT value_rjk, F_FLOAT &evdwl, F_FLOAT (&fforce)[3]) const
 {
-
   evdwl = 0;
   fforce[0] = 0;
   fforce[1] = 0;
@@ -617,9 +620,9 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::compute(int eflag_in
     d_vatom = k_vatom.template view<DeviceType>();
   }
   if (cvflag_atom) {
-    memoryKK->destroy_kokkos(k_cvatom, cvatom);
-    memoryKK->create_kokkos(k_cvatom, cvatom, maxcvatom, "pair:cvatom");
-    d_cvatom = k_cvatom.template view<DeviceType>();
+    //memoryKK->destroy_kokkos(k_cvatom, cvatom);
+    //memoryKK->create_kokkos(k_cvatom, cvatom, maxcvatom, "pair:cvatom");
+    //d_cvatom = k_cvatom.template view<DeviceType>();
   }
 
   atomKK->sync(execution_space, datamask_read);
@@ -648,7 +651,7 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::compute(int eflag_in
   escatter = ScatterEType(d_eatom);
   fscatter = ScatterFType(f);
   vscatter = ScatterVType(d_vatom);
-  cvscatter = ScatterCVType(d_cvatom);
+  //cvscatter = ScatterCVType(d_cvatom);
 
   EV_FLOAT ev;
   EV_FLOAT ev_all;
@@ -677,7 +680,7 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::compute(int eflag_in
 
   Kokkos::Experimental::contribute(d_eatom, escatter);
   Kokkos::Experimental::contribute(d_vatom, vscatter);
-  Kokkos::Experimental::contribute(d_cvatom, cvscatter);
+  //Kokkos::Experimental::contribute(d_cvatom, cvscatter);
   Kokkos::Experimental::contribute(f, fscatter);
 
   if (eflag_global) eng_vdwl += ev_all.evdwl;
@@ -701,8 +704,8 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::compute(int eflag_in
   }
 
   if (cvflag_atom) {
-    k_cvatom.template modify<DeviceType>();
-    k_cvatom.template sync<LMPHostType>();
+    //k_cvatom.template modify<DeviceType>();
+    //k_cvatom.template sync<LMPHostType>();
   }
 
   if (vflag_fdotr) pair_virial_fdotr_compute(this);
