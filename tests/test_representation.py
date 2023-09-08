@@ -47,6 +47,7 @@ def atoms_molecule_Yb2La2():
                       cell = [30.0, 30.0, 30.0]) 
     yield geom
     
+
 @pytest.fixture()
 def unary_chemistry():
     element_list = ['Ar']
