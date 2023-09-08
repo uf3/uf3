@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 from numba import jit
 import ase
+from ase.data import chemical_symbols as ase_symbols
 from uf3.data import composition
 from uf3.representation import bspline
 from uf3.representation import distances
@@ -391,7 +392,7 @@ def generate_triplets(i_where: np.ndarray,
                       knot_sets: List[List[np.ndarray]]
                       ) -> List[Tuple]:
     """
-    Identify unique "i-j-j'" tuples by combining provided i-j pairs, then
+    Identify unique "i-j-k" tuples by combining provided i-j pairs, then
     compute i-j, i-k, and j-k pair distances from i-j-k tuples,
         distance matrix, and knot sequence for cutoffs.
 
@@ -418,21 +419,55 @@ def generate_triplets(i_where: np.ndarray,
         tuples = np.array(np.meshgrid(i_groups[i],
                                       i_groups[i])).T.reshape(-1, 2)
         tuples = np.insert(tuples, 0, i_values[i], axis=1)
-
         comp_tuples = sup_composition[tuples]
-        comp_tuples[:, 1:] = np.sort(comp_tuples[:, 1:], axis=1)
-
+        
+        sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)
+        comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
+        tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
+        
+        comp_tuples = np.hstack((comp_tuples[:, [0]], comp_tuples_slice))
+        tuples = np.hstack((tuples[:, [0]], tuples_slice))
+        
         ijk_hash = composition.get_szudzik_hash(comp_tuples)
 
         grouped_triplets = [None] * n_hashes
         for j, hash_ in enumerate(hashes):
             ituples = tuples[ijk_hash == hash_]
+            icomp_tuples = comp_tuples[ijk_hash == hash_]
             if len(ituples) == 0:
                 grouped_triplets[j] = None
                 continue
-            # atoms j and k are interchangable; filter
-            comparison_mask = (ituples[:, 1] < ituples[:, 2])
-            ituples = ituples[comparison_mask]
+            
+            # Check if same neighbouring elements
+            if icomp_tuples[0][1] == icomp_tuples[0][2]:
+                # element at j and k are same;
+                # remove redundant interactions
+                comparison_mask = (ituples[:, 1] < ituples[:, 2])
+                ituples = ituples[comparison_mask]
+                icomp_tuples = icomp_tuples[comparison_mask]
+
+            else:
+                # Elements at j and k not same
+                # cordinates of j and k are same; filter eg 011, 022, 033
+                # this comparison mask is redundant
+                comparison_mask = (ituples[:, 1] != ituples[:, 2])
+
+                ituples = ituples[comparison_mask]
+                icomp_tuples = icomp_tuples[comparison_mask]
+                
+                if len(ituples) > 0:
+                    # Remove repetitive interactions
+                    ituples = np.unique(ituples,axis=0)
+                    icomp_tuples = np.unique(icomp_tuples,axis=0)
+                    
+                    # sort by electro-negativity as the interaction tuple is always
+                    # sorted by electro-negativity
+                    en_j = composition.reference_X[ase_symbols.chemical_symbols[icomp_tuples[0][1]]]
+                    en_k = composition.reference_X[ase_symbols.chemical_symbols[icomp_tuples[0][2]]]
+                    if  en_k < en_j:
+                        # Interchange columns 1 and 2
+                        ituples[:, [1, 2]] = ituples[:, [2, 1]]
+
             # extract distance tuples
             r_l = distance_matrix[ituples[:, 0], ituples[:, 1]]
             r_m = distance_matrix[ituples[:, 0], ituples[:, 2]]
@@ -449,7 +484,11 @@ def generate_triplets(i_where: np.ndarray,
             r_m = r_m[dist_mask]
             r_n = r_n[dist_mask]
             ituples = ituples[dist_mask]
-            grouped_triplets[j] = i, r_l, r_m, r_n, ituples
+            
+            if len(ituples) == 0:
+                grouped_triplets[j] = None
+            else:
+                grouped_triplets[j] = i, r_l, r_m, r_n, ituples
         yield grouped_triplets
 
 
