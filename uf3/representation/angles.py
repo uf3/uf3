@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 from numba import jit
 import ase
-from ase.data import chemical_symbols as ase_symbols
+from ase import symbols as ase_symbols
 from uf3.data import composition
 from uf3.representation import bspline
 from uf3.representation import distances
