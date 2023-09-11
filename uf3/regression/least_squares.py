@@ -414,6 +414,74 @@ class WeightedLinearModel(BasicLinearModel):
                                                     weight)
         self.fit_with_gram(gram, ordinate)
 
+    def fit_from_files(self,
+                      filenames: List,
+                      subset: Collection,
+                      weight: float = 0.5,
+                      batch_size=2500,
+                      sample_weights: Dict = None,
+                      energy_key="energy",
+                      progress: str = "bar"):
+        """
+        Essentially the same as fit_from_files but allows the reading of multiple HDF5 files.
+
+        Args:
+            filenames (list): paths to HDF5 file.
+            subset (list): list of keys for training.
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
+            batch_size (int): batch size, in rows, for matrix multiplication
+                operations in constructing gram matrices.
+            sample_weights (dict):
+            energy_key (str): column name for energies, default "energy".
+            progress (str): style for progress indicators.
+        """
+        n_tables = 0
+        table_names = []
+        filenames_list = []
+        for filename in filenames:
+            if not os.path.isfile(filename):
+                raise FileNotFoundError(filename)
+            n_table, _, table_name, _ = io.analyze_hdf_tables(filename)
+            n_tables = n_tables + n_table
+            table_names = table_names + table_name
+            filenames_list = filenames_list + [filename for _ in table_name]
+        gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
+        e_variance = VarianceRecorder()
+        f_variance = VarianceRecorder()
+        table_iterator = parallel.progress_iter(np.arange(n_tables),
+                                                style=progress)
+        for j in table_iterator:
+            #print(filenames_list[j])
+            table_name = table_names[j]
+            df = process.load_feature_db(filenames_list[j], table_name)
+            #print(df.shape)
+            keys = df.index.unique(level=0).intersection(subset)
+            if len(keys) == 0:
+                continue
+            intermediates = self.gram_from_df(df,
+                                              keys,
+                                              e_variance=e_variance,
+                                              f_variance=f_variance,
+                                              sample_weights=sample_weights,
+                                              energy_key=energy_key,
+                                              batch_size=batch_size)
+            g_e, g_f, o_e, o_f = intermediates
+            gram_e += g_e
+            gram_f += g_f
+            ord_e += o_e
+            ord_f += o_f
+        energy_weight = 1 / e_variance.n / e_variance.std
+        force_weight = 1 / f_variance.n / f_variance.std
+        gram, ordinate = self.combine_weighted_gram(gram_e,
+                                                    gram_f,
+                                                    ord_e,
+                                                    ord_f,
+                                                    energy_weight,
+                                                    force_weight,
+                                                    weight)
+        self.fit_with_gram(gram, ordinate)
+
     def initialize_gram_ordinate(self):
         """Initialize empty matrices for gram matrices and ordinates."""
         n_columns = self.n_feats - len(self.col_idx)
