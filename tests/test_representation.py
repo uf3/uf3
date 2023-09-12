@@ -24,7 +24,7 @@ def simple_water():
     yield geom
 
 @pytest.fixture()
-def simple_water_2():
+def strained_H2O_molecule():
     geom = ase.Atoms('H2O',
                      positions=[[0, 0, 0], [1.5, 0.0, 0.0], [0, 2.0, 0]],
                      pbc=False,
@@ -109,7 +109,7 @@ def methane_chem_config():
     yield chemistry_config
 
 @pytest.fixture()
-def water_2_feature():
+def strained_H2O_molecule_feature():
     two_body = {('H', 'H'): np.array([0.0, 0.40032798833819255, 1.1900510204081631, 
                     0.40949951409135077, 0.00012147716229348758, 0.0, 0.0, 0.0, 
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
@@ -288,14 +288,15 @@ class TestBasis:
                                                      simple_molecule)
         assert len(vector) == 18  # 23 features
 
-    def test_energy_features_water(self, simple_water_2, water_2_feature):
+    def test_energy_features_strained_H2O_molecule(self, strained_H2O_molecule, \
+            strained_H2O_molecule_feature):
         element_list = ['H', 'O']
         chemistry_config = composition.ChemicalSystem(element_list,degree=3)
         bspline_config = bspline.BSplineBasis(chemistry_config)
         bspline_handler = BasisFeaturizer(bspline_config)
         
-        features_2B = bspline_handler.featurize_energy_2B(simple_water_2)
-        features_3B = bspline_handler.featurize_energy_3B(simple_water_2)
+        features_2B = bspline_handler.featurize_energy_2B(strained_H2O_molecule)
+        features_3B = bspline_handler.featurize_energy_3B(strained_H2O_molecule)
         features_con = np.concatenate((features_2B,features_3B))
 
         features = {}
@@ -309,7 +310,7 @@ class TestBasis:
             features[i] = features_con[start:end]
 
         for i in bspline_config.interactions_map[2]:
-            assert np.allclose(water_2_feature[2][i],features[i])
+            assert np.allclose(strained_H2O_molecule_feature[2][i],features[i])
 
         for i in bspline_config.interactions_map[3]:
             print(i)
@@ -317,10 +318,10 @@ class TestBasis:
             feature_position = np.where(feature!=0)[0]
             feature_value = feature[feature_position]
 
-            assert np.allclose(water_2_feature[3][i]["position"],feature_position)
+            assert np.allclose(strained_H2O_molecule_feature[3][i]["position"],feature_position)
             #In my hard-coded features I double counted every interaction,
             #so it needs to be divided by two
-            assert np.allclose(water_2_feature[3][i]["value"]/2,feature_value)
+            assert np.allclose(strained_H2O_molecule_feature[3][i]["value"]/2,feature_value)
 
 
     def test_energy_features_methane(self, methane_chem_config, \
