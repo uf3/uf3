@@ -527,6 +527,7 @@ class BasisFeaturizer:
             y (np.ndarray): target vector.
             w (np.ndarray): weight vector for machine learning.
         """
+        warnings.warn("get_training_tuples() is deprecated.", DeprecationWarning)
         energy_key = data_coordinator.energy_key
         x, y, w = dataframe_to_training_tuples(df_features,
                                                kappa=kappa,

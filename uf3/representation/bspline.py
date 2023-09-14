@@ -355,9 +355,9 @@ class BSplineBasis:
 
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
-                default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
+                default: {1: 1e-8, 2: 0e0, 3: 1e-5}
             curvature_map (dict): n-body term curvature regularizer strengths.
-                default: {1: 0.0, 2: 1e-5, 3: 1e-5}
+                default: {1: 0.0, 2: 1e-8, 3: 1e-8}
 
         TODO: refactor to break up into smaller, reusable functions
 
