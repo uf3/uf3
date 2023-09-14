@@ -49,7 +49,8 @@ class ChemicalSystem:
                 e.g. 2 to fit pair potentials.
         """
         self.degree = degree
-        self.element_list = sort_interaction_symbols(element_list, fix_first=False)
+        self.element_list = sort_interaction_symbols(list(set(element_list)),
+                                                     fix_first=False)
         self.numbers = [ase_symbols.symbols2numbers(el).pop()
                         for el in self.element_list]
         self.interactions_map = self.get_interactions_map()

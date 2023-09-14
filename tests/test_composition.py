@@ -52,6 +52,11 @@ class TestChemistryConfig:
         ]  # in this order
         assert handler.numbers == [1, 2, 3, 4,]
 
+    def test_remove_duplicates(self):
+        element_list = ['H', 'H', 'He']
+        handler = ChemicalSystem(element_list)
+        assert handler.numbers == [1, 2]
+
     def test_composition_tuple(self):
         element_list = ['Al', 'Cu', 'Zr']
         handler = ChemicalSystem(element_list)
