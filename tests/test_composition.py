@@ -50,6 +50,7 @@ class TestChemistryConfig:
             ('Be', 'Li', 'Li'), ('Be', 'Li', 'Be'),
             ('Be', 'Be', 'Be')
         ]  # in this order
+        assert handler.numbers == [1, 2, 3, 4,]
 
     def test_composition_tuple(self):
         element_list = ['Al', 'Cu', 'Zr']
