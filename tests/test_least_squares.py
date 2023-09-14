@@ -88,3 +88,46 @@ def test_frozen_coefficients():
 #     args = ["c_2b", "c_3b", "r_1b", "r_2b", "r_3b"]  # d = 3
 #     r = least_squares.interpret_regularizer([3, -1], 3)
 #     assert np.allclose([r[k] for k in args], [1000, 0.1, 1e-5, 0, 0])
+
+def test_singlepoint_fit():
+    from uf3.data import composition
+    from uf3.representation import bspline
+    chemical_system = composition.ChemicalSystem(["Al"])
+    bspline_config = bspline.BSplineBasis(chemical_system)
+    n_features = sum(bspline_config.partition_sizes)
+    x_e, y_e, _ = simple_problem(n_features, 1, seed=0)  # single point
+    x_f, y_f, _ = simple_problem(n_features, 3, seed=1)
+    regularizer = np.eye(n_features) * 1e-6
+    model = least_squares.WeightedLinearModel(bspline_config,
+                                              regularizer=regularizer)
+    model.fit(x_e, y_e, x_f, y_f)
+    assert sum(~np.isfinite(model.coefficients)) == 0  # no nan or inf
+
+def test_singlepoint_fit_from_file():
+    from ase.atoms import Atoms
+    from uf3.data import composition, io
+    from uf3.representation import bspline, process
+    import os
+    geom = Atoms("Al", positions=[[0, 0, 0]])
+    chemical_system = composition.ChemicalSystem(["Al"])
+    bspline_config = bspline.BSplineBasis(chemical_system)
+    n_features = sum(bspline_config.partition_sizes)
+    data_coordinator = io.DataCoordinator()
+    data_coordinator.dataframe_from_lists([geom],
+                                          energies=[0.],
+                                          forces=[np.array([[0., 0., 0.]])])
+    df_data = data_coordinator.consolidate()
+    representation = process.BasisFeaturizer(bspline_config,
+                                             fit_forces=True,)
+    df_features = representation.evaluate(df_data)
+    features_file_name = "df_features_test_singlepoint_fit_from_file.h5"
+    if os.path.exists(features_file_name):
+        os.remove(features_file_name)
+    process.save_feature_db(df_features, features_file_name)
+    regularizer = np.eye(n_features) * 1e-6
+    model = least_squares.WeightedLinearModel(bspline_config,
+                                              regularizer=regularizer)
+    model.fit_from_file(features_file_name,
+                        subset=df_features.index.unique(level=0))
+    os.remove(features_file_name)
+    assert sum(~np.isfinite(model.coefficients)) == 0  # no nan or inf

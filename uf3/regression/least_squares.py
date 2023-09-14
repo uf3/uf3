@@ -300,12 +300,14 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
+            warnings.filterwarnings("error", append=True)  # to catch divide by zero warnings
             try:
                 energy_weight = 1 / len(y_e) / np.std(y_e)
                 force_weight = 1 / len(y_f) / np.std(y_f)
-            except (ZeroDivisionError, FloatingPointError):
+            except (ZeroDivisionError, FloatingPointError, RuntimeWarning):
                 energy_weight = 1.0
                 force_weight = 1 / len(y_f)
+            warnings.filters.pop()  # undo the filter
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -403,8 +405,15 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight = 1 / e_variance.n / e_variance.std
-        force_weight = 1 / f_variance.n / f_variance.std
+        warnings.filterwarnings("error", append=True)  # to catch divide by zero warnings
+        try:
+            energy_weight = 1 / e_variance.n / e_variance.std
+            force_weight = 1 / f_variance.n / f_variance.std
+        except (ZeroDivisionError, FloatingPointError, RuntimeWarning):
+            print(e_variance.n, e_variance.std, f_variance.n, f_variance.std)
+            energy_weight = 1.0
+            force_weight = 1 / f_variance.n
+        warnings.filters.pop()  # undo the filter
         gram, ordinate = self.combine_weighted_gram(gram_e,
                                                     gram_f,
                                                     ord_e,
@@ -669,9 +678,6 @@ def dataframe_to_tuples(df_features,
         y (np.ndarray): target vector.
         w (np.ndarray): weight vector for machine learning.
     """
-    if len(df_features) <= 1:
-        raise ValueError(
-            "Not enough samples ({} provided)".format(len(df_features)))
     names = df_features.index.get_level_values(0)
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
