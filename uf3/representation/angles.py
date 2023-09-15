@@ -383,6 +383,7 @@ def legacy_generate_triplets(i_where:np.ndarray,
         tuples = tuples[dist_mask]
         yield i, r_l, r_m, r_n, tuples
 
+
 def generate_triplets(i_where: np.ndarray,
                       j_where: np.ndarray,
                       sup_composition: np.ndarray,
@@ -391,7 +392,7 @@ def generate_triplets(i_where: np.ndarray,
                       knot_sets: List[List[np.ndarray]]
                       ) -> List[Tuple]:
     """
-    Identify unique "i-j-j'" tuples by combining provided i-j pairs, then
+    Identify unique "i-j-k'" tuples by combining provided i-j pairs, then
     compute i-j, i-k, and j-k pair distances from i-j-k tuples,
         distance matrix, and knot sequence for cutoffs.
 
@@ -424,7 +425,7 @@ def generate_triplets(i_where: np.ndarray,
 
         comp_tuples = sup_composition[tuples]
 
-        sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)
+        sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)  # to sort by atomic number
         comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
         tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
 
