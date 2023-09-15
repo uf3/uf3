@@ -1,6 +1,8 @@
 import numpy as np
+import uf3
 from uf3.regression import least_squares
 from uf3.regression import regularize
+import os
 
 
 def simple_problem(n_features, n_samples, seed=0):
@@ -108,12 +110,14 @@ def test_singlepoint_fit_from_file():
     from uf3.representation import bspline
     chemical_system = composition.ChemicalSystem(["Al"])
     bspline_config = bspline.BSplineBasis(chemical_system)
-    features_file_path = \
-        "data/singlepoint_fit/df_features_test_singlepoint_fit_from_file.h5"
+    pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
+    data_directory = os.path.join(pkg_directory, "tests/data")
+    features = os.path.join(data_directory, "singlepoint_fit",
+                            "df_features_test_singlepoint_fit_from_file.h5")
     n_features = 19
     regularizer = np.eye(n_features) * 1e-6
     model = least_squares.WeightedLinearModel(bspline_config,
                                               regularizer=regularizer)
-    model.fit_from_file(features_file_path,
+    model.fit_from_file(features,
                         subset=['0_0'])
     assert sum(~np.isfinite(model.coefficients)) == 0  # no nan or inf
