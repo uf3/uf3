@@ -392,7 +392,7 @@ def generate_triplets(i_where: np.ndarray,
                       knot_sets: List[List[np.ndarray]]
                       ) -> List[Tuple]:
     """
-    Identify unique "i-j-k'" tuples by combining provided i-j pairs, then
+    Identify unique "i-j-k" tuples by combining provided i-j pairs, then
     compute i-j, i-k, and j-k pair distances from i-j-k tuples,
         distance matrix, and knot sequence for cutoffs.
 
