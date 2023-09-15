@@ -417,6 +417,19 @@ def generate_triplets(i_where: np.ndarray,
     # generate j-k combinations
     for i in range(len(i_groups)):
         j_arr, k_arr = np.meshgrid(i_groups[i], i_groups[i])
+
+        # Pick out unique neighbor pairs of central atom i
+        # ex: With center atom 0 and its neighbors [2, 1, 3],
+        # j_arr = [[2, 1, 3],
+        #          [2, 1, 3],
+        #          [2, 1, 3]]
+        # k_arr = [[2, 2, 2],
+        #          [1, 1, 1],
+        #          [3, 3, 3]]
+        # j_indices = [1, 2, 1]
+        # k_indices = [2, 3, 3]
+        # => unique pairs: (1, 2), (2, 3), (1, 3)
+        # The unique_pair_mask has filtered out pairs like (1, 1), (2, 1), (3, 2), etc.
         unique_pair_mask = (j_arr < k_arr)
         j_indices = j_arr[unique_pair_mask]
         k_indices = k_arr[unique_pair_mask]
@@ -429,6 +442,7 @@ def generate_triplets(i_where: np.ndarray,
         comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
         tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
 
+        # sort comp_tuples and tuples the same way
         comp_tuples = np.hstack((comp_tuples[:, [0]], comp_tuples_slice))
         tuples = np.hstack((tuples[:, [0]], tuples_slice))
 
