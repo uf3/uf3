@@ -458,11 +458,11 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
   }
 
   min_cut_3b[itype][jtype][ktype][0] = n3b_knot_matrix[itype][jtype][ktype][0][0];
-  min_cut_3b[itype][ktype][jtype][0] = min_cut_3b[itype][ktype][jtype][0];
+  min_cut_3b[itype][ktype][jtype][0] = n3b_knot_matrix[itype][ktype][jtype][0][0];
   if (comm->me == 0)
-      utils::logmesg(lmp, "UF3: 3b min cutoff 0 {} {}\n", potf_name,
-                     min_cut_3b[itype][jtype][ktype][0], 
-                     min_cut_3b[itype][ktype][jtype][0]);
+      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_0={} {}-{}-{}_0={}\n",
+              potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][0],
+              itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][0]);
 
   int num_knots_3b_ik = fp3rd_line.next_int();
   temp_line = txtfilereader.next_line(num_knots_3b_ik);
@@ -473,18 +473,19 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
             num_knots_3b_ik, fp5th_line.count());
 
   n3b_knot_matrix[itype][jtype][ktype][1].resize(num_knots_3b_ik);
-  n3b_knot_matrix[itype][ktype][jtype][1].resize(num_knots_3b_ik);
+  n3b_knot_matrix[itype][ktype][jtype][2].resize(num_knots_3b_ik);
   for (int i = 0; i < num_knots_3b_ik; i++) {
       n3b_knot_matrix[itype][jtype][ktype][1][i] = fp5th_line.next_double();
-      n3b_knot_matrix[itype][ktype][jtype][1][i] =
+      n3b_knot_matrix[itype][ktype][jtype][2][i] =
           n3b_knot_matrix[itype][jtype][ktype][1][i];
     }
 
   min_cut_3b[itype][jtype][ktype][1] = n3b_knot_matrix[itype][jtype][ktype][1][0];
-  min_cut_3b[itype][ktype][jtype][1] = min_cut_3b[itype][ktype][jtype][1];
+  min_cut_3b[itype][ktype][jtype][2] = n3b_knot_matrix[itype][ktype][jtype][2][0];
   if (comm->me == 0)
-    utils::logmesg(lmp, "UF3: 3b min cutoff 1 {} {}\n", potf_name,
-            min_cut_3b[itype][jtype][ktype][1], min_cut_3b[itype][ktype][jtype][1]);
+    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_1={} {}-{}-{}_2={}\n",
+            potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][1],
+            itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][2]);
 
   int num_knots_3b_ij = fp3rd_line.next_int();
   temp_line = txtfilereader.next_line(num_knots_3b_ij);
@@ -495,18 +496,19 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
             num_knots_3b_ij, fp5th_line.count());
 
   n3b_knot_matrix[itype][jtype][ktype][2].resize(num_knots_3b_ij);
-  n3b_knot_matrix[itype][ktype][jtype][2].resize(num_knots_3b_ij);
+  n3b_knot_matrix[itype][ktype][jtype][1].resize(num_knots_3b_ij);
   for (int i = 0; i < num_knots_3b_ij; i++) {
     n3b_knot_matrix[itype][jtype][ktype][2][i] = fp6th_line.next_double();
-    n3b_knot_matrix[itype][ktype][jtype][2][i] = 
+    n3b_knot_matrix[itype][ktype][jtype][1][i] = 
         n3b_knot_matrix[itype][jtype][ktype][2][i];
     }
 
   min_cut_3b[itype][jtype][ktype][2] = n3b_knot_matrix[itype][jtype][ktype][2][0];
-  min_cut_3b[itype][ktype][jtype][2] = min_cut_3b[itype][ktype][jtype][2];
+  min_cut_3b[itype][ktype][jtype][1] = n3b_knot_matrix[itype][ktype][jtype][1][0];
   if (comm->me == 0)
-    utils::logmesg(lmp, "UF3: 3b min cutoff 2 {} {}\n", potf_name,
-            min_cut_3b[itype][jtype][ktype][2], min_cut_3b[itype][ktype][jtype][2]);
+    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_2={} {}-{}-{}_1={}\n",
+            potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][2],
+            itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][1]);
 
   temp_line = txtfilereader.next_line(3);
   ValueTokenizer fp7th_line(temp_line);
@@ -555,9 +557,22 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
     }
   }
 
-  key = std::to_string(itype) + std::to_string(ktype) + std::to_string(jtype);
-  n3b_coeff_matrix[key] = n3b_coeff_matrix[std::to_string(itype) +
-      std::to_string(jtype) + std::to_string(ktype)];
+  std::string key2 = std::to_string(itype) + std::to_string(ktype) + std::to_string(jtype);
+  n3b_coeff_matrix[key2].resize(coeff_matrix_dim2);
+  for (int j = 0; j < coeff_matrix_dim2; j++) {
+    n3b_coeff_matrix[key2][j].resize(coeff_matrix_dim1);
+    for (int i = 0; i < coeff_matrix_dim1; i++) {
+      n3b_coeff_matrix[key2][j][i].resize(coeff_matrix_dim3);
+    }
+  }
+
+  for (int i = 0; i < coeff_matrix_dim1; i++) {
+    for (int j = 0; j < coeff_matrix_dim2; j++) {
+      for (int k = 0; k < coeff_matrix_dim3; k++) {
+        n3b_coeff_matrix[key2][j][i][k] = n3b_coeff_matrix[key][i][j][k];
+      }
+    }
+  }
 
   setflag_3b[itype][jtype][ktype] = 1;
   setflag_3b[itype][ktype][jtype] = 1;
@@ -663,6 +678,7 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     }
     // cut_3b[temp_type1][temp_type3] = std::max(cut_3b[temp_type1][temp_type3],cut3b_rik);
     cut_3b_list[temp_type1][temp_type3] = std::max(cut_3b_list[temp_type1][temp_type3], cut3b_rik);
+
     cut_3b[temp_type1][temp_type2][temp_type3] = cut3b_rij;
     cut_3b[temp_type1][temp_type3][temp_type2] = cut3b_rik;
 
@@ -682,44 +698,47 @@ void PairUF3::uf3_read_pot_file(char *potf_name)
     }
 
     min_cut_3b[temp_type1][temp_type2][temp_type3][0] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][0][0];
-    min_cut_3b[temp_type1][temp_type3][temp_type2][0] = min_cut_3b[temp_type1][temp_type3][temp_type2][0];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][0] = n3b_knot_matrix[temp_type1][temp_type3][temp_type2][0][0];
     if (comm->me == 0)
-      utils::logmesg(lmp, "UF3: 3b min cutoff 0 {} {}\n", potf_name,
-                     min_cut_3b[temp_type1][temp_type2][temp_type3][0], min_cut_3b[temp_type1][temp_type3][temp_type2][0]);
+      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_0={} {}-{}-{}_0={}\n",
+              potf_name,temp_type1,temp_type2,temp_type3,min_cut_3b[temp_type1][temp_type2][temp_type3][0],
+              temp_type1,temp_type3,temp_type2,min_cut_3b[temp_type1][temp_type3][temp_type2][0]);
 
     temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp5th_line(temp_line);
     n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1].resize(temp_line_len);
-    n3b_knot_matrix[temp_type1][temp_type3][temp_type2][1].resize(temp_line_len);
+    n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2].resize(temp_line_len);
     for (int i = 0; i < temp_line_len; i++) {
       n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1][i] = fp5th_line.next_double();
-      n3b_knot_matrix[temp_type1][temp_type3][temp_type2][1][i] =
+      n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2][i] =
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1][i];
     }
 
     min_cut_3b[temp_type1][temp_type2][temp_type3][1] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][1][0];
-    min_cut_3b[temp_type1][temp_type3][temp_type2][1] = min_cut_3b[temp_type1][temp_type3][temp_type2][1];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][2] = n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2][0];
     if (comm->me == 0)
-      utils::logmesg(lmp, "UF3: 3b min cutoff 1 {} {}\n", potf_name,
-                     min_cut_3b[temp_type1][temp_type2][temp_type3][1], min_cut_3b[temp_type1][temp_type3][temp_type2][1]);
+      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_1={} {}-{}-{}_2={}\n",
+              potf_name,temp_type1,temp_type2,temp_type3,min_cut_3b[temp_type1][temp_type2][temp_type3][1],
+              temp_type1,temp_type3,temp_type2,min_cut_3b[temp_type1][temp_type3][temp_type2][2]);
 
     temp_line_len = fp3rd_line.next_int();
     temp_line = txtfilereader.next_line(temp_line_len);
     ValueTokenizer fp6th_line(temp_line);
     n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2].resize(temp_line_len);
-    n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2].resize(temp_line_len);
+    n3b_knot_matrix[temp_type1][temp_type3][temp_type2][1].resize(temp_line_len);
     for (int i = 0; i < temp_line_len; i++) {
       n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][i] = fp6th_line.next_double();
-      n3b_knot_matrix[temp_type1][temp_type3][temp_type2][2][i] =
+      n3b_knot_matrix[temp_type1][temp_type3][temp_type2][1][i] =
           n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][i];
     }
 
     min_cut_3b[temp_type1][temp_type2][temp_type3][2] = n3b_knot_matrix[temp_type1][temp_type2][temp_type3][2][0];
-    min_cut_3b[temp_type1][temp_type3][temp_type2][2] = min_cut_3b[temp_type1][temp_type3][temp_type2][2];
+    min_cut_3b[temp_type1][temp_type3][temp_type2][1] = n3b_knot_matrix[temp_type1][temp_type3][temp_type2][1][0];
     if (comm->me == 0)
-      utils::logmesg(lmp, "UF3: 3b min cutoff 2 {} {}\n", potf_name,
-                     min_cut_3b[temp_type1][temp_type2][temp_type3][2], min_cut_3b[temp_type1][temp_type3][temp_type2][2]);
+      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_2={} {}-{}-{}_1={}\n",
+              potf_name,temp_type1,temp_type2,temp_type3,min_cut_3b[temp_type1][temp_type2][temp_type3][2],
+              temp_type1,temp_type3,temp_type2,min_cut_3b[temp_type1][temp_type3][temp_type2][2]);
 
     temp_line = txtfilereader.next_line(3);
     ValueTokenizer fp7th_line(temp_line);
@@ -838,7 +857,9 @@ void PairUF3::create_bsplines()
           std::string key = std::to_string(i) + std::to_string(j) + std::to_string(k);
           UFBS3b[i][j][k] = 
               uf3_triplet_bspline(lmp, n3b_knot_matrix[i][j][k], n3b_coeff_matrix[key]);
-          UFBS3b[i][k][j] = UFBS3b[i][j][k];
+          std::string key2 = std::to_string(i) + std::to_string(k) + std::to_string(j);
+          UFBS3b[i][k][j] =
+              uf3_triplet_bspline(lmp, n3b_knot_matrix[i][k][j], n3b_coeff_matrix[key2]);
         }
       }
     }
@@ -1006,7 +1027,6 @@ void PairUF3::compute(int eflag, int vflag)
               ((del_rkj[0] * del_rkj[0]) + (del_rkj[1] * del_rkj[1]) + (del_rkj[2] * del_rkj[2])));
 
           if (rjk >= min_cut_3b[itype][jtype][ktype][2]){
-            //utils::logmesg(lmp, "UF3: {} {} {}",itype,jtype,ktype);
             double *triangle_eval = UFBS3b[itype][jtype][ktype].eval(rij, rik, rjk);
 
             fij[0] = *(triangle_eval + 1) * (del_rji[0] / rij);
@@ -1127,7 +1147,6 @@ double PairUF3::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
 
 double PairUF3::memory_usage()
 {
-  utils::logmesg(lmp, "\nUF3: memory_usage called");
   double bytes = Pair::memory_usage();
 
   bytes = 0;
