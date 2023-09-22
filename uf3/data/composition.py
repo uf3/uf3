@@ -126,6 +126,7 @@ class ChemicalSystem:
                                      key=lambda c: [reference_X[x] for x in c])
         for d in range(3, self.degree + 1):
             combinations = get_element_combinations(self.element_list, d)
+            combinations.sort(key=lambda c: [reference_X[x] for x in c])
             interactions_map[d] = combinations
         return interactions_map
 
