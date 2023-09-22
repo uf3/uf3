@@ -308,7 +308,7 @@ class BasisFeaturizer:
                 {(name, 'e'), (name, 'fx'), ...{ instead of {'e', 'fx', ...}
             energy (float): energy of configuration (optional).
             forces (list, np.ndarray): array containing force components
-                fx, fy, fz for each atom. Expected shape is (n_atoms, 3).
+                fx, fy, fz for each atom. Expected shape is (3, n_atoms).
             energy_key (str): column name for energies, default "energy".
 
         Returns:
