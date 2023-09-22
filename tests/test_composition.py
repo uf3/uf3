@@ -21,11 +21,11 @@ class TestChemistryConfig:
         element_list = ['Al', 'Cu', 'Zr']
         handler = ChemicalSystem(element_list)
         assert len(handler.interactions_map[2]) == 6
-        assert handler.numbers == [13, 40, 29]
+        assert handler.numbers == [13, 29, 40]
 
     def test_composition_tuple(self):
         element_list = ['Al', 'Cu', 'Zr']
         handler = ChemicalSystem(element_list)
         geom = ase.Atoms('Al2Zr5')
         comp = handler.get_composition_tuple(geom)
-        assert np.allclose(comp, [2, 5, 0])
+        assert np.allclose(comp, [2, 0, 5])
