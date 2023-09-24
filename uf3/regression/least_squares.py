@@ -361,7 +361,8 @@ class WeightedLinearModel(BasicLinearModel):
                       batch_size=2500,
                       sample_weights: Dict = None,
                       energy_key="energy",
-                      progress: str = "bar"):
+                      progress: str = "bar",
+                      drop_columns: list = None):
         """
         Accumulate inputs and outputs from batched parsing of HDF5 file
         and compute direct solution via LU decomposition.
@@ -376,6 +377,10 @@ class WeightedLinearModel(BasicLinearModel):
             sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             progress (str): style for progress indicators.
+            drop_columns (list): list of columns to drop. Used when modifying
+                the cutoffs of the feature vectors from HDF5 file. No internal
+                checks are performed to see if dropping provided columns produce
+                features of the intended cutoffs. Use with Caution.
         """
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
@@ -391,6 +396,10 @@ class WeightedLinearModel(BasicLinearModel):
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
+
+            if drop_columns != None:
+                df.drop(columns=drop_columns,inplace=True)
+
             intermediates = self.gram_from_df(df,
                                               keys,
                                               e_variance=e_variance,
@@ -477,7 +486,8 @@ class WeightedLinearModel(BasicLinearModel):
                         filename: str,
                         keys: List[str] = None,
                         table_names: List[str] = None,
-                        score: bool = True):
+                        score: bool = True,
+                        drop_columns: list = None):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
 
@@ -494,13 +504,18 @@ class WeightedLinearModel(BasicLinearModel):
             p_f (np.ndarray): target values for forces.
             rmse_e (np.ndarray): RMSE across energy predictions.
             rmse_e (np.ndarray): RMSE across force predictions.
+            drop_columns (list): list of columns to drop. Used when modifying
+                the cutoffs of the feature vectors from HDF5 file. No internal
+                checks are performed to see if dropping provided columns produce
+                features of the intended cutoffs. Use with Caution.
         """
         n_elements = len(self.bspline_config.element_list)
         y_e, p_e, y_f, p_f = batched_prediction(self,
                                                 filename,
                                                 table_names=table_names,
                                                 subset_keys=keys,
-                                                n_elements=n_elements)
+                                                n_elements=n_elements,
+                                                drop_columns=drop_columns)
         if score:
             rmse_e = rmse_metric(y_e, p_e)
             rmse_f = rmse_metric(y_f, p_f)
@@ -954,6 +969,7 @@ def batched_prediction(model: WeightedLinearModel,
                        filename: str,
                        table_names: Collection = None,
                        subset_keys: Collection = None,
+                       drop_columns: list = None,
                        **kwargs):
     """
     Convenience function for optimization workflow. Read inputs/outputs
@@ -964,6 +980,10 @@ def batched_prediction(model: WeightedLinearModel,
         model (WeightedLinearModel): fitted model.
         table_names (list): list of table names to query from HDF5 file.
         subset_keys (list): list of keys to query from DataFrame.
+        drop_columns (list): list of columns to drop. Used when modifying
+            the cutoffs of the feature vectors from HDF5 file. No internal
+            checks are performed to see if dropping provided columns produce
+            features of the intended cutoffs. Use with Caution.
 
     Returns:
         y_e (np.ndarray): target values for energies.
@@ -979,6 +999,9 @@ def batched_prediction(model: WeightedLinearModel,
     y_f = []
     p_f = []
     for df in df_batches:
+        if drop_columns != None:
+            df.drop(columns=drop_columns,inplace=True)
+
         predictions = subset_prediction(df,
                                         model,
                                         subset_keys=subset_keys,
