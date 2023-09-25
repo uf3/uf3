@@ -362,7 +362,7 @@ class WeightedLinearModel(BasicLinearModel):
                       sample_weights: Dict = None,
                       energy_key="energy",
                       progress: str = "bar",
-                      drop_columns: list = None):
+                      drop_columns: List[str] = None):
         """
         Accumulate inputs and outputs from batched parsing of HDF5 file
         and compute direct solution via LU decomposition.
@@ -487,7 +487,7 @@ class WeightedLinearModel(BasicLinearModel):
                         keys: List[str] = None,
                         table_names: List[str] = None,
                         score: bool = True,
-                        drop_columns: list = None):
+                        drop_columns: List[str] = None):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
 

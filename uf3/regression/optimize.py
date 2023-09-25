@@ -151,11 +151,11 @@ def get_columns_to_drop_3b(original_bspline_config,
                            modify_3b_cutoff: float,
                            knot_spacing: float):
     """
-    Function for getting appropriate 2-body feature columns to drop for fitting
+    Function for getting appropriate 3-body feature columns to drop for fitting
     to lower cutoffs
 
     Args:
-        original_bspline_config: bspline_config used to create the HDF5 feature file.
+        original_bspline_config: bspline.BSplineBasis used to create the HDF5 feature file.
             This file was produced with larger cutoff.
         modify_3b_cutoff (float): Intended 3-body cutoff. If the 3-body interaction 
             is A-B-C, then modify_3b_cutoff is the maximum distance between A-B (or A-C)
