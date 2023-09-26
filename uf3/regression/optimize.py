@@ -9,10 +9,14 @@ import numpy as np
 from uf3.representation import bspline
 
 def get_bspline_config(chemical_system,
-                       rmin: float,
+                       rmin_2b: float,
+                       rmin_3b: float,
                        rmax_2b: float,
                        rmax_3b: float,
-                       knot_spacing: float):
+                       knot_spacing_2b: float,
+                       knot_spacing_3b: float,
+                       leading_trim: float,
+                       trailing_trim: float):
     """
     Function for getting bspline_config object. We recommend using this function
     to get bspling_config object for- 
@@ -22,52 +26,65 @@ def get_bspline_config(chemical_system,
     slightly different depending on the knot_spacing
     
     Args:
-        chemical_system: chemical_system
+        chemical_system: data.composition.ChemicalSystem
+        rmin_2b (float): Min of 2-body interaction
+        rmin_3b (float): Min of 3-body interaction
         rmax_2b (float): Two-body cutoff
         rmax_3b (float): Three-body cutoff. If the 3-body interaction is A-B-C, then
             rmax_3b is the distance between A-B (or equivalently A-C) i.e the first or
             second term in the 3-body rmax of bspline_config.
-        knot_spacing (float): knot_spacing used to create the HDF5 file
+        knot_spacing_2b (float): knot_spacing for 2-body interaction to create the HDF5 file
+        knot_spacing_3b (float): knot_spacing for 3-body interaction to create the HDF5 file
+        leading_trim (float): number of basis functions at leading edge 
+            to suppress. Useful for ensuring smooth cutoffs.
+        trailing_trim (float): number of basis functions at trailing edge 
+            to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
-        bspline_config: 
+        bspline_config: bspline.BSplineBasis 
     """
-    if rmin!=0:
-        raise ValueError("Currrent version is only tested for rmin=0")
+    #if rmin_2b!=0:
+    #    raise ValueError("Currrent version is only tested for rmin=0")
+    
+    #if rmin_3b!=0:
+    #    raise ValueError("Currrent version is only tested for rmin=0")
 
-    if (rmax_2b-rmin)%knot_spacing!=0:
-        if not (np.isclose((rmax_2b-rmin)%knot_spacing,knot_spacing) or \
-                np.isclose((rmax_2b-rmin)%knot_spacing,0)):
+    if not (np.isclose((rmax_2b-rmin_2b)%knot_spacing_2b,knot_spacing_2b) or \
+            np.isclose((rmax_2b-rmin_2b)%knot_spacing_2b,0)):
+
             raise ValueError("Provided rmax_2b does not conatin integer number of \n\
-                knots, seperated by knot_spacing")
+                knots, seperated by knot_spacing_2b")
 
-    if (rmax_3b-rmin)%knot_spacing!=0:
-        if not (np.isclose((rmax_3b-rmin)%knot_spacing,knot_spacing) or \
-                np.isclose((rmax_3b-rmin)%knot_spacing,0)):
+    if not (np.isclose((rmax_3b-rmin_3b)%knot_spacing_3b,knot_spacing_3b) or \
+            np.isclose((rmax_3b-rmin_3b)%knot_spacing_3b,0)):
+
             raise ValueError("Provided rmax_3b does not conatin integer number of \n\
-                knots, seperated by knot_spacing")
+                knots, seperated by knot_spacing_3b")
+
+    if leading_trim!=0:
+        raise ValueError("Currrent version is only tested for leading_trim=0")
+
+    if trailing_trim!=3:
+        raise ValueError("Currrent version is only tested for trailing_trim=3")
 
     rmax_3b_double = rmax_3b*2
-    if not(np.isclose((rmax_3b_double%knot_spacing),0) or \
-            np.isclose((rmax_3b_double%knot_spacing),knot_spacing)):
+    if not(np.isclose((rmax_3b_double%knot_spacing_3b),0) or \
+            np.isclose((rmax_3b_double%knot_spacing_3b),knot_spacing_3b)):
         raise ValueError("Provided rmax_3b contains integer number of knots sperated \n\
-                by knot_spacing, but rmax_3b_double does not. Consider changing rmax_3b \n\
-                to "+str(rmax_3b+knot_spacing))
+                by knot_spacing_3b, but rmax_3b_double does not. Consider changing rmax_3b \n\
+                to "+str(rmax_3b+knot_spacing_3b))
 
-    reso_2b = round((rmax_2b - rmin)/knot_spacing)
-    reso_3b = round((rmax_3b - rmin)/knot_spacing)
+    reso_2b = round((rmax_2b - rmin_2b)/knot_spacing_2b)
+    reso_3b = round((rmax_3b - rmin_3b)/knot_spacing_3b)
 
-    reso_3b_double = round(reso_3b*2)
+    reso_3b_double = round((rmax_3b_double - rmin_3b)/knot_spacing_3b)
     
-    r_min_map = {i:rmin for i in chemical_system.interactions_map[2]}
-    r_min_map.update({i:[rmin,rmin,rmin] for i in chemical_system.interactions_map[3]})
+    r_min_map = {i:rmin_2b for i in chemical_system.interactions_map[2]}
+    r_min_map.update({i:[rmin_3b,rmin_3b,rmin_3b] for i in chemical_system.interactions_map[3]})
     
     r_max_map = {i:rmax_2b for i in chemical_system.interactions_map[2]}
     r_max_map.update({i:[rmax_3b,rmax_3b,rmax_3b_double] for i in chemical_system.interactions_map[3]})
     
-    trailing_trim = 3
-    leading_trim = 0
-           
     resolution_map = {i:reso_2b for i in chemical_system.interactions_map[2]}
     resolution_map.update({i:[reso_3b,reso_3b,reso_3b_double] for i in chemical_system.interactions_map[3]})
 
@@ -96,7 +113,7 @@ def get_possible_lower_cutoffs(original_bspline_config):
     interaction_3b = original_bspline_config.interactions_map[3][0]
 
     rmax_2b_poss = original_bspline_config.knots_map[interaction_2b][4:-3]
-    rmax_3b_poss = original_bspline_config.knots_map[interaction_3b][0][4:-3][1::2]
+    rmax_3b_poss = original_bspline_config.knots_map[interaction_3b][0][4:-3]#[1::2]
 
     for i in range(rmax_2b_poss.shape[0]):
         if rmax_2b_poss[i] not in  original_bspline_config.knots_map[interaction_2b]:
@@ -110,9 +127,10 @@ def get_possible_lower_cutoffs(original_bspline_config):
         if rmax_3b_poss[i] not in original_bspline_config.knots_map[interaction_3b][1]:
             raise ValueError("Internal check failed-->3B_1!!")
             
-    for i in range(rmax_3b_poss.shape[0]):
-        if 2*rmax_3b_poss[i] not in original_bspline_config.knots_map[interaction_3b][2]:
-            raise ValueError("Internal check failed-->3B_2!!")
+    #for i in range(rmax_3b_poss.shape[0]):
+    #    if 2*rmax_3b_poss[i] not in original_bspline_config.knots_map[interaction_3b][2]:
+    #        print(interaction_3b,rmax_3b_poss[i],2*rmax_3b_poss[i])
+    #        raise ValueError("Internal check failed-->3B_2!!")
 
     return {"rmax_2b_poss":rmax_2b_poss, "rmax_3b_poss":rmax_3b_poss}
 
@@ -134,12 +152,22 @@ def get_columns_to_drop_2b(original_bspline_config,
         columns_to_drop_2b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
+    if original_bspline_config.leading_trim!=0:
+        raise ValueError("Currrent version is only tested for leading_trim=0")
+
+    if original_bspline_config.trailing_trim!=3:
+        raise ValueError("Currrent version is only tested for trailing_trim=3")
+
     column_names = original_bspline_config.get_column_names()
     interaction_partitions_num = original_bspline_config.get_interaction_partitions()[0]
     interaction_partitions_posn = original_bspline_config.get_interaction_partitions()[1]
 
     columns_to_drop_2b = [] 
+
     for interaction in original_bspline_config.interactions_map[2]:
+        if not modify_2b_cutoff in original_bspline_config.knots_map[interaction]:
+            raise ValueError("Provided modify_2b_cutoff is not a knot in the %s interaction"%(str(interaction)))
+
         num_columns_to_drop_2b = round((original_bspline_config.knots_map[interaction][-4]-modify_2b_cutoff)/knot_spacing)
 
         start_ind_2b = 1+interaction_partitions_posn[interaction]
@@ -165,12 +193,25 @@ def get_columns_to_drop_3b(original_bspline_config,
         columns_to_drop_3b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
+    if original_bspline_config.leading_trim!=0:
+        raise ValueError("Currrent version is only tested for leading_trim=0")
+
+    if original_bspline_config.trailing_trim!=3:
+        raise ValueError("Currrent version is only tested for trailing_trim=3")
     column_names = original_bspline_config.get_column_names()
     interaction_partitions_num = original_bspline_config.get_interaction_partitions()[0]
     interaction_partitions_posn = original_bspline_config.get_interaction_partitions()[1]
 
     columns_to_drop_3b = []
     for interaction in original_bspline_config.interactions_map[3]:
+        if not modify_3b_cutoff in original_bspline_config.knots_map[interaction][0]:
+            raise ValueError("Provided modify_3b_cutoff is not a knot in %s leg of %s interaction"\
+                            %(str((interaction[0],interaction[1])),str(interaction)))
+
+        if not modify_3b_cutoff in original_bspline_config.knots_map[interaction][1]:
+            raise ValueError("Provided modify_3b_cutoff is not a knot in %s leg of %s interaction"\
+                            %(str((interaction[0],interaction[2])),str(interaction)))
+
         num_columns_to_drop_3b = round((original_bspline_config.knots_map[interaction][0][-4]-modify_3b_cutoff)/knot_spacing)
         num_columns_to_drop_3b_double = int(num_columns_to_drop_3b*2)
         start_ind_3b = 1+interaction_partitions_posn[interaction]
