@@ -106,4 +106,6 @@ double uf3_pair_bspline::memory_usage()
     bytes += (double)dnbspline_bases[i].memory_usage();     //bspline_basis2
 
   bytes += (double)2*sizeof(double);    //ret_val
+
+  return bytes;
 }
