@@ -77,35 +77,14 @@ def Nb3Sn_geom():
                                 [0.000000000, 0.000000000, 0.000000000],
                                 [2.667305470, 2.667305470, 2.667305470]],
                     pbc = True,
-                    cell = [[5.3346109390, 0.0000000000, 0.0000000000],
-                            [0.0000000000, 5.3346109390, 0.0000000000],
-                            [0.0000000000, 0.0000000000, 5.3346109390]])
+                    cell = [[6.3346109390, 0.0000000000, 0.0000000000],
+                            [0.0000000000, 6.3346109390, 0.0000000000],
+                            [0.0000000000, 0.0000000000, 6.3346109390]])
 
     yield geom
 
 
 class TestOptimize:
-    """
-    def test_get_bspline_config(self,bspline_config_larger_cutoff):
-
-        for i in bspline_config_larger_cutoff.interactions_map[2]:
-            assert bspline_config_larger_cutoff.r_min_map[i] == 0
-            assert bspline_config_larger_cutoff.r_max_map[i] == 6
-            assert bspline_config_larger_cutoff.resolution_map[i] == 15
-
-        for i in bspline_config_larger_cutoff.interactions_map[3]:
-            assert bspline_config_larger_cutoff.r_min_map[i] == [0,0,0]
-            assert bspline_config_larger_cutoff.r_max_map[i] == [4, 4, 8]
-            assert bspline_config_larger_cutoff.resolution_map[i] == [10,10,20]
-
-    def test_get_possible_lower_cutoffs(self,bspline_config_larger_cutoff):
-        cutoff_dict = optimize.get_possible_lower_cutoffs(bspline_config_larger_cutoff)
-        print(cutoff_dict)        
-        assert np.allclose(cutoff_dict['rmax_2b_poss'],np.array([0.4, 0.8, 1.2,\
-                1.6, 2. , 2.4, 2.8, 3.2, 3.6, 4. , 4.4, 4.8, 5.2, 5.6, 6. ]))
-
-        assert np.allclose(cutoff_dict['rmax_3b_poss'],np.array([0.8, 1.6, 2.4, 3.2, 4. ]))
-    """
 
     def test_drop_columns(self,bspline_config_larger_cutoff,Nb_Sn_chemistry, Nb3Sn_geom, config_1):
         
@@ -128,11 +107,11 @@ class TestOptimize:
         
                 columns_to_drop_2b = optimize.get_columns_to_drop_2b(original_bspline_config=bspline_config_larger_cutoff,
                                                                     modify_2b_cutoff=cutoff_dict['rmax_2b_poss'][i],
-                                                                    knot_spacing=config_1["knot_spacing_2b"])
+                                                                    knot_spacing_2b=config_1["knot_spacing_2b"])
 
                 columns_to_drop_3b = optimize.get_columns_to_drop_3b(original_bspline_config=bspline_config_larger_cutoff,
                                                                     modify_3b_cutoff=cutoff_dict['rmax_3b_poss'][j],
-                                                                    knot_spacing=config_1["knot_spacing_3b"])
+                                                                    knot_spacing_3b=config_1["knot_spacing_3b"])
 
                 columns_to_drop = columns_to_drop_2b + columns_to_drop_3b
 
@@ -150,10 +129,8 @@ class TestOptimize:
     def test_drop_columns_2(self,bspline_config_larger_cutoff_2,Nb_Sn_chemistry, Nb3Sn_geom, config_2):
         
         cutoff_dict = optimize.get_possible_lower_cutoffs(bspline_config_larger_cutoff_2)
-        print(bspline_config_larger_cutoff_2.knots_map[('Nb','Nb','Nb')]) 
         for i in range(len(cutoff_dict['rmax_2b_poss'])):
             for j in range(len(cutoff_dict['rmax_3b_poss'])):
-                print(cutoff_dict['rmax_2b_poss'][i],cutoff_dict['rmax_3b_poss'][j])
                 bspline_config_smaller_cutoff = optimize.get_bspline_config(Nb_Sn_chemistry,
                                                                         rmin_2b=config_2["rmin_2b"],
                                                                         rmin_3b=config_2["rmin_3b"],
@@ -164,18 +141,17 @@ class TestOptimize:
                                                                         leading_trim=0,
                                                                         trailing_trim=3)
 
-                print(bspline_config_smaller_cutoff.knots_map[('Nb','Nb','Nb')])
 
                 bspline_handler_larger_cutoff = BasisFeaturizer(bspline_config_larger_cutoff_2)
                 bspline_handler_smaller_cutoff = BasisFeaturizer(bspline_config_smaller_cutoff)
         
                 columns_to_drop_2b = optimize.get_columns_to_drop_2b(original_bspline_config=bspline_config_larger_cutoff_2,
                                                                     modify_2b_cutoff=cutoff_dict['rmax_2b_poss'][i],
-                                                                    knot_spacing=config_2["knot_spacing_2b"])
+                                                                    knot_spacing_2b=config_2["knot_spacing_2b"])
 
                 columns_to_drop_3b = optimize.get_columns_to_drop_3b(original_bspline_config=bspline_config_larger_cutoff_2,
                                                                     modify_3b_cutoff=cutoff_dict['rmax_3b_poss'][j],
-                                                                    knot_spacing=config_2["knot_spacing_3b"])
+                                                                    knot_spacing_3b=config_2["knot_spacing_3b"])
 
                 columns_to_drop = columns_to_drop_2b + columns_to_drop_3b
 
