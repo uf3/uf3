@@ -138,7 +138,7 @@ def get_possible_lower_cutoffs(original_bspline_config):
 
 def get_columns_to_drop_2b(original_bspline_config,
                            modify_2b_cutoff: float,
-                           knot_spacing: float):
+                           knot_spacing_2b: float):
     """
     Function for getting appropriate 2-body feature columns to drop for fitting 
     to lower cutoffs
@@ -147,7 +147,7 @@ def get_columns_to_drop_2b(original_bspline_config,
         original_bspline_config: bspline_config used to create the HDF5 feature file.
             This file was produced with larger cutoff.
         modify_2b_cutoff (float): Intended 2-body cutoff
-        knot_spacing (float): knot_spacing used to create the HDF5 file
+        knot_spacing_2b (float): knot_spacing_2b used to create the HDF5 file
     Returns:
         columns_to_drop_2b (list): Should be passed to drop_columns argument of
             fit_from_file
@@ -168,7 +168,7 @@ def get_columns_to_drop_2b(original_bspline_config,
         if not modify_2b_cutoff in original_bspline_config.knots_map[interaction]:
             raise ValueError("Provided modify_2b_cutoff is not a knot in the %s interaction"%(str(interaction)))
 
-        num_columns_to_drop_2b = round((original_bspline_config.knots_map[interaction][-4]-modify_2b_cutoff)/knot_spacing)
+        num_columns_to_drop_2b = round((original_bspline_config.knots_map[interaction][-4]-modify_2b_cutoff)/knot_spacing_2b)
 
         start_ind_2b = 1+interaction_partitions_posn[interaction]
         end_ind_2b = start_ind_2b+interaction_partitions_num[interaction]
@@ -177,7 +177,7 @@ def get_columns_to_drop_2b(original_bspline_config,
 
 def get_columns_to_drop_3b(original_bspline_config,
                            modify_3b_cutoff: float,
-                           knot_spacing: float):
+                           knot_spacing_3b: float):
     """
     Function for getting appropriate 3-body feature columns to drop for fitting
     to lower cutoffs
@@ -188,7 +188,7 @@ def get_columns_to_drop_3b(original_bspline_config,
         modify_3b_cutoff (float): Intended 3-body cutoff. If the 3-body interaction 
             is A-B-C, then modify_3b_cutoff is the maximum distance between A-B (or A-C)
             i.e the first or second term in the 3-body rmax of bspline_config.
-        knot_spacing (float): knot_spacing used to create the HDF5 file
+        knot_spacing_3b (float): knot_spacing_3b used to create the HDF5 file
     Returns:
         columns_to_drop_3b (list): Should be passed to drop_columns argument of
             fit_from_file
@@ -212,7 +212,7 @@ def get_columns_to_drop_3b(original_bspline_config,
             raise ValueError("Provided modify_3b_cutoff is not a knot in %s leg of %s interaction"\
                             %(str((interaction[0],interaction[2])),str(interaction)))
 
-        num_columns_to_drop_3b = round((original_bspline_config.knots_map[interaction][0][-4]-modify_3b_cutoff)/knot_spacing)
+        num_columns_to_drop_3b = round((original_bspline_config.knots_map[interaction][0][-4]-modify_3b_cutoff)/knot_spacing_3b)
         num_columns_to_drop_3b_double = int(num_columns_to_drop_3b*2)
         start_ind_3b = 1+interaction_partitions_posn[interaction]
         end_ind_3b = start_ind_3b + interaction_partitions_num[interaction]
