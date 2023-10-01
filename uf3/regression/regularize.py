@@ -43,7 +43,7 @@ def get_regularizer_matrix(n_features: int,
     matrix[n_features - 1, n_features - 1] /= 2
     matrix *= np.sqrt(curvature)
     if ridge > 0:
-        matrix = matrix + np.eye(n_features) * np.sqrt(ridge)
+        matrix = np.vstack(( matrix, np.eye(n_features) * np.sqrt(ridge) ))
     return matrix
 
 
@@ -61,21 +61,36 @@ def combine_regularizer_matrices(matrices: List) -> np.ndarray:
                                              -------Z-
                                              --------Z]
     Args:
-        matrices (list): square matrices, e.g. for separate optimization
+        matrices (list): list of matrices, e.g. for separate optimization
             objectives like A-A, A-B, B-B interactions.
+            Does not need to be square.
+            Number of columns is equal to the number of features.
+            Number of rows is equal to the number of regularization conditions.
 
     Returns:
-        full_matrix (numpy.ndarray): square penalty matrix equal in length
-            to the sum of constituent lengths.
+        full_matrix (numpy.ndarray): penalty matrix whose dimensions are equal
+            to the sum of constituent dimensions.
     """
-    sizes = [len(m) for m in matrices]
-    n_features = int(np.sum(sizes))
-    full_matrix = np.zeros((n_features, n_features))
-    origins = np.insert(np.cumsum(sizes), 0, 0)
+    # number of features and regularization conditions for each matrix
+    n_reg_conds_i = [matrix.shape[0] for matrix in matrices]
+    n_features_i = [matrix.shape[1] for matrix in matrices]
+
+    # number of regularization conditions and features in combined matrix
+    n_reg_conds = np.sum(n_reg_conds_i)
+    n_features = np.sum(n_features_i)
+
+    # initialize combined matrix
+    full_matrix = np.zeros((n_reg_conds, n_features))
+    origins_row = np.insert(np.cumsum(n_reg_conds_i), 0, 0)
+    origins_col = np.insert(np.cumsum(n_features_i), 0, 0)
+
+    # fill in combined matrix
     for i, matrix in enumerate(matrices):
-        start = origins[i]
-        end = origins[i + 1]
-        full_matrix[start:end, start:end] = matrix
+        start_row = origins_row[i]
+        end_row = origins_row[i + 1]
+        start_col = origins_col[i]
+        end_col = origins_col[i + 1]
+        full_matrix[start_row:end_row, start_col:end_col] = matrix
     return full_matrix
 
 
@@ -121,7 +136,7 @@ def get_penalty_matrix_2D(L: int,
             idx += 1
     matrix_2d = matrix_2d.reshape(L * M, L * M) * np.sqrt(curvature)
     if ridge > 0:
-        matrix_2d = matrix_2d + np.eye(L * M) * np.sqrt(ridge)
+        matrix_2d = np.vstack(( matrix_2d, np.eye(L * M) * np.sqrt(ridge) ))
     return matrix_2d
 
 
@@ -205,5 +220,5 @@ def get_penalty_matrix_3D(L: int,
                 idx += 1
     matrix_3d = matrix_3d.reshape(L * M * N, L * M * N) * np.sqrt(curvature)
     if ridge > 0:
-        matrix_3d = matrix_3d + np.eye(L * M * N) * np.sqrt(ridge)
+        matrix_3d = np.vstack(( matrix_3d, np.eye(L * M * N) * np.sqrt(ridge) ))
     return matrix_3d
