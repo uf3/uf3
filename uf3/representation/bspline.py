@@ -402,8 +402,21 @@ class BSplineBasis:
                                                               size[2] + 3,
                                                               ridge=r,
                                                               curvature=c)
-                    mask = np.where(self.flat_weights[interaction] > 0)[0]
-                    matrix = matrix[mask[None, :], mask[:, None]]
+                    
+                    # Sanity check to prevent future errors arising from
+                    # implementation changes
+                    if matrix.shape[0] == matrix.shape[1]:  # curvature only
+                        curv_only = True
+                    elif matrix.shape[0] == 2 * matrix.shape[1]:  # ridge & curvature
+                        curv_only = False
+                    else:
+                        raise ValueError("Matrix shape not recognized. "
+                                         "Has regularize.get_penalty_matrix_3D()"
+                                         "changed?")
+                    coeff_mask = self.template_mask[interaction]
+                    reg_mask = coeff_mask if curv_only else \
+                                np.concatenate((coeff_mask, coeff_mask))
+                    matrix = matrix[reg_mask[:, None], coeff_mask[None, :]]
                 else:
                     raise ValueError(
                         "Four-body terms and beyond are not yet implemented.")
