@@ -381,9 +381,9 @@ class BSplineBasis:
                          **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
-        matrix = regularize.get_regularizer_matrix(n_elements,
-                                                   ridge=ridge_map[1],
-                                                   curvature=0.0)
+        matrix = regularize.get_ridge_penalty_matrix(n_elements,
+                                                     ridge=ridge_map[1],
+                                                     )  # get even if ridge=0
         matrices = [matrix]
         # two- and three-body terms
         for degree in range(2, self.chemical_system.degree + 1):
@@ -393,30 +393,38 @@ class BSplineBasis:
             for interaction in interactions:
                 size = self.resolution_map[interaction]
                 if degree == 2:
-                    matrix = regularize.get_regularizer_matrix(size + 3,
-                                                               ridge=r,
-                                                               curvature=c)
+                    matrix = regularize.get_ridge_penalty_matrix(size + 3,
+                                                                 ridge=r
+                                                                 )
+                    if c > 0:
+                        matrix = np.vstack((matrix,
+                                    regularize.get_curvature_penalty_matrix_1D(
+                                        size + 3,
+                                        curvature=c
+                                        )
+                                    ))
                 elif degree == 3:
-                    matrix = regularize.get_penalty_matrix_3D(size[0] + 3,
-                                                              size[1] + 3,
-                                                              size[2] + 3,
-                                                              ridge=r,
-                                                              curvature=c)
-                    
-                    # Sanity check to prevent future errors arising from
-                    # implementation changes
-                    if matrix.shape[0] == matrix.shape[1]:  # curvature only
-                        curv_only = True
-                    elif matrix.shape[0] == 2 * matrix.shape[1]:  # ridge & curvature
-                        curv_only = False
-                    else:
-                        raise ValueError("Matrix shape not recognized. "
-                                         "Has regularize.get_penalty_matrix_3D()"
-                                         "changed?")
-                    coeff_mask = self.template_mask[interaction]
-                    reg_mask = coeff_mask if curv_only else \
-                                np.concatenate((coeff_mask, coeff_mask))
-                    matrix = matrix[reg_mask[:, None], coeff_mask[None, :]]
+                    mask = self.template_mask[interaction]
+                    matrix = regularize.get_ridge_penalty_matrix(len(mask),
+                                                                 ridge=r)
+                    if c > 0:
+                        matrix_c = regularize.get_curvature_penalty_matrix_3D(
+                            size[0] + 3,
+                            size[1] + 3,
+                            size[2] + 3,
+                            curvature=c,
+                            flatten=False,
+                            )
+
+                        # compress each row of matrix_c
+                        matrix_c_compressed = np.zeros((len(mask), len(mask)))
+                        for compressed_i, uncompressed_i in enumerate(mask):
+                            row = matrix_c[uncompressed_i]
+                            matrix_c_compressed[compressed_i] = \
+                                self.compress_3B(row, interaction)
+
+                        matrix = np.vstack((matrix, matrix_c_compressed))
+
                 else:
                     raise ValueError(
                         "Four-body terms and beyond are not yet implemented.")

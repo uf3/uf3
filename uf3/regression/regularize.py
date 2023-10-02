@@ -13,37 +13,50 @@ DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-16,
                                 curve_3b=1e-16)
 
 
-def get_regularizer_matrix(n_features: int,
-                           ridge: float = 0.0,
-                           curvature: float = 1.0
-                           ) -> np.ndarray:
+def get_ridge_penalty_matrix(n_features: int,
+                             ridge: float = 0.0,
+                             ) -> np.ndarray:
     """
-    Generates additive regularization matrix for linear regression
-        using curvature penalty and/or L2 (ridge) penalty.
-        The curvature penalty here applies to adjacent coefficients
-        in one dimension.
+    Generates L2 (ridge) regularization matrix for linear regression.
+
+    Args:
+        n_features (int): number of features in linear regression problem.
+        ridge (float): L2 regularization strength (multiplicative)
+            for ridge regression.
+
+    Returns:
+        matrix (numpy.ndarray): square matrix of size (n_features x n_features)
+            with ridge penalty.
+    """
+    return np.eye(n_features) * np.sqrt(ridge)
+
+
+def get_curvature_penalty_matrix_1D(n_features: int,
+                                    curvature: float = DEFAULT_REGULARIZER_GRID['curve_2b'],
+                                    ) -> np.ndarray:
+    """
+    Generates curvature regularization matrix in one dimension (2-body) for
+    linear regression.
+    
+    The curvature penalty here applies to adjacent coefficients in one
+    dimension.
 
     Args:
         n_features (int): number of features in linear regression problem.
         curvature (float): curvature regularization strength (multiplicative).
             Rule-of-thumb may be similar to ridge regression,
             e.g. optimized through cross-validation between 1e-3 to 1e3
-        ridge (float): L2 regularization strength (multiplicative)
-            for ridge regression.
 
     Returns:
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
-            with ridge and curvature penalty a.k.a. fused ridge regression.
+            with curvature penalty.
     """
-    reg_diag = np.eye(n_features) * 2
-    reg_minus = np.eye(n_features, k=-1) * -1
-    reg_plus = np.eye(n_features, k=1) * -1
+    reg_diag = np.eye(n_features) * 2 * np.sqrt(curvature)
+    reg_minus = np.eye(n_features, k=-1) * -1 * np.sqrt(curvature)
+    reg_plus = np.eye(n_features, k=1) * -1 * np.sqrt(curvature)
     matrix = reg_diag + reg_minus + reg_plus
     matrix[0, 0] /= 2
     matrix[n_features - 1, n_features - 1] /= 2
-    matrix *= np.sqrt(curvature)
-    if ridge > 0:
-        matrix = np.vstack(( matrix, np.eye(n_features) * np.sqrt(ridge) ))
     return matrix
 
 
@@ -94,27 +107,28 @@ def combine_regularizer_matrices(matrices: List) -> np.ndarray:
     return full_matrix
 
 
-def get_penalty_matrix_2D(L: int,
-                          M: int,
-                          ridge: float = 0.0,
-                          curvature: float = 1.0
-                          ) -> np.ndarray:
+def get_curvature_penalty_matrix_2D(L: int,
+                                    M: int,
+                                    curvature: float = 1.0,
+                                    flatten: bool = True,
+                                    ) -> np.ndarray:
     """
-    Generates additive regularization matrix for linear regression
-        using curvature penalty and/or L2 (ridge) penalty.
-        Curvature penalty here applies to coefficients that are spatially
-        related in two dimensions that may not be adjacent after flattening
-        for linear least-squares.
+    Generates curvature regularization matrix in two dimensions for linear
+    regression.
+ 
+    Curvature penalty here applies to coefficients that are spatially
+    related in two dimensions that may not be adjacent after flattening
+    for linear least-squares.
 
     Args:
         L (int): length of coefficient matrix before flattening.
         M (int): width of coefficient matrix before flattening.
-        ridge (float): L2 (ridge) regularization strength.
         curvature (float): Local curvature regularization strength.
+        flatten (bool): whether to flatten each row to 1D.
 
     Returns:
-        matrix_2d (numpy.ndarray): square penalty matrix for linear
-            least-squares of shape (L*M , L*M).
+        matrix_2d (numpy.ndarray): square curvature penalty matrix for linear
+            least-squares of shape (L*M , L*M) or (L*M, L, M) if not flattened.
     """
     matrix_2d = np.zeros((L * M, L, M))
     idx = 0
@@ -134,38 +148,40 @@ def get_penalty_matrix_2D(L: int,
             if j + 1 < M:
                 matrix_2d[idx, i, j + 1] = -1
             idx += 1
-    matrix_2d = matrix_2d.reshape(L * M, L * M) * np.sqrt(curvature)
-    if ridge > 0:
-        matrix_2d = np.vstack(( matrix_2d, np.eye(L * M) * np.sqrt(ridge) ))
+    if flatten:
+        matrix_2d = matrix_2d.reshape(L * M, L * M)
+    matrix *= np.sqrt(curvature)
     return matrix_2d
 
 
-def get_penalty_matrix_3D(L: int,
-                          M: int,
-                          N: int,
-                          ridge: float = 0.0,
-                          curvature: float = 1.0,
-                          periodic=(False, False, True),
-                          ) -> np.ndarray:
+def get_curvature_penalty_matrix_3D(L: int,
+                                    M: int,
+                                    N: int,
+                                    curvature: float = DEFAULT_REGULARIZER_GRID['curve_3b'],
+                                    periodic=(False, False, True),
+                                    flatten: bool = True,
+                                    ) -> np.ndarray:
     """
-    Generates additive regularization matrix for linear regression
-        using curvature penalty and/or L2 (ridge) penalty.
-        Curvature penalty here applies to coefficients that are spatially
-        related in three dimensions that may not be adjacent after flattening
-        for linear least-squares
+    Generates curvature regularization matrix in three dimensions (2-body) for
+    linear regression.
+ 
+    Curvature penalty here applies to coefficients that are spatially
+    related in three dimensions that may not be adjacent after flattening
+    for linear least-squares.
 
     Args:
         L (int): length of coefficient matrix before flattening.
         M (int): width of coefficient matrix before flattening.
         N (int): depth of coefficient matrix before flattening.
-        ridge (float): L2 (ridge) regularization strength.
         curvature (float): Local curvature regularization strength.
         periodic (list): periodicity in regularization for three dimensions.
             Default (False, False, True) for periodicity in angular space.
+        flatten (bool): whether to flatten each row to 1D.
 
     Returns:
-        matrix_3d (numpy.ndarray): square penalty matrix for linear
-            least-squares of shape (L*M*N , L*M*N).
+        matrix_3d (numpy.ndarray): square curvature penalty matrix for linear
+            least-squares of shape (L*M , L*M*N) or (L*M, L, M, N) if not
+            flattened.
     """
     matrix_3d = np.zeros((L * M * N, L, M, N))
     idx = 0
@@ -218,7 +234,7 @@ def get_penalty_matrix_3D(L: int,
                 matrix_3d[idx, i, j, k] = center_value
 
                 idx += 1
-    matrix_3d = matrix_3d.reshape(L * M * N, L * M * N) * np.sqrt(curvature)
-    if ridge > 0:
-        matrix_3d = np.vstack(( matrix_3d, np.eye(L * M * N) * np.sqrt(ridge) ))
+    if flatten:
+        matrix_3d = matrix_3d.reshape(L * M * N, L * M * N)
+    matrix_3d *= np.sqrt(curvature)
     return matrix_3d
