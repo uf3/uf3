@@ -6,11 +6,11 @@ from typing import List
 import numpy as np
 
 
-DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
+DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-16,
                                 ridge_2b=0.0,
-                                ridge_3b=1e-5,
-                                curve_2b=1e-8,
-                                curve_3b=1e-8)
+                                ridge_3b=1e-10,
+                                curve_2b=1e-16,
+                                curve_3b=1e-16)
 
 
 def get_regularizer_matrix(n_features: int,
