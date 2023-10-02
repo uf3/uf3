@@ -231,6 +231,7 @@ def get_curvature_penalty_matrix_3D(L: int,
                     else:
                         center_value = 1
 
+                center_value = -np.sum(matrix_3d[idx])
                 matrix_3d[idx, i, j, k] = center_value
 
                 idx += 1
