@@ -1,4 +1,5 @@
 #include "uf3_triplet_bspline.h"
+#include "error.h"
 #include <iostream>
 #include <vector>
 
@@ -10,11 +11,30 @@ uf3_triplet_bspline::uf3_triplet_bspline(){};
 // Construct a new 3D B-Spline
 uf3_triplet_bspline::uf3_triplet_bspline(
     LAMMPS *ulmp, const std::vector<std::vector<double>> &uknot_matrix,
-    const std::vector<std::vector<std::vector<double>>> &ucoeff_matrix)
+    const std::vector<std::vector<std::vector<double>>> &ucoeff_matrix,
+    const int &uknot_spacing_type)
 {
   lmp = ulmp;
   knot_matrix = uknot_matrix;
   coeff_matrix = ucoeff_matrix;
+
+  knot_spacing_type = uknot_spacing_type;
+  if (knot_spacing_type==0){
+    knot_spacing_ij = knot_matrix[2][4]-knot_matrix[2][3];
+    knot_spacing_ik = knot_matrix[1][4]-knot_matrix[1][3];
+    knot_spacing_jk = knot_matrix[0][4]-knot_matrix[0][3];
+    get_starting_index=&uf3_triplet_bspline::get_starting_index_uniform;
+  }
+  else if (knot_spacing_type==1){
+    knot_spacing_ij = 0;
+    knot_spacing_ik = 0;
+    knot_spacing_jk = 0;
+    get_starting_index=&uf3_triplet_bspline::get_starting_index_nonuniform;
+  }
+
+  else
+    lmp->error->all(FLERR, "UF3: Expected either '0'(uniform-knots) or \n\
+            '1'(non-uniform knots)");
 
   knot_vect_size_ij = knot_matrix[2].size();
   knot_vect_size_ik = knot_matrix[1].size();
@@ -121,9 +141,12 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Find starting knots
 
-  int iknot_ij = starting_knot(knot_matrix[2], knot_vect_size_ij, value_rij) - 3;
-  int iknot_ik = starting_knot(knot_matrix[1], knot_vect_size_ik, value_rik) - 3;
-  int iknot_jk = starting_knot(knot_matrix[0], knot_vect_size_jk, value_rjk) - 3;
+  //int iknot_ij = starting_knot(knot_matrix[2], knot_vect_size_ij, value_rij) - 3;
+  //int iknot_ik = starting_knot(knot_matrix[1], knot_vect_size_ik, value_rik) - 3;
+  //int iknot_jk = starting_knot(knot_matrix[0], knot_vect_size_jk, value_rjk) - 3;
+  int iknot_ij = (this->*get_starting_index)(knot_matrix[2], knot_vect_size_ij, value_rij,knot_spacing_ij) - 3;
+  int iknot_ik = (this->*get_starting_index)(knot_matrix[1], knot_vect_size_ik, value_rik,knot_spacing_ik) - 3;
+  int iknot_jk = (this->*get_starting_index)(knot_matrix[0], knot_vect_size_jk, value_rjk,knot_spacing_jk) - 3;
 
   double rsq_ij = value_rij * value_rij;
   double rsq_ik = value_rik * value_rik;
@@ -228,6 +251,25 @@ int uf3_triplet_bspline::starting_knot(const std::vector<double> knot_vect, int 
   }
 
   return 0;
+}
+
+int uf3_triplet_bspline::get_starting_index_uniform(const std::vector<double> knot_vect, int knot_vect_size,
+                                                    double r, double knot_spacing)
+{
+  return 3+(int)((r-knot_vect[0])/knot_spacing);
+}
+
+int uf3_triplet_bspline::get_starting_index_nonuniform(const std::vector<double> knot_vect, int knot_vect_size,
+                                                       double r, double knot_spacing)
+{
+  if (knot_vect.front() <= r && r < knot_vect.back()) {
+    //Determine the interval for value_rij
+    for (int i = 3; i < knot_vect_size - 1; ++i) {
+      if (knot_vect[i] <= r && r < knot_vect[i + 1]) {
+        return i;
+      }
+    }
+  }
 }
 
 double uf3_triplet_bspline::memory_usage()
