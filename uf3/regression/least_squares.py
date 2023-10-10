@@ -489,9 +489,9 @@ class WeightedLinearModel(BasicLinearModel):
 
         Returns:
             y_e (np.ndarray): target values for energies.
-            p_e (np.ndarray): prediction values for forces.
-            y_f (np.ndarray): target values for energies.
-            p_f (np.ndarray): target values for forces.
+            p_e (np.ndarray): prediction values for energies.
+            y_f (np.ndarray): target values for forces.
+            p_f (np.ndarray): prediction values for forces.
             rmse_e (np.ndarray): RMSE across energy predictions.
             rmse_e (np.ndarray): RMSE across force predictions.
         """
@@ -934,9 +934,9 @@ def subset_prediction(df: pd.DataFrame,
 
     Returns:
         y_e (np.ndarray): target values for energies.
-        p_e (np.ndarray): prediction values for forces.
-        y_f (np.ndarray): target values for energies.
-        p_f (np.ndarray): target values for forces.
+        p_e (np.ndarray): prediction values for energies.
+        y_f (np.ndarray): target values for forces.
+        p_f (np.ndarray): prediction values for forces.
     """
     if subset_keys is not None:
         idx = df.index.unique(level=0).intersection(subset_keys)
@@ -967,9 +967,9 @@ def batched_prediction(model: WeightedLinearModel,
 
     Returns:
         y_e (np.ndarray): target values for energies.
-        p_e (np.ndarray): prediction values for forces.
-        y_f (np.ndarray): target values for energies.
-        p_f (np.ndarray): target values for forces.
+        p_e (np.ndarray): prediction values for energies.
+        y_f (np.ndarray): target values for forces.
+        p_f (np.ndarray): prediction values for forces.
     """
     if table_names is None:
         _, _, table_names, _ = io.analyze_hdf_tables(filename)
