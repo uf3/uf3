@@ -47,8 +47,8 @@ learning:
     splits_path: splits.json
     weight: 0.5
     regularizer:
-        ridge_1b: 1.0e-16
+        ridge_1b: 1.0e-8
         ridge_2b: 0.0
-        ridge_3b: 1.0e-10
-        curvature_2b: 1.0e-16
-        curvature_3b: 1.0e-16
+        ridge_3b: 1.0e-5
+        curvature_2b: 1.0e-8
+        curvature_3b: 1.0e-8

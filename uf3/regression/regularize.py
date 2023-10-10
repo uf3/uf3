@@ -6,11 +6,11 @@ from typing import List
 import numpy as np
 
 
-DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-16,
+DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-8,
                                 ridge_2b=0.0,
-                                ridge_3b=1e-10,
-                                curve_2b=1e-16,
-                                curve_3b=1e-16)
+                                ridge_3b=1e-5,
+                                curve_2b=1e-8,
+                                curve_3b=1e-8)
 
 
 def get_regularizer_matrix(n_features: int,
@@ -35,15 +35,14 @@ def get_regularizer_matrix(n_features: int,
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
             with ridge and curvature penalty a.k.a. fused ridge regression.
     """
-    reg_diag = np.eye(n_features) * 2
-    reg_minus = np.eye(n_features, k=-1) * -1
-    reg_plus = np.eye(n_features, k=1) * -1
+    reg_diag = np.eye(n_features) * 2 * curvature
+    reg_minus = np.eye(n_features, k=-1) * -curvature
+    reg_plus = np.eye(n_features, k=1) * -curvature
     matrix = reg_diag + reg_minus + reg_plus
     matrix[0, 0] /= 2
     matrix[n_features - 1, n_features - 1] /= 2
-    matrix *= np.sqrt(curvature)
     if ridge > 0:
-        matrix = matrix + np.eye(n_features) * np.sqrt(ridge)
+        matrix = matrix + np.eye(n_features) * ridge
     return matrix
 
 
@@ -119,9 +118,9 @@ def get_penalty_matrix_2D(L: int,
             if j + 1 < M:
                 matrix_2d[idx, i, j + 1] = -1
             idx += 1
-    matrix_2d = matrix_2d.reshape(L * M, L * M) * np.sqrt(curvature)
+    matrix_2d = matrix_2d.reshape(L * M, L * M) * curvature
     if ridge > 0:
-        matrix_2d = matrix_2d + np.eye(L * M) * np.sqrt(ridge)
+        matrix_2d = matrix_2d + np.eye(L * M) * ridge
     return matrix_2d
 
 
@@ -203,7 +202,7 @@ def get_penalty_matrix_3D(L: int,
                 matrix_3d[idx, i, j, k] = center_value
 
                 idx += 1
-    matrix_3d = matrix_3d.reshape(L * M * N, L * M * N) * np.sqrt(curvature)
+    matrix_3d = matrix_3d.reshape(L * M * N, L * M * N) * curvature
     if ridge > 0:
-        matrix_3d = matrix_3d + np.eye(L * M * N) * np.sqrt(ridge)
+        matrix_3d = matrix_3d + np.eye(L * M * N) * ridge
     return matrix_3d
