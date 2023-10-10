@@ -307,29 +307,23 @@ class TestBSplineConfig:
         assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
 
     def test_regularizer(self):
-        ridge_map = {1: 4, 2: 0.25}
+        ridge_map = {1: 2, 2: 0.5}
         curvature_map = {2: 1}
         element_list = ['Ne', 'Xe']
         chemistry = composition.ChemicalSystem(element_list)
         bspline_handler = BSplineBasis(chemistry)
-        nfeatures = bspline_handler.n_feats
         matrix = bspline_handler.get_regularization_matrix(ridge_map,
                                                            curvature_map)
-        ridge_sum = (len(element_list) * np.sqrt(ridge_map[1])) + \
-                    (np.sqrt(ridge_map[2]) * (nfeatures - len(element_list)))
-        curv_sum = (0 * 2) + (np.sqrt(curvature_map[2]) * 2 * (
-                   nfeatures - len(element_list) - len(bspline_handler.interactions_map[2])
-                   ))
+        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
+        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
-        matrix = bspline_handler.get_regularization_matrix(r1=4,
-                                                           r2=0.25,
+        matrix = bspline_handler.get_regularization_matrix(r1=2,
+                                                           r2=0.5,
                                                            c2=1)
-        ridge_sum = (len(element_list) * 2) + (0.5 * (nfeatures - len(element_list)))
-        curv_sum = (0 * 2) + (1 * 2 * (
-                   nfeatures - len(element_list) - len(bspline_handler.interactions_map[2])
-                   ))
+        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
+        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
