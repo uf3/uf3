@@ -234,16 +234,13 @@ class BSplineBasis:
             self.r_max_map[trio] = self.r_max_map.get(trio, default_max)
             self.resolution_map[trio] = self.resolution_map.get(trio,
                                                                 default_res)
-            min_set = len(set(self.r_min_map[trio]))
-            max_set = len(set(self.r_max_map[trio]))
-            res_set = len(set(self.resolution_map[trio]))
-            if min_set == 1 and max_set == 1 and res_set == 1:
-                self.symmetry[trio] = 3
-            elif min_set <= 2 and max_set <= 2 and res_set <= 2:
-                self.symmetry[trio] = 2
-            else:
-                self.symmetry[trio] = 1
+            self.symmetry[trio] = find_symmetry_3B(trio,
+                                                   self.r_min_map[trio],
+                                                   self.r_max_map[trio],
+                                                   self.resolution_map[trio])
+            
         self.r_cut = self.get_cutoff()
+
 
     def update_knots_from_dict(self, knots_map):
         """"""
@@ -358,9 +355,9 @@ class BSplineBasis:
 
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
-                default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
+                default: {1: 1e-8, 2: 0e0, 3: 1e-5}
             curvature_map (dict): n-body term curvature regularizer strengths.
-                default: {1: 0.0, 2: 1e-5, 3: 1e-5}
+                default: {1: 0.0, 2: 1e-8, 3: 1e-8}
 
         TODO: refactor to break up into smaller, reusable functions
 
@@ -560,11 +557,11 @@ class BSplineBasis:
 
         """
         if self.symmetry[interaction] == 1:
-            vec = grid.flatten()
+            vec = grid
+            redundancy = self.flat_weights[interaction] if fitting else 1.0
         elif self.symmetry[interaction] == 2:
             vec = grid + grid.transpose(1, 0, 2)
-            vec = vec.flat[self.template_mask[interaction]]
-            vec = vec * (self.flat_weights[interaction] if fitting else 0.5)
+            redundancy = self.flat_weights[interaction] if fitting else 0.5
         elif self.symmetry[interaction] == 3:
             vec = (grid
                    + grid.transpose(0, 2, 1)
@@ -572,9 +569,11 @@ class BSplineBasis:
                    + grid.transpose(1, 2, 0)
                    + grid.transpose(2, 0, 1)
                    + grid.transpose(2, 1, 0))
-            vec = vec.flat[self.template_mask[interaction]]
-            vec = vec * self.flat_weights[interaction]
+            redundancy = self.flat_weights[interaction] if fitting else 1/6
+        vec = vec.flat[self.template_mask[interaction]]
+        vec = vec * redundancy
         return vec
+
 
     def decompress_3B(self, vec, interaction):
         """
@@ -593,10 +592,62 @@ class BSplineBasis:
         N = len(n_space) - 4
         grid = np.zeros((L, M, N))
         grid.flat[self.template_mask[interaction]] = vec
-        grid = grid + grid.transpose(1, 0, 2)
+        if self.symmetry[interaction] == 2:
+            grid = grid + grid.transpose(1, 0, 2)
+        elif self.symmetry[interaction] == 3:
+            grid = (grid
+                    + grid.transpose(0, 2, 1)
+                    + grid.transpose(1, 0, 2)
+                    + grid.transpose(1, 2, 0)
+                    + grid.transpose(2, 0, 1)
+                    + grid.transpose(2, 1, 0))
         return grid
 
 
+    
+def find_symmetry_3B(trio: Tuple, 
+                     r_min: List,
+                     r_max: List, 
+                     resolution: List):
+
+    """
+    Calculates the symmetry of a 3-body interaction based on r_min, r_max, and
+    resolution map.
+
+    Args:
+        trio (tuple): Interaction (Si,Si,N)
+        r_min (list): minimum pair distance per interaction
+            e.g. [2.0, 3.0, 4.0]
+        r_max (list): maximum pair distance per interaction
+        resolution (list): resolution (number of knot intervals) per interaction.
+    Returns:
+        symmetry (int): Symmetry W.R.T the central atom
+
+    """ 
+    # 2 neighboring elements are different
+    if trio[1] != trio[2]:
+        return 1
+    else:  # 2 neighboring elements are identical
+
+        configs = list(zip(
+            r_min,
+            r_max,
+            resolution
+        ))
+
+        if configs[0] == configs[1] == configs[2]:
+            if trio[0] == trio[1]:
+                return 3
+            else:
+                return 2
+        elif configs[0] == configs[1]:
+            return 2
+        else:
+            # 3 legs all have different configurations
+            # OR the 2 central legs have different configurations
+            return 1
+    
+    
 def get_knot_spacer(knot_strategy):
     """
 
