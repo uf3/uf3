@@ -88,15 +88,15 @@ class TestOptimize:
 
     def test_drop_columns(self,bspline_config_larger_cutoff,Nb_Sn_chemistry, Nb3Sn_geom, config_1):
         
-        cutoff_dict = optimize.get_possible_lower_cutoffs(bspline_config_larger_cutoff)
+        cutoff_dict = optimize.get_lower_cutoffs(bspline_config_larger_cutoff)
         
-        for i in range(len(cutoff_dict['rmax_2b_poss'])):
-            for j in range(len(cutoff_dict['rmax_3b_poss'])):
+        for i in range(len(cutoff_dict['lower_rmax_2b'])):
+            for j in range(len(cutoff_dict['lower_rmax_3b'])):
                 bspline_config_smaller_cutoff = optimize.get_bspline_config(Nb_Sn_chemistry,
                                                                         rmin_2b=config_1["rmin_2b"],
                                                                         rmin_3b=config_1["rmin_3b"],
-                                                                        rmax_2b=cutoff_dict['rmax_2b_poss'][i],
-                                                                        rmax_3b=cutoff_dict['rmax_3b_poss'][j],
+                                                                        rmax_2b=cutoff_dict['lower_rmax_2b'][i],
+                                                                        rmax_3b=cutoff_dict['lower_rmax_3b'][j],
                                                                         knot_spacing_2b=config_1["knot_spacing_2b"],
                                                                         knot_spacing_3b=config_1["knot_spacing_3b"],
                                                                         leading_trim=0,
@@ -106,11 +106,11 @@ class TestOptimize:
                 bspline_handler_smaller_cutoff = BasisFeaturizer(bspline_config_smaller_cutoff)
         
                 columns_to_drop_2b = optimize.get_columns_to_drop_2b(original_bspline_config=bspline_config_larger_cutoff,
-                                                                    modify_2b_cutoff=cutoff_dict['rmax_2b_poss'][i],
+                                                                    modify_2b_cutoff=cutoff_dict['lower_rmax_2b'][i],
                                                                     knot_spacing_2b=config_1["knot_spacing_2b"])
 
                 columns_to_drop_3b = optimize.get_columns_to_drop_3b(original_bspline_config=bspline_config_larger_cutoff,
-                                                                    modify_3b_cutoff=cutoff_dict['rmax_3b_poss'][j],
+                                                                    modify_3b_cutoff=cutoff_dict['lower_rmax_3b'][j],
                                                                     knot_spacing_3b=config_1["knot_spacing_3b"])
 
                 columns_to_drop = columns_to_drop_2b + columns_to_drop_3b
@@ -128,14 +128,14 @@ class TestOptimize:
 
     def test_drop_columns_2(self,bspline_config_larger_cutoff_2,Nb_Sn_chemistry, Nb3Sn_geom, config_2):
         
-        cutoff_dict = optimize.get_possible_lower_cutoffs(bspline_config_larger_cutoff_2)
-        for i in range(len(cutoff_dict['rmax_2b_poss'])):
-            for j in range(len(cutoff_dict['rmax_3b_poss'])):
+        cutoff_dict = optimize.get_lower_cutoffs(bspline_config_larger_cutoff_2)
+        for i in range(len(cutoff_dict['lower_rmax_2b'])):
+            for j in range(len(cutoff_dict['lower_rmax_3b'])):
                 bspline_config_smaller_cutoff = optimize.get_bspline_config(Nb_Sn_chemistry,
                                                                         rmin_2b=config_2["rmin_2b"],
                                                                         rmin_3b=config_2["rmin_3b"],
-                                                                        rmax_2b=cutoff_dict['rmax_2b_poss'][i],
-                                                                        rmax_3b=cutoff_dict['rmax_3b_poss'][j],
+                                                                        rmax_2b=cutoff_dict['lower_rmax_2b'][i],
+                                                                        rmax_3b=cutoff_dict['lower_rmax_3b'][j],
                                                                         knot_spacing_2b=config_2["knot_spacing_2b"],
                                                                         knot_spacing_3b=config_2["knot_spacing_3b"],
                                                                         leading_trim=0,
@@ -146,11 +146,11 @@ class TestOptimize:
                 bspline_handler_smaller_cutoff = BasisFeaturizer(bspline_config_smaller_cutoff)
         
                 columns_to_drop_2b = optimize.get_columns_to_drop_2b(original_bspline_config=bspline_config_larger_cutoff_2,
-                                                                    modify_2b_cutoff=cutoff_dict['rmax_2b_poss'][i],
+                                                                    modify_2b_cutoff=cutoff_dict['lower_rmax_2b'][i],
                                                                     knot_spacing_2b=config_2["knot_spacing_2b"])
 
                 columns_to_drop_3b = optimize.get_columns_to_drop_3b(original_bspline_config=bspline_config_larger_cutoff_2,
-                                                                    modify_3b_cutoff=cutoff_dict['rmax_3b_poss'][j],
+                                                                    modify_3b_cutoff=cutoff_dict['lower_rmax_3b'][j],
                                                                     knot_spacing_3b=config_2["knot_spacing_3b"])
 
                 columns_to_drop = columns_to_drop_2b + columns_to_drop_3b

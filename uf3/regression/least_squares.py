@@ -969,7 +969,7 @@ def batched_prediction(model: WeightedLinearModel,
                        filename: str,
                        table_names: Collection = None,
                        subset_keys: Collection = None,
-                       drop_columns: list = None,
+                       drop_columns: List[str] = None,
                        **kwargs):
     """
     Convenience function for optimization workflow. Read inputs/outputs
