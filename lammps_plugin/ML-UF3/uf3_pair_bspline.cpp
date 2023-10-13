@@ -4,6 +4,7 @@
 #include "uf3_bspline_basis3.h"
 
 #include "utils.h"
+#include "error.h"
 #include <vector>
 
 using namespace LAMMPS_NS;
@@ -14,15 +15,30 @@ uf3_pair_bspline::uf3_pair_bspline() {}
 // Constructor
 // Passing vectors by reference
 uf3_pair_bspline::uf3_pair_bspline(LAMMPS *ulmp, const std::vector<double> &uknot_vect,
-                                   const std::vector<double> &ucoeff_vect)
+                                   const std::vector<double> &ucoeff_vect, 
+                                   const int &uknot_spacing_type)
 {
   lmp = ulmp;
   knot_vect = uknot_vect;
   coeff_vect = ucoeff_vect;
+  
+  knot_spacing_type = uknot_spacing_type;
+  if (knot_spacing_type==0){
+    knot_spacing = knot_vect[4]-knot_vect[3];
+    get_starting_index=&uf3_pair_bspline::get_starting_index_uniform;
+  }
+  else if (knot_spacing_type==1){
+    knot_spacing = 0;
+    get_starting_index=&uf3_pair_bspline::get_starting_index_nonuniform;
+  }
 
+  else
+    lmp->error->all(FLERR, "UF3: Expected either '0'(uniform-knots) or \n\
+            '1'(non-uniform knots)");
+  
   knot_vect_size = uknot_vect.size();
   coeff_vect_size = ucoeff_vect.size();
-
+  
   // Initialize B-Spline Basis Functions
   for (int i = 0; i < knot_vect.size() - 4; i++)
     bspline_bases.push_back(uf3_bspline_basis3(lmp, &knot_vect[i], coeff_vect[i]));
@@ -51,13 +67,30 @@ uf3_pair_bspline::uf3_pair_bspline(LAMMPS *ulmp, const std::vector<double> &ukno
 
 uf3_pair_bspline::~uf3_pair_bspline() {}
 
+int uf3_pair_bspline::get_starting_index_uniform(double r)
+{
+  return 3+(int)((r-knot_vect[0])/knot_spacing);
+}
+
+int uf3_pair_bspline::get_starting_index_nonuniform(double r)
+{
+  if (knot_vect.front() <= r && r < knot_vect.back()) {
+    //Determine the interval for value_rij
+    for (int i = 3; i < knot_vect_size - 1; ++i) {
+      if (knot_vect[i] <= r && r < knot_vect[i + 1]) {
+        return i;
+      }
+    }
+  }
+}
+
 double *uf3_pair_bspline::eval(double r)
 {
 
   // Find knot starting position
 
-  int start_index;
-  if (knot_vect.front() <= r && r < knot_vect.back()) {
+  int start_index=(this->*get_starting_index)(r);
+  /*if (knot_vect.front() <= r && r < knot_vect.back()) {
     //Determine the interval for value_rij
     for (int i = 3; i < knot_vect_size - 1; ++i) {
       if (knot_vect[i] <= r && r < knot_vect[i + 1]) {
@@ -65,7 +98,7 @@ double *uf3_pair_bspline::eval(double r)
         break;
       }
     }
-  }
+  }*/
 
   int knot_affect_start = start_index - 3;
 
@@ -106,4 +139,6 @@ double uf3_pair_bspline::memory_usage()
     bytes += (double)dnbspline_bases[i].memory_usage();     //bspline_basis2
 
   bytes += (double)2*sizeof(double);    //ret_val
+
+  return bytes;
 }
