@@ -6,7 +6,7 @@ class TestRegularizers:
         m1 = get_regularizer_matrix(5, curvature=1, ridge=0)
         assert np.sum(m1) == 0
         assert np.sum(np.diag(m1)) == 8
-        m2 = get_regularizer_matrix(5, curvature=2, ridge=0.5)
+        m2 = get_regularizer_matrix(5, curvature=4, ridge=0.25)
         assert np.sum(m2) == 2.5
         assert np.sum(np.diag(m2)) == 18.5
 
