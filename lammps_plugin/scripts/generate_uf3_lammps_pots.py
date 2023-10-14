@@ -109,7 +109,10 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
     for interaction in chemical_sys.interactions_map[2]:
         key = '_'.join(interaction)
         files[key] = "#UF3 POT\n"
-        files[key] += "2B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+        if model.bspline_config.knot_strategy == 'linear':
+            files[key] += "2B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+        else:
+            files[key] += "2B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
 
         files[key] += str(model.bspline_config.r_max_map[interaction]) + " " + \
                 str(len(model.bspline_config.knots_map[interaction]))+"\n"
@@ -131,7 +134,10 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
         for interaction in model.bspline_config.interactions_map[3]:
             key = '_'.join(interaction)
             files[key] = "#UF3 POT\n"
-            files[key] += "3B %i %i\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            if model.bspline_config.knot_strategy == 'linear':
+                files[key] += "3B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            else:
+                files[key] += "3B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
 
             files[key] += str(model.bspline_config.r_max_map[interaction][2]) \
                     + " " + str(model.bspline_config.r_max_map[interaction][1]) \
