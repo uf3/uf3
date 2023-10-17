@@ -153,7 +153,6 @@ def get_curvature_penalty_matrix_2D(L: int,
 def get_curvature_penalty_matrix_3D(L: int,
                                     M: int,
                                     N: int,
-                                    periodic=(False, False, True),
                                     flatten: bool = True,
                                     ) -> np.ndarray:
     """
@@ -169,8 +168,6 @@ def get_curvature_penalty_matrix_3D(L: int,
         M (int): width of coefficient matrix before flattening.
         N (int): depth of coefficient matrix before flattening.
         curvature (float): Local curvature regularization strength.
-        periodic (list): periodicity in regularization for three dimensions.
-            Default (False, False, True) for periodicity in angular space.
         flatten (bool): whether to flatten each row to 1D.
 
     Returns:
@@ -180,51 +177,38 @@ def get_curvature_penalty_matrix_3D(L: int,
     """
     matrix_3d = np.zeros((L * M * N, L, M, N))
     idx = 0
-    i_pbc, j_pbc, k_pbc = periodic
 
     for i in range(L):
         for j in range(M):
             for k in range(N):
                 center_value = 2
                 # i dimension
-                if i_pbc:
-                    matrix_3d[idx, (i - 1) % L, j, k] = -1
-                    matrix_3d[idx, (i + 1) % L, j, k] = -1
+                if i > 0:  # lower bound
+                    matrix_3d[idx, i - 1, j, k] = -1
                 else:
-                    if i > 0:  # lower bound
-                        matrix_3d[idx, i - 1, j, k] = -1
-                    else:
-                        center_value = 1
-                    if i + 1 < L:  # upper bound
-                        matrix_3d[idx, i + 1, j, k] = -1
-                    else:
-                        center_value = 1
+                    center_value = 1
+                if i + 1 < L:  # upper bound
+                    matrix_3d[idx, i + 1, j, k] = -1
+                else:
+                    center_value = 1
                 # j dimension
-                if j_pbc:
-                    matrix_3d[idx, i, (j - 1) % M, k] = -1
-                    matrix_3d[idx, i, (j + 1) % M, k] = -1
+                if j > 0:  # lower bound
+                    matrix_3d[idx, i, j - 1, k] = -1
                 else:
-                    if j > 0:  # lower bound
-                        matrix_3d[idx, i, j - 1, k] = -1
-                    else:
-                        center_value = 1
-                    if j + 1 < M:
-                        matrix_3d[idx, i, j + 1, k] = -1
-                    else:
-                        center_value = 1
+                    center_value = 1
+                if j + 1 < M:
+                    matrix_3d[idx, i, j + 1, k] = -1
+                else:
+                    center_value = 1
                 # k dimension
-                if k_pbc:
-                    matrix_3d[idx, i, j, (k - 1) % N] = -1
-                    matrix_3d[idx, i, j, (k + 1) % N] = -1
+                if k > 0:  # lower bound
+                    matrix_3d[idx, i, j, k - 1] = -1
                 else:
-                    if k > 0:  # lower bound
-                        matrix_3d[idx, i, j, k - 1] = -1
-                    else:
-                        center_value = 1
-                    if k + 1 < N:  # upper bound
-                        matrix_3d[idx, i, j, k + 1] = -1
-                    else:
-                        center_value = 1
+                    center_value = 1
+                if k + 1 < N:  # upper bound
+                    matrix_3d[idx, i, j, k + 1] = -1
+                else:
+                    center_value = 1
 
                 center_value = -np.sum(matrix_3d[idx])
                 matrix_3d[idx, i, j, k] = center_value
