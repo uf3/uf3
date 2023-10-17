@@ -359,8 +359,6 @@ class BSplineBasis:
             curvature_map (dict): n-body term curvature regularizer strengths.
                 default: {1: 0.0, 2: 1e-16, 3: 1e-16}
 
-        TODO: refactor to break up into smaller, reusable functions
-
         Returns:
             combined_matrix (np.ndarray): regularization matrix made up of
                 individual matrices per n-body interaction.
@@ -391,46 +389,98 @@ class BSplineBasis:
             c = curvature_map[degree]
             interactions = self.chemical_system.interactions_map[degree]
             for interaction in interactions:
-                size = self.resolution_map[interaction]
                 if degree == 2:
-                    matrix = regularize.get_ridge_penalty_matrix(size + 3,
-                                                                 ridge=r
-                                                                 )
-                    if c > 0:
-                        matrix = np.vstack((matrix,
-                                    regularize.get_curvature_penalty_matrix_1D(
-                                        size + 3,
-                                        curvature=c
-                                        )
-                                    ))
+                    matrix = self.get_regularization_matrix_2b(interaction,
+                                                               ridge=r,
+                                                               curvature=c)
                 elif degree == 3:
-                    mask = self.template_mask[interaction]
-                    matrix = regularize.get_ridge_penalty_matrix(len(mask),
-                                                                 ridge=r)
-                    if c > 0:
-                        matrix_c = regularize.get_curvature_penalty_matrix_3D(
-                            size[0] + 3,
-                            size[1] + 3,
-                            size[2] + 3,
-                            curvature=c,
-                            flatten=False,
-                            )
-
-                        # compress each row of matrix_c
-                        matrix_c_compressed = np.zeros((len(mask), len(mask)))
-                        for compressed_i, uncompressed_i in enumerate(mask):
-                            row = matrix_c[uncompressed_i]
-                            matrix_c_compressed[compressed_i] = \
-                                self.compress_3B(row, interaction)
-
-                        matrix = np.vstack((matrix, matrix_c_compressed))
-
+                    matrix = self.get_regularization_matrix_3b(interaction,
+                                                               ridge=r,
+                                                               curvature=c)
                 else:
                     raise ValueError(
                         "Four-body terms and beyond are not yet implemented.")
                 matrices.append(matrix)
         combined_matrix = regularize.combine_regularizer_matrices(matrices)
         return combined_matrix
+
+    def get_regularization_matrix_2b(self,
+                                     interaction: Tuple,
+                                     ridge: float,
+                                     curvature: float):
+        """
+        Compute regularization matrix for 2-body interactions.
+
+        Written to break up self.get_regularization_matrix() into smaller parts
+
+        Args:
+            interaction (tuple): element pair.
+            ridge (float): ridge regularization strength.
+            curvature (float): curvature regularization strength.
+
+        Returns:
+            matrix (np.ndarray): regularization matrix for 2-body interactions
+                with ridge and curvature matrices stacked vertically (in that
+                order).
+        """
+        size = self.resolution_map[interaction]
+        matrix = regularize.get_ridge_penalty_matrix(size + 3,
+                                                     ridge=ridge,
+                                                     )
+        if curvature > 0:
+            matrix = np.vstack((matrix,
+                        regularize.get_curvature_penalty_matrix_1D(
+                            size + 3,
+                            curvature=curvature,
+                            )
+                        ))
+        return matrix
+
+    def get_regularization_matrix_3b(self,
+                                     interaction: Tuple,
+                                     ridge: float,
+                                     curvature: float):
+        """
+        Compute regularization matrix for 3-body interactions.
+
+        Written to break up self.get_regularization_matrix() into smaller parts
+
+        Args:
+            interaction (tuple): element triplet.
+            ridge (float): ridge regularization strength.
+            curvature (float): curvature regularization strength.
+
+        Returns:
+            matrix (np.ndarray): regularization matrix for 3-body interactions
+                with ridge and curvature matrices stacked vertically (in that
+                order).
+        """
+        mask = self.template_mask[interaction]
+
+        # Ridge regularization for compressed coefficients
+        matrix = regularize.get_ridge_penalty_matrix(len(mask),
+                                                     ridge=ridge)
+
+        # Curvature regularization
+        if curvature > 0:
+            size = self.resolution_map[interaction]  # uncompressed (l, m, n)
+            matrix_c = regularize.get_curvature_penalty_matrix_3D(
+                size[0] + 3,
+                size[1] + 3,
+                size[2] + 3,
+                curvature=curvature,
+                flatten=False,
+                )  # 4D tensor (each "row" is a 3D tensor)
+            # compress each row of matrix_c
+            matrix_c_compressed = np.zeros((len(mask), len(mask)))
+            for compressed_i, uncompressed_i in enumerate(mask):
+                row = matrix_c[uncompressed_i]
+                matrix_c_compressed[compressed_i] = \
+                    self.compress_3B(row, interaction)
+
+            matrix = np.vstack((matrix, matrix_c_compressed))
+
+        return matrix
 
     def get_feature_partition_sizes(self) -> List:
         """Get partition sizes: one-body, two-body, and three-body terms."""
