@@ -14,7 +14,6 @@ DEFAULT_REGULARIZER_GRID = dict(ridge_1b=1e-16,
 
 
 def get_ridge_penalty_matrix(n_features: int,
-                             ridge: float = 0.0,
                              ) -> np.ndarray:
     """
     Generates L2 (ridge) regularization matrix for linear regression.
@@ -28,11 +27,10 @@ def get_ridge_penalty_matrix(n_features: int,
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
             with ridge penalty.
     """
-    return np.eye(n_features) * np.sqrt(ridge)
+    return np.eye(n_features)
 
 
 def get_curvature_penalty_matrix_1D(n_features: int,
-                                    curvature: float = DEFAULT_REGULARIZER_GRID['curve_2b'],
                                     ) -> np.ndarray:
     """
     Generates curvature regularization matrix in one dimension (2-body) for
@@ -51,9 +49,9 @@ def get_curvature_penalty_matrix_1D(n_features: int,
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
             with curvature penalty.
     """
-    reg_diag = np.eye(n_features) * 2 * np.sqrt(curvature)
-    reg_minus = np.eye(n_features, k=-1) * -1 * np.sqrt(curvature)
-    reg_plus = np.eye(n_features, k=1) * -1 * np.sqrt(curvature)
+    reg_diag = np.eye(n_features) * 2
+    reg_minus = np.eye(n_features, k=-1) * -1
+    reg_plus = np.eye(n_features, k=1) * -1
     matrix = reg_diag + reg_minus + reg_plus
     matrix[0, 0] /= 2
     matrix[n_features - 1, n_features - 1] /= 2
@@ -109,7 +107,6 @@ def combine_regularizer_matrices(matrices: List) -> np.ndarray:
 
 def get_curvature_penalty_matrix_2D(L: int,
                                     M: int,
-                                    curvature: float = 1.0,
                                     flatten: bool = True,
                                     ) -> np.ndarray:
     """
@@ -150,14 +147,12 @@ def get_curvature_penalty_matrix_2D(L: int,
             idx += 1
     if flatten:
         matrix_2d = matrix_2d.reshape(L * M, L * M)
-    matrix *= np.sqrt(curvature)
     return matrix_2d
 
 
 def get_curvature_penalty_matrix_3D(L: int,
                                     M: int,
                                     N: int,
-                                    curvature: float = DEFAULT_REGULARIZER_GRID['curve_3b'],
                                     periodic=(False, False, True),
                                     flatten: bool = True,
                                     ) -> np.ndarray:
@@ -237,5 +232,4 @@ def get_curvature_penalty_matrix_3D(L: int,
                 idx += 1
     if flatten:
         matrix_3d = matrix_3d.reshape(L * M * N, L * M * N)
-    matrix_3d *= np.sqrt(curvature)
     return matrix_3d
