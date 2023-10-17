@@ -56,7 +56,7 @@ class PairUF3 : public Pair {
   int bsplines_created;
   int coeff_matrix_dim1, coeff_matrix_dim2, coeff_matrix_dim3, coeff_matrix_elements_len;
   bool pot_3b;
-  int ***setflag_3b;
+  int ***setflag_3b, **knot_spacing_type_2b, ***knot_spacing_type_3b;
   double **cut, ***cut_3b, **cut_3b_list, ****min_cut_3b;
   virtual void allocate();
   void create_bsplines();

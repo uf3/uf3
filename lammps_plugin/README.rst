@@ -46,7 +46,7 @@ The kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU 
 Running lammps with UF3 potential
 =====
 
-**The old style of listing all UF3 LAMMPS potential files after pair_coeff * * in single line still works but a warning is printed**
+**The old style of listing all UF3 LAMMPS potential files after pair_coeff * * in single line is deprecated**
 
 To use UF3 potentials in lammps just add the following tags to the lammps input file-
 
@@ -112,14 +112,14 @@ The 2-body UF3 lammps potential file should have the following format-
 .. code:: bash
 
     #UF3 POT
-    2B LEADING_TRIM TRAILING_TRIM
+    2B LEADING_TRIM TRAILING_TRIM TYPE_OF_KNOT_SPACING
     Rij_CUTOFF NUM_OF_KNOTS
     BSPLINE_KNOTS
     NUM_OF_COEFF
     COEFF
     #
 
-The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction. This is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message.
+The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction. This is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message. The :code:`TYPE_OF_KNOT_SPACING` specifies if the spacing between the knots is constant :code:`uk` (uniform-knots/linear-knots) or is non-uniform :code:`nk`.
 
 The :code:`Rij_CUTOFF` sets the 2-body cutoff for the interaction described by the potential file. :code:`NUM_OF_KNOTS` is the number of knots (or the length of the knot vector) present on the very next line. The :code:`BSPLINE_KNOTS` line should contain all the knots in ascending order. :code:`NUM_OF_COEFF` is the number of coefficients in the :code:`COEFF` line. All the numbers in the BSPLINE_KNOTS and COEFF line should be space-separated. 
 
@@ -133,7 +133,7 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
 .. code:: bash
 
     #UF3 POT
-    3B LEADING_TRIM TRAILING_TRIM
+    3B LEADING_TRIM TRAILING_TRIM TYPE_OF_KNOT_SPACING
     Rjk_CUTOFF Rik_CUTOFF Rij_CUTOFF NUM_OF_KNOTS_JK NUM_OF_KNOTS_IK NUM_OF_KNOTS_IJ
     BSPLINE_KNOTS_FOR_JK
     BSPLINE_KNOTS_FOR_IK
@@ -154,7 +154,7 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
     #
 
 
-The first line is similar to the 2-body potential file and the second line has :code:`3B` characters indicating that this file describes 3-body interaction. The :code:`3B` is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message.
+The first line is similar to the 2-body potential file and the second line has :code:`3B` characters indicating that this file describes 3-body interaction. The :code:`3B` is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message. The :code:`TYPE_OF_KNOT_SPACING` specifies if the spacing between the knots is constant :code:`uk` (uniform-knots/linear-knots) or is non-uniform :code:`nk`.
 
 Similar to the 2-body potential file, the third line sets the cutoffs and length of the knots. The cutoff distance between atom-type 1 and 2 is :code:`Rij_CUTOFF`, atom-type 1 and 3 is :code:`Rik_CUTOFF` and between 2 and 3 is :code:`Rjk_CUTOFF`. **Note the current implementation works only for UF3 potentials with cutoff distances for 3-body interactions that follows** :code:`2Rij_CUTOFF=2Rik_CUTOFF=Rjk_CUTOFF` **relation.**
 

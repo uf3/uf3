@@ -56,3 +56,12 @@ uf3/util/__pycache__/plotting.cpython-37.pyc
 uf3/util/__pycache__/subsample.cpython-37.pyc
 
 lammps_plugin/ML-UF3/.vscode/
+
+.vscode/
+
+*/__pycache__
+
+*/*/__pycache__
+
+*/*/*/__pycache__
+
