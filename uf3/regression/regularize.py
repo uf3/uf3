@@ -49,9 +49,9 @@ def get_curvature_penalty_matrix_1D(n_features: int,
         matrix (numpy.ndarray): square matrix of size (n_features x n_features)
             with curvature penalty.
     """
-    reg_diag = np.eye(n_features) * 2
-    reg_minus = np.eye(n_features, k=-1) * -1
-    reg_plus = np.eye(n_features, k=1) * -1
+    reg_diag = np.eye(n_features) * -2
+    reg_minus = np.eye(n_features, k=-1)
+    reg_plus = np.eye(n_features, k=1)
     matrix = reg_diag + reg_minus + reg_plus
     matrix[0, 0] /= 2
     matrix[n_features - 1, n_features - 1] /= 2
@@ -132,18 +132,18 @@ def get_curvature_penalty_matrix_2D(L: int,
     for i in range(L):
         for j in range(M):
             if any([i == 0, i == L - 1, j == 0, j == M - 1]):
-                matrix_2d[idx, i, j] = 1
+                matrix_2d[idx, i, j] = -1
             else:
-                matrix_2d[idx, i, j] = 2
+                matrix_2d[idx, i, j] = -2
 
             if i > 0:
-                matrix_2d[idx, i - 1, j] = -1
+                matrix_2d[idx, i - 1, j] = 1
             if i + 1 < L:
-                matrix_2d[idx, i + 1, j] = -1
+                matrix_2d[idx, i + 1, j] = 1
             if j > 0:
-                matrix_2d[idx, i, j - 1] = -1
+                matrix_2d[idx, i, j - 1] = 1
             if j + 1 < M:
-                matrix_2d[idx, i, j + 1] = -1
+                matrix_2d[idx, i, j + 1] = 1
             idx += 1
     if flatten:
         matrix_2d = matrix_2d.reshape(L * M, L * M)
@@ -181,34 +181,34 @@ def get_curvature_penalty_matrix_3D(L: int,
     for i in range(L):
         for j in range(M):
             for k in range(N):
-                center_value = 2
+                center_value = -2
                 # i dimension
                 if i > 0:  # lower bound
-                    matrix_3d[idx, i - 1, j, k] = -1
+                    matrix_3d[idx, i - 1, j, k] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
                 if i + 1 < L:  # upper bound
-                    matrix_3d[idx, i + 1, j, k] = -1
+                    matrix_3d[idx, i + 1, j, k] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
                 # j dimension
                 if j > 0:  # lower bound
-                    matrix_3d[idx, i, j - 1, k] = -1
+                    matrix_3d[idx, i, j - 1, k] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
                 if j + 1 < M:
-                    matrix_3d[idx, i, j + 1, k] = -1
+                    matrix_3d[idx, i, j + 1, k] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
                 # k dimension
                 if k > 0:  # lower bound
-                    matrix_3d[idx, i, j, k - 1] = -1
+                    matrix_3d[idx, i, j, k - 1] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
                 if k + 1 < N:  # upper bound
-                    matrix_3d[idx, i, j, k + 1] = -1
+                    matrix_3d[idx, i, j, k + 1] = 1
                 else:
-                    center_value = 1
+                    center_value = -1
 
                 center_value = -np.sum(matrix_3d[idx])
                 matrix_3d[idx, i, j, k] = center_value
