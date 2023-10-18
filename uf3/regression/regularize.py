@@ -132,9 +132,9 @@ def get_curvature_penalty_matrix_2D(L: int,
     for i in range(L):
         for j in range(M):
             if any([i == 0, i == L - 1, j == 0, j == M - 1]):
-                matrix_2d[idx, i, j] = -1
+                center_value = -1
             else:
-                matrix_2d[idx, i, j] = -2
+                center_value = -2
 
             if i > 0:
                 matrix_2d[idx, i - 1, j] = 1
@@ -144,6 +144,8 @@ def get_curvature_penalty_matrix_2D(L: int,
                 matrix_2d[idx, i, j - 1] = 1
             if j + 1 < M:
                 matrix_2d[idx, i, j + 1] = 1
+            center_value = -np.sum(matrix_2d[idx])
+            matrix_2d[idx, i, j] = center_value
             idx += 1
     if flatten:
         matrix_2d = matrix_2d.reshape(L * M, L * M)
