@@ -131,11 +131,6 @@ def get_curvature_penalty_matrix_2D(L: int,
     idx = 0
     for i in range(L):
         for j in range(M):
-            if any([i == 0, i == L - 1, j == 0, j == M - 1]):
-                center_value = -1
-            else:
-                center_value = -2
-
             if i > 0:
                 matrix_2d[idx, i - 1, j] = 1
             if i + 1 < L:
@@ -183,38 +178,23 @@ def get_curvature_penalty_matrix_3D(L: int,
     for i in range(L):
         for j in range(M):
             for k in range(N):
-                center_value = -2
                 # i dimension
                 if i > 0:  # lower bound
                     matrix_3d[idx, i - 1, j, k] = 1
-                else:
-                    center_value = -1
                 if i + 1 < L:  # upper bound
                     matrix_3d[idx, i + 1, j, k] = 1
-                else:
-                    center_value = -1
                 # j dimension
                 if j > 0:  # lower bound
                     matrix_3d[idx, i, j - 1, k] = 1
-                else:
-                    center_value = -1
                 if j + 1 < M:
                     matrix_3d[idx, i, j + 1, k] = 1
-                else:
-                    center_value = -1
                 # k dimension
                 if k > 0:  # lower bound
                     matrix_3d[idx, i, j, k - 1] = 1
-                else:
-                    center_value = -1
                 if k + 1 < N:  # upper bound
                     matrix_3d[idx, i, j, k + 1] = 1
-                else:
-                    center_value = -1
-
                 center_value = -np.sum(matrix_3d[idx])
                 matrix_3d[idx, i, j, k] = center_value
-
                 idx += 1
     if flatten:
         matrix_3d = matrix_3d.reshape(L * M * N, L * M * N)
