@@ -173,7 +173,7 @@ class BSplineBasis:
         values = []
         for interaction in self.r_max_map:
             r_max = self.r_max_map[interaction]
-            if isinstance(r_max, (float, np.floating, int)):
+            if isinstance(r_max, (float, np.floating, int, np.int64)):
                 values.append(r_max)
             else:
                 values.append(r_max[0])
