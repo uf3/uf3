@@ -849,7 +849,7 @@ def freeze_columns(x: np.ndarray,
 def freeze_regularizer(regularizer: np.ndarray,
                        mask: np.ndarray) -> np.ndarray:
     """Apply freezing mask to regularizer, eliminating masked columns."""
-    regularizer = regularizer[mask, :][:, mask]
+    regularizer = regularizer[:, mask]
     return regularizer
 
 
