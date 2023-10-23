@@ -300,10 +300,10 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
-            energy_weight, force_weight = calculate_E_F_weights(len(y_e),
-                                                                len(y_f),
-                                                                np.std(y_e),
-                                                                np.std(y_f))
+            energy_weight, force_weight = calc_E_F_weights(len(y_e),
+                                                           len(y_f),
+                                                           np.std(y_e),
+                                                           np.std(y_f))
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -401,10 +401,10 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight, force_weight = calculate_E_F_weights(e_variance.n,
-                                                            f_variance.n,
-                                                            e_variance.std,
-                                                            f_variance.std)
+        energy_weight, force_weight = calc_E_F_weights(e_variance.n,
+                                                       f_variance.n,
+                                                       e_variance.std,
+                                                       f_variance.std)
         gram, ordinate = self.combine_weighted_gram(gram_e,
                                                     gram_f,
                                                     ord_e,
@@ -1121,7 +1121,7 @@ def find_pair_potential_well(coefficients, rounding_factor):
     return well_idx
 
 
-def calculate_E_F_weights(n_e, n_f, e_stddev, f_stddev):
+def calc_E_F_weights(n_e, n_f, std_e, std_f):
     """
     Calculates weights applied to energy and force components of the
     least-squares problem (excluding kappa, which is applied in
@@ -1137,10 +1137,10 @@ def calculate_E_F_weights(n_e, n_f, e_stddev, f_stddev):
         energy_weight (float): weight applied to energy components.
         force_weight (float): weight applied to force components.
     """
-    if e_stddev == 0:  # single point or really bad dataset
+    if std_e == 0:  # single point or really bad dataset
         energy_weight = 1.0
         force_weight = 1 / np.sqrt(n_f)
     else:
-        energy_weight = 1 / np.sqrt(n_e) / e_stddev
-        force_weight = 1 / np.sqrt(n_f) / f_stddev
+        energy_weight = 1 / np.sqrt(n_e) / std_e
+        force_weight = 1 / np.sqrt(n_f) / std_f
     return energy_weight, force_weight
