@@ -301,6 +301,9 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, char *potf_name)
   utils::logmesg(lmp, "UF3: {} file should contain UF3 potential for {} {}\n", \
           potf_name, itype, jtype);
 
+  if (!platform::file_is_readable(potf_name))
+    error->all(FLERR, "UF3: {} file is not readable", potf_name);
+
   FILE *fp;
   fp = utils::open_potential(potf_name, lmp, nullptr);
 
@@ -419,6 +422,9 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
 {
   utils::logmesg(lmp, "UF3: {} file should contain UF3 potential for {} {} {}\n",
           potf_name, itype, jtype, ktype);
+
+  if (!platform::file_is_readable(potf_name))
+    error->all(FLERR, "UF3: {} file is not readable", potf_name);
 
   FILE *fp;
   fp = utils::open_potential(potf_name, lmp, nullptr);
