@@ -129,24 +129,44 @@ void PairUF3::coeff(int narg, char **arg)
  
 
     if (narg == 3){
-      for (int i = ilo; i <= ihi; i++) {
-        for (int j = MAX(jlo, i); j <= jhi; j++) {
-          if (comm->me == 0)
-            utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[2]);
-          uf3_read_pot_file(i,j,arg[2]);
+      if (utils::strmatch(arg[0],".*\\*.*") || utils::strmatch(arg[1],".*\\*.*")){
+        for (int i = ilo; i <= ihi; i++) {
+          for (int j = MAX(jlo, i); j <= jhi; j++) {
+            if (comm->me == 0)
+              utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[2]);
+            uf3_read_pot_file(i,j,arg[2]);
+          }
         }
+      }
+
+      else{
+        int i = utils::inumeric(FLERR, arg[0], true, lmp);
+        int j = utils::inumeric(FLERR, arg[1], true, lmp);
+        if (comm->me == 0)
+          utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[2]);
+        uf3_read_pot_file(i,j,arg[2]);
       }
     }
 
     if (narg == 4){
-      for (int i = ilo; i <= ihi; i++) {
-        for (int j = jlo; j <= jhi; j++) {
-          for (int k = MAX(klo, jlo); k <= khi; k++) {
-            if (comm->me == 0)
-              utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[3]);
-            uf3_read_pot_file(i,j,k,arg[3]);
+      if (utils::strmatch(arg[0],".*\\*.*") || utils::strmatch(arg[1],".*\\*.*") || utils::strmatch(arg[2],".*\\*.*")){
+        for (int i = ilo; i <= ihi; i++) {
+          for (int j = jlo; j <= jhi; j++) {
+            for (int k = MAX(klo, jlo); k <= khi; k++) {
+              if (comm->me == 0)
+                utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[3]);
+              uf3_read_pot_file(i,j,k,arg[3]);
+            }
           }
         }
+      }
+      else{
+        if (comm->me == 0)
+          utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[3]);
+        int i = utils::inumeric(FLERR, arg[0], true, lmp);
+        int j = utils::inumeric(FLERR, arg[1], true, lmp);
+        int k = utils::inumeric(FLERR, arg[2], true, lmp);
+        uf3_read_pot_file(i,j,k,arg[3]);
       }
     }
   }
