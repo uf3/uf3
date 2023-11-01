@@ -64,7 +64,6 @@ def bspline_config_larger_cutoff_2(Nb_Sn_chemistry,config_2):
                                                     trailing_trim=3)
     yield bspline_config
 
-
 @pytest.fixture()
 def Nb3Sn_geom():
     geom = ase.Atoms('Nb6Sn2',

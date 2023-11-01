@@ -72,14 +72,17 @@ def get_bspline_config(
 
     rmax_3b_double = rmax_3b * 2
     if not (
-        np.isclose((rmax_3b_double % knot_spacing_3b), 0)
-        or np.isclose((rmax_3b_double % knot_spacing_3b), knot_spacing_3b)
+        np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), 0)
+        or np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), knot_spacing_3b)
     ):
         raise ValueError(
-            "Provided rmax_3b contains integer number of knots sperated \n\
-                by knot_spacing_3b, but rmax_3b_double does not. Consider \n\
-                changing rmax_3b to"
-            + str(rmax_3b + knot_spacing_3b)
+            "Provided (rmax_3b-rmin_3b) contains integer number of knots \n\
+                sperated by knot_spacing_3b, but rmax_3b_double does not. \n\
+                Consider changing rmin_3b, rmax_3b, knot_spacing_3b so that \n\
+                the following conditions are satisfied- \n\
+                --(rmax_3b - rmin_3b)/knot_spacing_3b == integer \n\
+                --(rmax_3b_double - rmin_3b)//knot_spacing_3b == integer, \n\
+                    where rmax_3b_double = 2*rmax_3b, calculated internally"
         )
 
     reso_2b = round((rmax_2b - rmin_2b) / knot_spacing_2b)
