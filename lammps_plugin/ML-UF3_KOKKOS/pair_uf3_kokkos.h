@@ -31,8 +31,7 @@ PairStyle(uf3/kk/device,PairUF3Kokkos<LMPDeviceType>)
 #include "pair_kokkos.h"
 #include "pair_uf3.h"
 
-template <int NEIGHFLAG, int EVFLAG> struct TagPairUF3ComputeFullA {
-};
+template <int NEIGHFLAG, int EVFLAG> struct TagPairUF3ComputeFullA {};
 struct TagPairUF3ComputeShortNeigh {};
 
 namespace LAMMPS_NS {
@@ -42,10 +41,11 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
   PairUF3Kokkos(class LAMMPS *);
   ~PairUF3Kokkos() override;
   void compute(int, int) override;
-  void coeff(int, char **) override;
   void settings(int, char **) override;
+  void coeff(int, char **) override;
   void init_style() override;
   void init_list(int, class NeighList *) override;    // needed for ptr to full neigh list
+  double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
   template <typename T, typename V> void copy_2d(V &d, T **h, int m, int n);
