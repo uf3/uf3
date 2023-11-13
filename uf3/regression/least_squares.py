@@ -301,11 +301,11 @@ class WeightedLinearModel(BasicLinearModel):
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
             try:
-                energy_weight = 1 / len(y_e) / np.std(y_e)
-                force_weight = 1 / len(y_f) / np.std(y_f)
+                energy_weight = 1 / np.sqrt(len(y_e)) / np.std(y_e)
+                force_weight = 1 / np.sqrt(len(y_f)) / np.std(y_f)
             except (ZeroDivisionError, FloatingPointError):
                 energy_weight = 1.0
-                force_weight = 1 / len(y_f)
+                force_weight = 1 / np.sqrt(len(y_f))
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -348,10 +348,10 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x) for fitting.
             ordinate (np.ndarray): ordinate (x^T y) for fitting.
         """
-        gram = (((weight * energy_weight) ** 2 * gram_e)
-                + (((1 - weight) * force_weight) ** 2 * gram_f))
-        ordinate = (((weight * energy_weight) ** 2 * ord_e)
-                    + (((1 - weight) * force_weight) ** 2 * ord_f))
+        gram = ((weight * energy_weight**2 * gram_e)
+                + ((1 - weight) * force_weight**2 * gram_f))
+        ordinate = ((weight * energy_weight**2 * ord_e)
+                    + ((1 - weight) * force_weight**2 * ord_f))
         return gram, ordinate
 
     def fit_from_file(self,
@@ -403,8 +403,8 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight = 1 / e_variance.n / e_variance.std
-        force_weight = 1 / f_variance.n / f_variance.std
+        energy_weight = 1 / np.sqrt(e_variance.n) / e_variance.std
+        force_weight = 1 / np.sqrt(f_variance.n) / f_variance.std
         gram, ordinate = self.combine_weighted_gram(gram_e,
                                                     gram_f,
                                                     ord_e,
@@ -489,9 +489,9 @@ class WeightedLinearModel(BasicLinearModel):
 
         Returns:
             y_e (np.ndarray): target values for energies.
-            p_e (np.ndarray): prediction values for forces.
-            y_f (np.ndarray): target values for energies.
-            p_f (np.ndarray): target values for forces.
+            p_e (np.ndarray): prediction values for energies.
+            y_f (np.ndarray): target values for forces.
+            p_f (np.ndarray): prediction values for forces.
             rmse_e (np.ndarray): RMSE across energy predictions.
             rmse_e (np.ndarray): RMSE across force predictions.
         """
@@ -934,9 +934,9 @@ def subset_prediction(df: pd.DataFrame,
 
     Returns:
         y_e (np.ndarray): target values for energies.
-        p_e (np.ndarray): prediction values for forces.
-        y_f (np.ndarray): target values for energies.
-        p_f (np.ndarray): target values for forces.
+        p_e (np.ndarray): prediction values for energies.
+        y_f (np.ndarray): target values for forces.
+        p_f (np.ndarray): prediction values for forces.
     """
     if subset_keys is not None:
         idx = df.index.unique(level=0).intersection(subset_keys)
@@ -967,9 +967,9 @@ def batched_prediction(model: WeightedLinearModel,
 
     Returns:
         y_e (np.ndarray): target values for energies.
-        p_e (np.ndarray): prediction values for forces.
-        y_f (np.ndarray): target values for energies.
-        p_f (np.ndarray): target values for forces.
+        p_e (np.ndarray): prediction values for energies.
+        y_f (np.ndarray): target values for forces.
+        p_f (np.ndarray): prediction values for forces.
     """
     if table_names is None:
         _, _, table_names, _ = io.analyze_hdf_tables(filename)

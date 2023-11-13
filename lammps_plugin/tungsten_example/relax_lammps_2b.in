@@ -1,0 +1,26 @@
+# # ============= basic parameters
+units 		metal
+boundary 	p p p
+atom_style 	atomic
+
+# # ============= import structure file
+read_data	struct.lammps
+mass		1 183.84
+neighbor	0.0 bin
+# ============= force field
+pair_style  zero 10.0
+pair_style  uf3 2 1
+pair_coeff  1 1 W_W
+
+#----------------------Run Minimization-------------------------
+reset_timestep	0
+fix 1 all box/relax iso 0
+thermo 10
+thermo_style custom step pe lx ly lz press pxx pyy pzz  
+min_style cg
+minimize 1e-15 1e-15 5000 5000
+#
+#######################################
+#
+## SIMULATION DONE
+print "All done"

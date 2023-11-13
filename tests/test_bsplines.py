@@ -10,7 +10,240 @@ def binary_chemistry():
     chemistry_config = composition.ChemicalSystem(element_list)
     yield chemistry_config
 
+@pytest.fixture()
+def binary_chemistry():
+    element_list = ['Ne', 'Xe']
+    chemistry_config = composition.ChemicalSystem(element_list)
+    yield chemistry_config
 
+@pytest.fixture
+def unary_trio():
+    return ('Si','Si','Si')
+
+@pytest.fixture
+def binary_sym_trio():
+    return ('Si','N','N')
+
+@pytest.fixture
+def binary_unsym_trio():
+    return ('Si','Si','N') 
+
+@pytest.fixture
+def equilateral():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [10,10,10])
+
+### The naming convention is TRIANGLE-TYPE_W.R.T_LEG ###
+@pytest.fixture
+def isosceles_rmax_rjk():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [5.,5.,10.],
+                resolution = [6,6,6])
+@pytest.fixture
+def isosceles_rmax_rij():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [5.,10.,5.],
+                resolution = [6,6,6])
+@pytest.fixture
+def isosceles_rmax_rik():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [10.,5.,5.],
+                resolution = [6,6,6])
+### Rmin iso ###
+@pytest.fixture
+def isosceles_rmin_rjk():
+    return dict(r_min = [0.1,0.1,0.2],
+                r_max = [8.,8.,8.],
+                resolution = [6,6,6])
+@pytest.fixture
+def isosceles_rmin_rij():
+    return dict(r_min = [0.2,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [6,6,6])
+@pytest.fixture
+def isosceles_rmin_rik():
+    return dict(r_min = [0.1,0.2,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [6,6,6])
+
+### Resolution iso ###
+@pytest.fixture
+def isosceles_resolution_rjk():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [6,6,12])
+@pytest.fixture
+def isosceles_resolution_rij():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [12,6,6])
+@pytest.fixture
+def isosceles_resolution_rik():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [6,12,6])
+
+@pytest.fixture
+def scalene_rmax():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [4.,5.,10.],
+                resolution = [6,6,6])
+
+@pytest.fixture
+def scalene_rmin():
+    return dict(r_min = [0.1,0.2,0.3],
+                r_max = [8.,8.,8.],
+                resolution = [6,6,6])
+
+@pytest.fixture
+def scalene_resolution():
+    return dict(r_min = [0.1,0.1,0.1],
+                r_max = [8.,8.,8.],
+                resolution = [4,6,12])
+
+@pytest.fixture
+def isosceles_rmax_resolution_scalene_rmin():
+    return dict(r_min = [0.2,0.1,0.1],
+                r_max = [5.,5.,10.],
+                resolution = [6,6,12])
+
+@pytest.fixture
+def scalene_all_diff():
+    return dict(r_min = [0.1,0.1,0.2],
+                r_max = [5.,10.,5.],
+                resolution = [10,20,20])
+
+class TestFindSym3Body:
+    def test_equilateral_unary(self,unary_trio,equilateral):
+        assert find_symmetry_3B(unary_trio,**equilateral) == 3
+        
+    def test_equilateral_binary_sym(self,binary_sym_trio,equilateral):   
+        assert find_symmetry_3B(binary_sym_trio,**equilateral) == 2 
+        
+    def test_equilateral_binary_unsym(self,binary_unsym_trio,equilateral):
+        assert find_symmetry_3B(binary_unsym_trio,**equilateral) == 1        
+        
+    def test_isosceles_unary_rmax_rjk(self,unary_trio,isosceles_rmax_rjk):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmax_rjk) == 2
+        
+    def test_isosceles_binary_sym_rmax_rjk(self,binary_sym_trio,isosceles_rmax_rjk):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmax_rjk) == 2
+        
+    def test_isosceles_binary_unsym_rmax_rjk(self,binary_unsym_trio,isosceles_rmax_rjk):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmax_rjk) == 1
+        
+    def test_isosceles_unary_rmax_rij(self,unary_trio,isosceles_rmax_rij):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmax_rij) == 1
+        
+    def test_isosceles_binary_sym_rmax_rij(self,binary_sym_trio,isosceles_rmax_rij):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmax_rij) == 1
+        
+    def test_isosceles_binary_unsym_rmax_rij(self,binary_unsym_trio,isosceles_rmax_rij):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmax_rij) == 1        
+        
+    def test_isosceles_unary_rmax_rik(self,unary_trio,isosceles_rmax_rik):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmax_rik) == 1
+        
+    def test_isosceles_binary_sym_rmax_rik(self,binary_sym_trio,isosceles_rmax_rik):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmax_rik) == 1
+        
+    def test_isosceles_binary_unsym_rmax_rik(self,binary_unsym_trio,isosceles_rmax_rik):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmax_rik) == 1
+        
+    def test_isosceles_unary_rmin_rjk(self,unary_trio,isosceles_rmin_rjk):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmin_rjk) == 2
+        
+    def test_isosceles_binary_sym_rmin_rjk(self,binary_sym_trio,isosceles_rmin_rjk):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmin_rjk) == 2
+        
+    def test_isosceles_binary_unsym_rmin_rjk(self,binary_unsym_trio,isosceles_rmin_rjk):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmin_rjk) == 1
+        
+    def test_isosceles_unary_rmin_rij(self,unary_trio,isosceles_rmin_rij):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmin_rij) == 1
+        
+    def test_isosceles_binary_sym_rmin_rij(self,binary_sym_trio,isosceles_rmin_rij):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmin_rij) == 1
+        
+    def test_isosceles_binary_unsym_rmin_rij(self,binary_unsym_trio,isosceles_rmin_rij):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmin_rij) == 1        
+        
+    def test_isosceles_unary_rmin_rik(self,unary_trio,isosceles_rmin_rik):
+        assert find_symmetry_3B(unary_trio,**isosceles_rmin_rik) == 1
+        
+    def test_isosceles_binary_sym_rmin_rik(self,binary_sym_trio,isosceles_rmin_rik):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmin_rik) == 1
+        
+    def test_isosceles_binary_unsym_rmin_rik(self,binary_unsym_trio,isosceles_rmin_rik):
+        assert find_symmetry_3B(binary_unsym_trio,**isosceles_rmin_rik) == 1   
+
+    def test_isosceles_unary_resolution_rjk(self, unary_trio, isosceles_resolution_rjk):
+        assert find_symmetry_3B(unary_trio, **isosceles_resolution_rjk) == 2
+
+    def test_isosceles_binary_sym_resolution_rjk(self, binary_sym_trio, isosceles_resolution_rjk):
+        assert find_symmetry_3B(binary_sym_trio, **isosceles_resolution_rjk) == 2
+
+    def test_isosceles_binary_unsym_resolution_rjk(self, binary_unsym_trio, isosceles_resolution_rjk):
+        assert find_symmetry_3B(binary_unsym_trio, **isosceles_resolution_rjk) == 1
+
+    def test_isosceles_unary_resolution_rij(self, unary_trio, isosceles_resolution_rij):
+        assert find_symmetry_3B(unary_trio, **isosceles_resolution_rij) == 1
+
+    def test_isosceles_binary_sym_resolution_rij(self, binary_sym_trio, isosceles_resolution_rij):
+        assert find_symmetry_3B(binary_sym_trio, **isosceles_resolution_rij) == 1
+
+    def test_isosceles_binary_unsym_resolution_rij(self, binary_unsym_trio, isosceles_resolution_rij):
+        assert find_symmetry_3B(binary_unsym_trio, **isosceles_resolution_rij) == 1
+
+    def test_isosceles_unary_resolution_rik(self, unary_trio, isosceles_resolution_rik):
+        assert find_symmetry_3B(unary_trio, **isosceles_resolution_rik) == 1
+
+    def test_isosceles_binary_sym_resolution_rik(self, binary_sym_trio, isosceles_resolution_rik):
+        assert find_symmetry_3B(binary_sym_trio, **isosceles_resolution_rik) == 1
+
+    def test_isosceles_binary_unsym_resolution_rik(self, binary_unsym_trio, isosceles_resolution_rik):
+        assert find_symmetry_3B(binary_unsym_trio, **isosceles_resolution_rik) == 1
+        
+    def test_scalene_unary_rmax(self,unary_trio,scalene_rmax):
+        assert find_symmetry_3B(unary_trio,**scalene_rmax) == 1
+        
+    def test_scalene_binary_sym_rmax(self,binary_sym_trio,scalene_rmax):
+        assert find_symmetry_3B(binary_sym_trio,**scalene_rmax) == 1
+        
+    def test_scalene_binary_unsym_rmax(self,binary_unsym_trio,scalene_rmax):
+        assert find_symmetry_3B(binary_unsym_trio,**scalene_rmax) == 1  
+        
+    def test_scalene_unary_rmin(self,unary_trio,scalene_rmin):
+        assert find_symmetry_3B(unary_trio,**scalene_rmin) == 1
+        
+    def test_scalene_binary_sym_rmin(self,binary_sym_trio,scalene_rmin):
+        assert find_symmetry_3B(binary_sym_trio,**scalene_rmin) == 1
+        
+    def test_scalene_binary_unsym_rmin(self,binary_unsym_trio,scalene_rmin):
+        assert find_symmetry_3B(binary_unsym_trio,**scalene_rmin) == 1            
+
+    def test_scalene_unary_resolution(self,unary_trio,scalene_resolution):
+        assert find_symmetry_3B(unary_trio,**scalene_resolution) == 1
+        
+    def test_scalene_binary_sym_resolution(self,binary_sym_trio,scalene_resolution):
+        assert find_symmetry_3B(binary_sym_trio,**scalene_resolution) == 1
+        
+    def test_scalene_binary_unsym_resolution(self,binary_unsym_trio,scalene_resolution):
+        assert find_symmetry_3B(binary_unsym_trio,**scalene_resolution) == 1   
+
+    def test_binary_sym_isosceles_rmax_resolution_scalene_rmin(self,binary_sym_trio,isosceles_rmax_resolution_scalene_rmin):
+        assert find_symmetry_3B(binary_sym_trio,**isosceles_rmax_resolution_scalene_rmin) == 1
+
+    def test_scalene_unary_all_diff(self,unary_trio,scalene_all_diff):
+        assert find_symmetry_3B(unary_trio,**scalene_all_diff) == 1
+
+    def test_scalene_binary_sym_all_diff(self,binary_sym_trio,scalene_all_diff):
+        assert find_symmetry_3B(binary_sym_trio,**scalene_all_diff) == 1
+
+    def test_scalene_binary_unsym_all_diff(self,binary_unsym_trio,scalene_all_diff):
+        assert find_symmetry_3B(binary_unsym_trio,**scalene_all_diff) == 1
+       
 class TestKnots:
     def test_knot_sequence_from_points(self):
         sequence = knot_sequence_from_points([1, 2, 3])
@@ -74,23 +307,29 @@ class TestBSplineConfig:
         assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
 
     def test_regularizer(self):
-        ridge_map = {1: 2, 2: 0.5}
+        ridge_map = {1: 4, 2: 0.25}
         curvature_map = {2: 1}
         element_list = ['Ne', 'Xe']
         chemistry = composition.ChemicalSystem(element_list)
         bspline_handler = BSplineBasis(chemistry)
+        nfeatures = bspline_handler.n_feats
         matrix = bspline_handler.get_regularization_matrix(ridge_map,
                                                            curvature_map)
-        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
-        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
+        ridge_sum = (len(element_list) * np.sqrt(ridge_map[1])) + \
+                    (np.sqrt(ridge_map[2]) * (nfeatures - len(element_list)))
+        curv_sum = (0 * 2) + (np.sqrt(curvature_map[2]) * 2 * (
+                   nfeatures - len(element_list) - len(bspline_handler.interactions_map[2])
+                   ))
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 
-        matrix = bspline_handler.get_regularization_matrix(r1=2,
-                                                           r2=0.5,
+        matrix = bspline_handler.get_regularization_matrix(r1=4,
+                                                           r2=0.25,
                                                            c2=1)
-        ridge_sum = (2 * 2) + (0.5 * (18 + 18 + 18))
-        curv_sum = (0 * 2) + (1 + (2 * (18-2)) + 1) * 3
+        ridge_sum = (len(element_list) * 2) + (0.5 * (nfeatures - len(element_list)))
+        curv_sum = (0 * 2) + (1 * 2 * (
+                   nfeatures - len(element_list) - len(bspline_handler.interactions_map[2])
+                   ))
         assert np.sum(matrix) == ridge_sum
         assert np.sum(np.diag(matrix)) == ridge_sum + curv_sum
 

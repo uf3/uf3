@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 from numba import jit
 import ase
+from ase import symbols as ase_symbols
 from uf3.data import composition
 from uf3.representation import bspline
 from uf3.representation import distances
@@ -391,7 +392,7 @@ def generate_triplets(i_where: np.ndarray,
                       knot_sets: List[List[np.ndarray]]
                       ) -> List[Tuple]:
     """
-    Identify unique "i-j-j'" tuples by combining provided i-j pairs, then
+    Identify unique "i-j-k" tuples by combining provided i-j pairs, then
     compute i-j, i-k, and j-k pair distances from i-j-k tuples,
         distance matrix, and knot sequence for cutoffs.
 
@@ -415,12 +416,35 @@ def generate_triplets(i_where: np.ndarray,
     i_groups = np.array_split(j_where, np.cumsum(group_sizes)[:-1])
     # generate j-k combinations
     for i in range(len(i_groups)):
-        tuples = np.array(np.meshgrid(i_groups[i],
-                                      i_groups[i])).T.reshape(-1, 2)
-        tuples = np.insert(tuples, 0, i_values[i], axis=1)
+        j_arr, k_arr = np.meshgrid(i_groups[i], i_groups[i])
+
+        # Pick out unique neighbor pairs of central atom i
+        # ex: With center atom 0 and its neighbors [2, 1, 3],
+        # j_arr = [[2, 1, 3],
+        #          [2, 1, 3],
+        #          [2, 1, 3]]
+        # k_arr = [[2, 2, 2],
+        #          [1, 1, 1],
+        #          [3, 3, 3]]
+        # j_indices = [1, 2, 1]
+        # k_indices = [2, 3, 3]
+        # => unique pairs: (1, 2), (2, 3), (1, 3)
+        # The unique_pair_mask has filtered out pairs like (1, 1), (2, 1), (3, 2), etc.
+        unique_pair_mask = (j_arr < k_arr)
+        j_indices = j_arr[unique_pair_mask]
+        k_indices = k_arr[unique_pair_mask]
+        tuples = np.vstack((i_values[i] * np.ones(len(j_indices), dtype=int),
+                            j_indices, k_indices)).T  # array of unique triplets
 
         comp_tuples = sup_composition[tuples]
-        comp_tuples[:, 1:] = np.sort(comp_tuples[:, 1:], axis=1)
+
+        sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)  # to sort by atomic number
+        comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
+        tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
+
+        # sort comp_tuples and tuples the same way
+        comp_tuples = np.hstack((comp_tuples[:, [0]], comp_tuples_slice))
+        tuples = np.hstack((tuples[:, [0]], tuples_slice))
 
         ijk_hash = composition.get_szudzik_hash(comp_tuples)
 
@@ -430,9 +454,6 @@ def generate_triplets(i_where: np.ndarray,
             if len(ituples) == 0:
                 grouped_triplets[j] = None
                 continue
-            # atoms j and k are interchangable; filter
-            comparison_mask = (ituples[:, 1] < ituples[:, 2])
-            ituples = ituples[comparison_mask]
             # extract distance tuples
             r_l = distance_matrix[ituples[:, 0], ituples[:, 1]]
             r_m = distance_matrix[ituples[:, 0], ituples[:, 2]]
