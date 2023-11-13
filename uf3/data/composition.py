@@ -85,7 +85,7 @@ class ChemicalSystem:
         summary = ["ChemicalSystem:",
                    f"    Elements: {self.element_list}",
                    f"    Degree: {self.degree}",
-                   f"    Pairs: {self.interactions_map[2]}",
+                   f"    Pairs: {self.interactions_map[2]}"
                    ]
         if self.degree > 2:
             summary.append(f"    Trios: {self.interactions_map[3]}")

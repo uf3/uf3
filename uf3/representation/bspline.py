@@ -940,10 +940,6 @@ class BSplineBasis_with_magnetism(BSplineBasis):
         return combined_matrix
 
 
-    
-
-
-    
 def find_symmetry_3B(trio: Tuple, 
                      r_min: List,
                      r_max: List, 
