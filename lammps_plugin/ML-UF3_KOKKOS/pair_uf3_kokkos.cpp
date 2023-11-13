@@ -47,6 +47,7 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::PairUF3Kokkos(LAMMPS *lmp
 {
   respa_enable = 0;
 
+  //kokkosable = 1;
   atomKK = (AtomKokkos *) atom;
   execution_space = ExecutionSpaceFromDevice<DeviceType>::space;
   datamask_read = X_MASK | F_MASK | TAG_MASK | TYPE_MASK | ENERGY_MASK | VIRIAL_MASK;
@@ -56,8 +57,8 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::PairUF3Kokkos(LAMMPS *lmp
 template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
 {
   if (!copymode) {
-    memoryKK->destroy_kokkos(k_eatom, eatom);
-    memoryKK->destroy_kokkos(k_vatom, vatom);
+    memoryKK->destroy_kokkos(k_eatom, eatom); //destory eatom from host
+    memoryKK->destroy_kokkos(k_vatom, vatom); //destory vatom from host
     eatom = NULL;
     vatom = NULL;
     cvatom = NULL;
@@ -71,6 +72,8 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
 template <class DeviceType> void PairUF3Kokkos<DeviceType>::settings(int narg, char **arg)
 {
   PairUF3::settings(narg, arg);
+  //1. Determines whether the simulation is 2-body or 2 and 3-body
+  //2. Set nbody_flag, num_of_elements, pot_3b
 }
 
 /* ----------------------------------------------------------------------
@@ -79,12 +82,53 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::settings(int narg, c
 template <class DeviceType> void PairUF3Kokkos<DeviceType>::coeff(int narg, char **arg)
 {
   if (!allocated) PairUF3::allocate();
+  //Grows arrays to the right dimensions --> setflag, cutsq, cut, knot_spacing_type_2b,
+  //n2b_knot, n2b_coeff, UFBS2b, n2b_knot[i], n2b_coeff[i], UFBS2b[i], setflag_3b,
+  //cut_3b, cut_3b_list, min_cut_3b, knot_spacing_type_3b, cut_3b_list, n3b_knot_matrix,
+  //UFBS3b, neighshort
 
-  if (narg != tot_pot_files + 2)
-    error->all(FLERR,
-               "UF3Kokkos: UF3 invalid number of argument in pair coeff; Number of potential files "
-               "provided is not correct");
+  if (narg != 3 && narg != 4){
+     /*error->warning(FLERR, "\nUF3: WARNING!! It seems that you are using the \n\
+             older style of specifying UF3 POT files. This style of listing \n\
+             all the potential files on a single line will be depcrecated in \n\
+             the next version of ML-UF3");*/
+    if (narg == tot_pot_files + 2)
+      error->all(FLERR, "UF3Kokkos: The old style of listing all the potential\n\
+              files on a single line is depcrecated");
+    else
+      error->all(FLERR, "UF3Kokkos: Invalid number of argument in pair coeff;\n\
+              Provide the species number followed by the LAMMPS POT file\n\
+              Eg. 'pair_coeff 1 1 POT_FILE' for 2-body and \n\
+              'pair_coeff 1 2 2 POT_FILE' for 3-body.");
+  }
 
+  if (narg == 3 || narg == 4){
+    int ilo, ihi, jlo, jhi, klo, khi;
+    utils::bounds(FLERR, arg[0], 1, atom->ntypes, ilo, ihi, error);
+    utils::bounds(FLERR, arg[1], 1, atom->ntypes, jlo, jhi, error);
+    if (narg == 4)
+      utils::bounds(FLERR, arg[2], 1, atom->ntypes, klo, khi, error);
+ 
+
+    if (narg == 3){
+      for (int i = ilo; i <= ihi; i++) {
+        for (int j = MAX(jlo, i); j <= jhi; j++) {
+          uf3_read_pot_file(i,j,arg[2]);
+        }
+      }
+    }
+
+    if (narg == 4){
+      for (int i = ilo; i <= ihi; i++) {
+        for (int j = jlo; j <= jhi; j++) {
+          for (int k = MAX(klo, jlo); k <= khi; k++) {
+            uf3_read_pot_file(i,j,k,arg[3]);
+          }
+        }
+      }
+    }
+  }
+  /*
   // open UF3 potential file on proc 0
 
   for (int i = 2; i < narg; i++) { PairUF3::uf3_read_pot_file(arg[i]); }
@@ -114,7 +158,7 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::coeff(int narg, char
         }
       }
     }
-  }
+  }*/
 
   copy_2d(d_cutsq, cutsq, num_of_elements + 1, num_of_elements + 1);
   if (pot_3b) {
