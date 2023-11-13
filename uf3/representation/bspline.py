@@ -980,7 +980,6 @@ def find_symmetry_3B(trio: Tuple,
             # 3 legs all have different configurations
             # OR the 2 central legs have different configurations
             return 1
->>>>>>> upstream/develop
     
     
 def get_knot_spacer(knot_strategy):
