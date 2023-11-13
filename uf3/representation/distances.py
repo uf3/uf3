@@ -135,6 +135,89 @@ def derivatives_by_interaction(geom: ase.Atoms,
         derivative_map[pair] = drij_dr
     return distance_map, derivative_map
 
+def magmom_by_interaction(geom: ase.Atoms,
+                          mag_tuples: List[Tuple[str]],
+                          magnetic_r_min_map: Dict[Tuple[str], float],
+                          magnetic_r_max_map: Dict[Tuple[str], float],
+                          magmom_list: List[float], #??
+                          supercell: ase.Atoms = None,
+                          atomic: bool = False,
+                         ) -> Dict[Tuple[str], np.ndarray]:
+
+    distance_matrix = get_distance_matrix(geom, supercell)
+    magmom_matrix = get_magmom_matrix(geom, supercell,magmom_list)
+    if supercell is None:
+        supercell = geom
+    geo_composition = np.array(geom.get_atomic_numbers())
+    sup_composition = np.array(supercell.get_atomic_numbers())
+    s_geo = len(geom)
+    # loop through interactions
+    if atomic:
+        magmom_map = {tuple_: [] for tuple_ in mag_tuples}
+    else:
+        magmom_map = {}
+    for mag in mag_tuples:
+        mag_r_min = max(magnetic_r_min_map[mag], 0)
+        mag_r_max = magnetic_r_max_map[mag]
+        mag_numbers = ase_symbols.symbols2numbers(mag)
+        comp_mask = mask_matrix_by_pair_interaction(mag_numbers,
+                                                    geo_composition,
+                                                    sup_composition)
+        cut_mask = (distance_matrix > mag_r_min) & (distance_matrix < mag_r_max)
+        if not atomic:  # valid distances across configuration
+            interaction_mask = comp_mask & cut_mask
+            magmom_map[mag] = []
+            for mag_idx in np.where(interaction_mask):
+                magmom_map[mag].append([magmom_list[mag_idx[0]], magmom_matrix[mag_idx[0],mag_idx[1]]])
+        else:  # valid distances per atom
+            for i in range(s_geo):
+                atom_slice = magmom_matrix[i]
+                interaction_mask = comp_mask[i] & cut_mask[i]
+                magmom_map[mag].append(atom_slice[interaction_mask])
+    return magmom_map
+
+def derivatives_by_interaction_and_mag_map(geom: ase.Atoms,
+                                           mag_tuples: List[Tuple[str]],
+                                           magmom_list: list,
+                                           r_cut: float,
+                                           r_min_map: Dict[Tuple[str], float],
+                                           r_max_map: Dict[Tuple[str], float],
+                                           supercell: ase.Atoms = None) -> Tuple[Dict, Dict]:
+
+    if supercell is None:
+        supercell = geom
+    n_atoms = len(geom)
+    # extract atoms from supercell that are within the maximum
+    # cutoff distance of atoms in the unit cell.
+    supercell = mask_supercell_with_radius(geom, supercell, r_cut)
+    distance_matrix = get_distance_matrix(supercell, supercell)
+    magmom_matrix = get_magmom_matrix(supercell,supercell,magmom_list)
+    sup_positions = supercell.get_positions()
+    sup_composition = np.array(supercell.get_atomic_numbers())
+    # loop through interactions
+    distance_map = {}
+    derivative_map = {}
+    magmom_map = {}
+    for mag in mag_tuples:
+        mag_numbers = ase_symbols.symbols2numbers(mag)
+        r_min = max(r_min_map[mag], 0)
+        r_max = r_max_map[mag]
+        comp_mask = mask_matrix_by_pair_interaction(mag_numbers,
+                                                    sup_composition,
+                                                    sup_composition)
+        cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
+        # valid distances across configuration
+        interaction_mask = comp_mask & cut_mask
+        distance_map[mag] = distance_matrix[interaction_mask]
+        x_where, y_where = np.where(interaction_mask)
+        magmom_map[mag] = []
+        for mag_idx in np.where(interaction_mask):
+            magmom_map[mag].append([magmom_list[mag_idx[0]], magmom_matrix[mag_idx[0],mag_idx[1]]])
+        drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
+                                            x_where, y_where, n_atoms)
+        derivative_map[mag] = drij_dr
+    return distance_map, derivative_map, magmom_map
+
 
 def mask_supercell_with_radius(geom: ase.Atoms,
                                supercell: ase.Atoms,
@@ -268,6 +351,32 @@ def get_distance_derivatives(geom: ase.Atoms,
                                         i_where, j_where, n_atoms)
     distances = distance_matrix[cut_mask]
     return distances, drij_dr
+
+
+def get_magmom_matrix(geom: ase.Atoms,
+                      supercell: ase.Atoms = None,
+                      magmom_list: list =None
+                     ) -> np.ndarray:
+
+    if magmom_list is not None:
+        if len(magmom_list) == 0:
+            raise ValueError("magmom list missing")
+
+    if supercell is None:
+        supercell = geom
+
+    magmom_array = np.asarray(magmom_list)
+
+    #Initialize magnetic moment matrix, same shape and ordering as distance matrix
+    magmom_matrix = np.zeros([len(geom),len(supercell)])
+
+    for i in range(len(geom)):
+        for j in range(len(supercell)):
+            idx_in_unit_cell = j%len(geom)
+            magmom_matrix[i][j] = magmom_array[idx_in_unit_cell]
+
+    return magmom_matrix
+
 
 
 def distances_from_geometry(geom: ase.Atoms,
