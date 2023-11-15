@@ -58,9 +58,9 @@ To use UF3 potentials in lammps just add the following tags to the lammps input 
 
 The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. The last number of this line specifies the number of elemnts in the system. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions on a system containing only 1 element.
 
-The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. We recommend using the :code:`generate_uf3_lammps_pots.py` script (`found here <https://github.com/monk-04/uf3/tree/lammps_implementation/lammps_plugin/scripts>`_) for generating the UF3 lammps potential files. It will also additionally print lines that should be added to the lammps input file for using UF3 lammps potential files.
+The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. We recommend using the :code:`generate_uf3_lammps_pots.py` script (`found here </lammps_plugin/scripts>`_) for generating the UF3 lammps potential files. It will also additionally print lines that should be added to the lammps input file for using UF3 lammps potential files. **Note, nothing is inferred from the name of the UF3 lammps potential file. The name of the files can be completely arbitrary**
 
-After :code:`pair_coeff` specify the interactions (two numbers for 2-body, three numbers for 3-body) followed by the name of the potential file. The user can also use asterisks:code:`*` for wild-card characters. In this case the behaviour is similar to other LAMMPS :code:`pair_style` for example LJ. The user can also specify. Make sure these files are present in the current run directory or in directories where lammps can find them.
+After :code:`pair_coeff` specify the interactions (two numbers for 2-body, three numbers for 3-body) followed by the name of the potential file. The user can also use :code:`*` for wild-card characters. In this case the behaviour is similar to other LAMMPS :code:`pair_style` for example LJ. Make sure these files are present in the current run directory or in directories where lammps can find them.
 
 As an example for a multicomponet system containing elements 'A' and 'B' the above lines can be-
 
@@ -76,6 +76,26 @@ As an example for a multicomponet system containing elements 'A' and 'B' the abo
    pair_coeff 2 1 1 B_A_A
    pair_coeff 2 1 2 B_A_B
    pair_coeff 2 2 2 B_B_B
+
+
+If potential file is specified for 2-1 interaction (:code:`pair_coeff 2 1 FileName`), the potential for 1-2 interaction is automatically mapped. So, the following lines are also valid-
+
+.. code:: bash
+
+   pair_style uf3 3 2
+   
+   pair_coeff 2 2 A_A
+   pair_coeff 1 1 B_B
+   pair_coeff 2 1 A_B
+   
+   pair_coeff 2 2 2 A_A_A
+   pair_coeff 2 2 1 A_A_B
+   pair_coeff 2 1 1 A_B_B
+
+   pair_coeff 1 1 1 B_B_B
+   pair_coeff 1 2 1 B_A_B
+   pair_coeff 1 2 2 B_A_A
+
 
 Following format is also a valid for system containing elements 'A' and 'B'
 
