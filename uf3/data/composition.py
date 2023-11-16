@@ -34,6 +34,7 @@ class ChemicalSystem:
     element_list: Collection[str]
     mag_element_list: Collection[str]   # !let the user decide which elements would paticipate in magnetic interaction
     numbers: List[int]
+    mag_numbers: List[int]
     interactions: List[Tuple[str]]
     interactions_map: Dict[int, Collection[Tuple[str]]]
     interaction_hashes: Dict[int, np.ndarray]
@@ -55,6 +56,8 @@ class ChemicalSystem:
         self.mag_element_list = sort_interaction_symbols(mag_element_list) # ! list of magnetic atoms
         self.numbers = [ase_symbols.symbols2numbers(el).pop()
                         for el in self.element_list]
+        self.mag_numbers = mag_numbers = [ase_symbols.symbols2numbers(el).pop() 
+                                          for el in mag_element_list]
         self.interactions_map = self.get_interactions_map()
         self.interactions = self.get_interactions_list()
         self.magnetic_interactions = self.get_magnetic_interactions_list()
