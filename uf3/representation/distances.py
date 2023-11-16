@@ -166,9 +166,7 @@ def magmom_by_interaction(geom: ase.Atoms,
         cut_mask = (distance_matrix > mag_r_min) & (distance_matrix < mag_r_max)
         if not atomic:  # valid distances across configuration
             interaction_mask = comp_mask & cut_mask
-            magmom_map[mag] = []
-            for mag_idx in np.where(interaction_mask):
-                magmom_map[mag].append([magmom_list[mag_idx[0]], magmom_matrix[mag_idx[0],mag_idx[1]]])
+            magmom_map[mag] = magmom_matrix[interaction_mask]
         else:  # valid distances per atom
             for i in range(s_geo):
                 atom_slice = magmom_matrix[i]
@@ -209,10 +207,8 @@ def derivatives_by_interaction_and_mag_map(geom: ase.Atoms,
         # valid distances across configuration
         interaction_mask = comp_mask & cut_mask
         distance_map[mag] = distance_matrix[interaction_mask]
+        magmom_map[mag] = magmom_matrix[interaction_mask]
         x_where, y_where = np.where(interaction_mask)
-        magmom_map[mag] = []
-        for mag_idx in np.where(interaction_mask):
-            magmom_map[mag].append([magmom_list[mag_idx[0]], magmom_matrix[mag_idx[0],mag_idx[1]]])
         drij_dr = compute_direction_cosines(sup_positions, distance_matrix,
                                             x_where, y_where, n_atoms)
         derivative_map[mag] = drij_dr
@@ -355,7 +351,7 @@ def get_distance_derivatives(geom: ase.Atoms,
 
 def get_magmom_matrix(geom: ase.Atoms,
                       supercell: ase.Atoms = None,
-                      magmom_list: list =None
+                      magmom_list: list =None,
                      ) -> np.ndarray:
 
     if magmom_list is not None:
@@ -366,14 +362,14 @@ def get_magmom_matrix(geom: ase.Atoms,
         supercell = geom
 
     magmom_array = np.asarray(magmom_list)
+    n_atoms = len(magmom_list)
 
     #Initialize magnetic moment matrix, same shape and ordering as distance matrix
-    magmom_matrix = np.zeros([len(geom),len(supercell)])
+    magmom_matrix = np.zeros([len(geom),len(supercell)], dtype=np.ndarray)
 
     for i in range(len(geom)):
         for j in range(len(supercell)):
-            idx_in_unit_cell = j%len(geom)
-            magmom_matrix[i][j] = magmom_array[idx_in_unit_cell]
+            magmom_matrix[i][j] = [magmom_array[i%n_atoms], magmom_array[j%n_atoms]]
 
     return magmom_matrix
 
