@@ -300,12 +300,10 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
-            try:
-                energy_weight = 1 / np.sqrt(len(y_e)) / np.std(y_e)
-                force_weight = 1 / np.sqrt(len(y_f)) / np.std(y_f)
-            except (ZeroDivisionError, FloatingPointError):
-                energy_weight = 1.0
-                force_weight = 1 / np.sqrt(len(y_f))
+            energy_weight, force_weight = calc_E_F_weights(len(y_e),
+                                                           len(y_f),
+                                                           np.std(y_e),
+                                                           np.std(y_f))
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -403,8 +401,10 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight = 1 / np.sqrt(e_variance.n) / e_variance.std
-        force_weight = 1 / np.sqrt(f_variance.n) / f_variance.std
+        energy_weight, force_weight = calc_E_F_weights(e_variance.n,
+                                                       f_variance.n,
+                                                       e_variance.std,
+                                                       f_variance.std)
         gram, ordinate = self.combine_weighted_gram(gram_e,
                                                     gram_f,
                                                     ord_e,
@@ -669,9 +669,6 @@ def dataframe_to_tuples(df_features,
         y (np.ndarray): target vector.
         w (np.ndarray): weight vector for machine learning.
     """
-    if len(df_features) <= 1:
-        raise ValueError(
-            "Not enough samples ({} provided)".format(len(df_features)))
     names = df_features.index.get_level_values(0)
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
@@ -1122,3 +1119,28 @@ def find_pair_potential_well(coefficients, rounding_factor):
             # no actual well
             well_idx = peak_idx + 1
     return well_idx
+
+
+def calc_E_F_weights(n_e, n_f, std_e, std_f):
+    """
+    Calculates weights applied to energy and force components of the
+    least-squares problem (excluding kappa, which is applied in
+    self.combine_weighted_gram()).
+
+    Args:
+        n_e (int): number of energy samples.
+        n_f (int): number of force samples.
+        e_stddev (float): standard deviation of energy samples.
+        f_stddev (float): standard deviation of force samples.
+
+    Returns:
+        energy_weight (float): weight applied to energy components.
+        force_weight (float): weight applied to force components.
+    """
+    if std_e == 0:  # single point or really bad dataset
+        energy_weight = 1.0
+        force_weight = 1 / np.sqrt(n_f)
+    else:
+        energy_weight = 1 / np.sqrt(n_e) / std_e
+        force_weight = 1 / np.sqrt(n_f) / std_f
+    return energy_weight, force_weight
