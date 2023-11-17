@@ -173,7 +173,7 @@ class BSplineBasis:
         values = []
         for interaction in self.r_max_map:
             r_max = self.r_max_map[interaction]
-            if isinstance(r_max, (float, np.floating, int)):
+            if isinstance(r_max, (float, np.floating, int, np.int64)):
                 values.append(r_max)
             else:
                 values.append(r_max[0])
@@ -351,15 +351,17 @@ class BSplineBasis:
                                   curvature_map={},
                                   **kwargs):
         """
+        Compute the overall regularzation matrix for least squares.
 
+        Note that the ridge and curvature regularization strengths are equal
+        to the "lambda" coefficients in the loss function.
+            e.g. Ridge only: lambda * ||c||^2
 
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
                 default: {1: 1e-16, 2: 0.0, 3: 1e-10}
             curvature_map (dict): n-body term curvature regularizer strengths.
                 default: {1: 0.0, 2: 1e-16, 3: 1e-16}
-
-        TODO: refactor to break up into smaller, reusable functions
 
         Returns:
             combined_matrix (np.ndarray): regularization matrix made up of
@@ -381,9 +383,7 @@ class BSplineBasis:
                          **curvature_map}
         # one-body element terms
         n_elements = len(self.chemical_system.element_list)
-        matrix = regularize.get_regularizer_matrix(n_elements,
-                                                   ridge=ridge_map[1],
-                                                   curvature=0.0)
+        matrix = self.get_regularization_matrix_1b(n_elements, ridge=ridge_map[1])
         matrices = [matrix]
         # two- and three-body terms
         for degree in range(2, self.chemical_system.degree + 1):
@@ -391,25 +391,114 @@ class BSplineBasis:
             c = curvature_map[degree]
             interactions = self.chemical_system.interactions_map[degree]
             for interaction in interactions:
-                size = self.resolution_map[interaction]
                 if degree == 2:
-                    matrix = regularize.get_regularizer_matrix(size + 3,
+                    matrix = self.get_regularization_matrix_2b(interaction,
                                                                ridge=r,
                                                                curvature=c)
                 elif degree == 3:
-                    matrix = regularize.get_penalty_matrix_3D(size[0] + 3,
-                                                              size[1] + 3,
-                                                              size[2] + 3,
-                                                              ridge=r,
-                                                              curvature=c)
-                    mask = np.where(self.flat_weights[interaction] > 0)[0]
-                    matrix = matrix[mask[None, :], mask[:, None]]
+                    matrix = self.get_regularization_matrix_3b(interaction,
+                                                               ridge=r,
+                                                               curvature=c)
                 else:
                     raise ValueError(
                         "Four-body terms and beyond are not yet implemented.")
                 matrices.append(matrix)
         combined_matrix = regularize.combine_regularizer_matrices(matrices)
         return combined_matrix
+
+    def get_regularization_matrix_1b(self,
+                                     n_elements: int,
+                                     ridge: float):
+        """
+        Compute regularization matrix for 1-body interactions.
+
+        Written to break up self.get_regularization_matrix() into smaller parts
+
+        Args:
+            n_elements (int): number of elements.
+            ridge (float): ridge regularization strength.
+        
+        Returns:
+            matrix (np.ndarray): regularization matrix for 1-body interactions
+                with ridge matrix.
+        """
+        matrix = regularize.get_ridge_penalty_matrix(n_elements)
+        matrix *= np.sqrt(ridge)  # apply regularization strength
+        return matrix
+
+    def get_regularization_matrix_2b(self,
+                                     interaction: Tuple,
+                                     ridge: float,
+                                     curvature: float):
+        """
+        Compute regularization matrix for 2-body interactions.
+
+        Written to break up self.get_regularization_matrix() into smaller parts
+
+        Args:
+            interaction (tuple): element pair.
+            ridge (float): ridge regularization strength.
+            curvature (float): curvature regularization strength.
+
+        Returns:
+            matrix (np.ndarray): regularization matrix for 2-body interactions
+                with ridge and curvature matrices stacked vertically (in that
+                order).
+        """
+        size = self.resolution_map[interaction]
+        matrix = regularize.get_ridge_penalty_matrix(size + 3)
+        matrix *= np.sqrt(ridge)  # apply regularization strength
+        if curvature > 0:
+            matrix_c = regularize.get_curvature_penalty_matrix_1D(size + 3)
+            matrix_c *= np.sqrt(curvature)  # apply regularization strength
+            matrix = np.vstack((matrix, matrix_c))
+        return matrix
+
+    def get_regularization_matrix_3b(self,
+                                     interaction: Tuple,
+                                     ridge: float,
+                                     curvature: float):
+        """
+        Compute regularization matrix for 3-body interactions.
+
+        Written to break up self.get_regularization_matrix() into smaller parts
+
+        Args:
+            interaction (tuple): element triplet.
+            ridge (float): ridge regularization strength.
+            curvature (float): curvature regularization strength.
+
+        Returns:
+            matrix (np.ndarray): regularization matrix for 3-body interactions
+                with ridge and curvature matrices stacked vertically (in that
+                order).
+        """
+        mask = self.template_mask[interaction]
+
+        # Ridge regularization for compressed coefficients
+        matrix = regularize.get_ridge_penalty_matrix(len(mask))
+        matrix *= np.sqrt(ridge)  # apply regularization strength
+
+        # Curvature regularization
+        if curvature > 0:
+            size = self.resolution_map[interaction]  # uncompressed (l, m, n)
+            matrix_c = regularize.get_curvature_penalty_matrix_3D(
+                size[0] + 3,
+                size[1] + 3,
+                size[2] + 3,
+                flatten=False,
+                )  # 4D tensor (each "row" is a 3D tensor)
+            # compress each row of matrix_c
+            matrix_c_compressed = np.zeros((len(mask), len(mask)))
+            for compressed_i, uncompressed_i in enumerate(mask):
+                row = matrix_c[uncompressed_i]
+                matrix_c_compressed[compressed_i] = \
+                    self.compress_3B(row, interaction)
+            matrix_c_compressed *= np.sqrt(curvature)  # apply regularization
+
+            matrix = np.vstack((matrix, matrix_c_compressed))
+
+        return matrix
 
     def get_feature_partition_sizes(self) -> List:
         """Get partition sizes: one-body, two-body, and three-body terms."""
