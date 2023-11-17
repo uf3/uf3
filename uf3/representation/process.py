@@ -308,7 +308,7 @@ class BasisFeaturizer:
                 {(name, 'e'), (name, 'fx'), ...{ instead of {'e', 'fx', ...}
             energy (float): energy of configuration (optional).
             forces (list, np.ndarray): array containing force components
-                fx, fy, fz for each atom. Expected shape is (3, n_atoms).
+                fx, fy, fz for each atom. Expected shape is (n_atoms, 3).
             energy_key (str): column name for energies, default "energy".
 
         Returns:
@@ -527,12 +527,199 @@ class BasisFeaturizer:
             y (np.ndarray): target vector.
             w (np.ndarray): weight vector for machine learning.
         """
-        warnings.warn("get_training_tuples() is deprecated.", DeprecationWarning)
         energy_key = data_coordinator.energy_key
         x, y, w = dataframe_to_training_tuples(df_features,
                                                kappa=kappa,
                                                energy_key=energy_key)
         return x, y, w
+
+
+class BasisFeaturizer_with_magnetism(BasisFeaturizer):
+    def __init__(self,bspline_config,fit_forces=True, prefix='x'):
+        super().__init__(bspline_config,fit_forces,prefix)
+
+    @property
+    def r_cut(self):
+        return self.bspline_config.r_cut
+
+    @property
+    def magnetic_r_min_map(self):
+        return self.bspline_config.r_min_map
+
+    @property
+    def magnetic_r_max_map(self):
+        return self.bspline_config.r_max_map
+
+    @property
+    def magnetic_resolution_map(self):
+        return self.bspline_config.resolution_map
+
+    @property
+    def basis_functions(self):
+        return self.bspline_config.basis_functions
+
+    def evaluate_configuration_w_magnetism(self,
+                                           geom,
+                                           name=None,
+                                           energy=None,
+                                           forces=None,
+                                           magmom=None,
+                                           energy_key='energy',
+                                           mag_energy_key='all',
+                                           ):
+
+        if magmom is not None:
+            if len(magmom) == 0:
+                raise ValueError('length of magmom vector is zero')
+
+        mag_terms = ['exchange', 'self_quadratic', 'self_biquadratic']
+        if mag_energy_key == 'all':
+            mag_terms = mag_terms
+        elif mag_energy_key in mag_terms:
+            mag_terms = mag_energy_key
+        else:
+            raise ValueError('Type of magnetic interaction not implemented yet!')
+
+        eval_map = {}
+        n_atoms = len(geom)
+        symbols = set(geom.get_chemical_symbols())
+
+        if any(geom.pbc):  # generate supercell if necessary
+            supercell = geometry.get_supercell(geom, r_cut=self.r_cut)
+        else:
+            supercell = geom
+
+        eval_map = self.evaluate_configuration(geom=geom,
+                                              name=name,
+                                              energy=energy,
+                                              forces=forces,
+                                              energy_key=energy_key)
+
+        bs_dict = self.bspline_config.as_dict()
+        if 'mag_element_list' in bs_dict.keys():
+            if energy is not None and magmom is not None:
+                for mag_type in mag_terms:
+                    vector_mag = self.featurize_energy_w_magnetism(geom, supercell, magmom, mag_type)
+                    if name is not None:
+                        key = (name, 'energy_w_mag', mag_type)
+                    else:
+                        key = ('energy_w_mag', mag_type)
+                    eval_map[key] = np.insert(vector_mag, 0, energy)
+            if forces is not None and magmom is not None:
+                for mag_type in mag_terms:
+                    vector_mag = self.featurize_force_w_magnetism_ma(geom, supercell, magmom, mag_type)
+                    if name is not None:
+                        key = (name, 'force_w_mag_ma', mag_type)
+                    else:
+                        key = ('force_w_mag_ma', mag_type)
+                    eval_map[key] = np.insert(vector_mag, 0, energy)
+                for mag_type in mag_terms:
+                    vectors_mag = self.featurize_force_w_magnetism(geom, supercell, magmom, mag_type)
+                    for j, component in enumerate(['fx', 'fy', 'fz']):
+                        for i in range(n_atoms):
+                            vector = vectors_mag[i, j, :]
+                            vector = np.insert(vector, 0, forces[j][i])
+                            atom_index = component + '_' + str(i) + '_w_mag_ra'
+                            if name is not None:
+                                key = (name, atom_index, mag_type)
+                            else:
+                                key = (atom_index, mag_type)
+                            eval_map[key] = vector
+
+        return eval_map
+
+    def featurize_energy_w_magnetism(self, geom, supercell=None, magmom=None, mag_type=None):
+        if supercell is None:
+            supercell = geom
+        mag_tuples = self.interactions_map['Magnetic_interaction']
+        distances_map = distances.distances_by_interaction(geom,
+                                                           mag_tuples,
+                                                           self.magnetic_r_min_map,
+                                                           self.magnetic_r_max_map,
+                                                           supercell=supercell)
+
+        magmom_map = distances.magmom_by_interaction(geom,
+                                           mag_tuples,
+                                           self.magnetic_r_min_map,
+                                           self.magnetic_r_max_map,
+                                           magmom,
+                                           supercell,)
+
+        feature_map = {}
+        for mag in mag_tuples:
+            basis_function = self.basis_functions['Magnetic_interaction'][mag]
+            features = bspline.evaluate_basis_functions_w_magnetism(distances_map[mag],
+                                            magmom_map[mag],
+                                            mag_type,
+                                            basis_function,
+                                            n_lead=leading_trim,
+                                            n_trail=trailing_trim)
+            feature_map[mag] = features
+        feature_vector = flatten_by_interactions(feature_map,
+                                                 mag_tuples)
+        return feature_vector
+
+    def featurize_force_w_magnetism_ma(self, geom, supercell=None, magmom=None, mag_type=None):
+        if supercell is None:
+            supercell = geom
+        mag_tuples = self.interactions_map['Magnetic_interaction']
+        distances_map = distances.distances_by_interaction(geom,
+                                                           mag_tuples,
+                                                           self.magnetic_r_min_map,
+                                                           self.magnetic_r_max_map,
+                                                           supercell=supercell)
+
+        magmom_map = distances.magmom_by_interaction(geom,
+                                           mag_tuples,
+                                           self.magnetic_r_min_map,
+                                           self.magnetic_r_max_map,
+                                           magmom,
+                                           supercell,)
+
+        feature_map = {}
+        for mag in mag_tuples:
+            basis_function = self.basis_functions['Magnetic_interaction'][mag]
+            features = bspline.evaluate_force_2B_w_magnetism_ma(distances_map[mag],
+                                            magmom_map[mag],
+                                            mag_type,
+                                            basis_function,
+                                            n_lead=leading_trim,
+                                            n_trail=trailing_trim)
+            feature_map[mag] = features
+        feature_vector = flatten_by_interactions(feature_map,
+                                                 mag_tuples)
+        return feature_vector
+
+    def featurize_force_w_magnetism(self, geom, supercell=None, magmom=None, mag_type=None):
+        if supercell is None:
+            supercell = geom
+        mag_tuples = self.interactions_map['Magnetic_interaction']
+        deriv_results = distances.derivatives_by_interaction_and_mag_map(geom,
+                                                               mag_tuples,
+                                                               magmom_list,
+                                                               self.r_cut,
+                                                               self.magnetic_r_min_map,
+                                                               self.magnetic_r_max_map,
+                                                               supercell)
+
+        distance_map, derivative_map, magmom_map = deriv_results
+        feature_map = {}
+        for mag in mag_tuples:
+            basis_functions = self.basis_functions['Magnetic_interaction'][mag]
+            knot_sequence = self.knots_map['Magnetic_interaction'][mag]
+            features_F_M = bspline.featurize_force_2B_w_magnetism_ra(basis_functions,
+                                                             distance_map[mag],
+                                                             derivative_map[mag],
+                                                             mag_type,
+                                                             magmom_map[mag],
+                                                             knot_sequence,
+                                                             n_lead=leading_trim,
+                                                             n_trail=trailing_trim)
+            feature_map[mag] = features_F_M
+        feature_array = flatten_by_interactions(feature_map,
+                                                mag_tuples)
+        return feature_array
+
 
 
 def save_feature_db(dataframe, filename, table_name='features'):

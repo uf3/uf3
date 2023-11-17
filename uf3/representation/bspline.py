@@ -355,9 +355,9 @@ class BSplineBasis:
 
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
-                default: {1: 1e-16, 2: 0.0, 3: 1e-10}
+                default: {1: 1e-4, 2: 1e-6, 3: 1e-5}
             curvature_map (dict): n-body term curvature regularizer strengths.
-                default: {1: 0.0, 2: 1e-16, 3: 1e-16}
+                default: {1: 0.0, 2: 1e-5, 3: 1e-5}
 
         TODO: refactor to break up into smaller, reusable functions
 
@@ -713,7 +713,7 @@ class BSplineBasis_with_magnetism(BSplineBasis):
     @property
     def n_feats(self) -> int:
         return int(np.sum(self.modify_feature_partition_sizes()))
-    
+
     def __repr__(self):
         summary = ["BSplineBasis:",
                    f"    Basis functions:"]
@@ -722,8 +722,8 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             for interaction in self.interactions_map[n]:
                 size = sizes[interaction]
                 summary.append(" " * 8 + f"{str(interaction)}: {size:d}")
-                
-        
+
+
         summary.append(" " * 8+f"Magnetic Interactions:")
         sizes = 555
         for interaction in self.interactions_map["Magnetic_interaction"]:
@@ -732,13 +732,13 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             
         summary.append(self.chemical_system.__repr__())
         return "\n".join(summary)
-    
+
     def __str__(self):
         return self.__repr__()
-    
+
     def get_cutoff(self):
         return super().get_cutoff()
-    
+
     def update_magentic_knots(self,
                               magnetic_r_max_map = None,
                               magnetic_r_min_map = None,
@@ -756,7 +756,7 @@ class BSplineBasis_with_magnetism(BSplineBasis):
         
         """
 
-    
+
         # lower and upper distance cutoffs
         if magnetic_r_min_map is None:
             magnetic_r_min_map = {}
@@ -767,20 +767,20 @@ class BSplineBasis_with_magnetism(BSplineBasis):
         magnetic_r_min_map = composition.sort_interaction_map(magnetic_r_min_map)
         self.magnetic_r_min_map.update(magnetic_r_min_map)
         self.r_min_map["Magnetic_interaction"] = magnetic_r_min_map
-        
+
         magnetic_r_max_map = composition.sort_interaction_map(magnetic_r_max_map)
         self.magnetic_r_max_map.update(magnetic_r_max_map)
         self.r_max_map["Magnetic_interaction"] = magnetic_r_max_map
-        
+
         magnetic_resolution_map = composition.sort_interaction_map(magnetic_resolution_map)
         self.magnetic_resolution_map.update(magnetic_resolution_map)
         self.resolution_map["Magnetic_interaction"] = magnetic_resolution_map
-        
+
         # Update with pregenerated knots_map
         if magnetic_knots_map is not None:
             magnetic_knots_map = composition.sort_interaction_map(magnetic_knots_map)
             self.update_magnetic_knots_from_dict(magnetic_knots_map)
-        
+
         # Update with provided and default values
         pair_list = self.interactions_map.get("Magnetic_interaction", [])
         for map_ in [self.magnetic_r_min_map, self.magnetic_r_max_map, self.magnetic_resolution_map]:
@@ -788,15 +788,15 @@ class BSplineBasis_with_magnetism(BSplineBasis):
         for pair in pair_list:
             self.magnetic_r_min_map[pair] = self.magnetic_r_min_map.get(pair, 1.0)
             self.r_min_map["Magnetic_interaction"][pair] = self.magnetic_r_min_map.get(pair, 1.0)
-                                                                                 
+
             self.magnetic_r_max_map[pair] = self.magnetic_r_max_map.get(pair, 4)
             self.r_max_map["Magnetic_interaction"][pair] = self.magnetic_r_max_map.get(pair, 4)
-                                                                                 
+
             self.magnetic_resolution_map[pair] = self.magnetic_resolution_map.get(pair, 8)
             self.resolution_map["Magnetic_interaction"][pair] = self.magnetic_resolution_map.get(pair, 8)
-    
+
     #TODO: implement update_magnetic_knots_from_dict
-    
+
     def update_magnetic_basis_functions(self):
         for pair in self.interactions_map["Magnetic_interaction"]:
             if pair not in self.knots_map["Magnetic_interaction"]:
@@ -810,21 +810,21 @@ class BSplineBasis_with_magnetism(BSplineBasis):
                 self.magnetic_knots_map[pair] = knot_sequence
                 self.knots_map["Magnetic_interaction"][pair] = knot_sequence
             subintervals = get_knot_subintervals(self.knots_map["Magnetic_interaction"][pair])
-            
+
             self.magnetic_knot_subintervals[pair] = subintervals
             self.knot_subintervals["Magnetic_interaction"][pair] = subintervals
-            
+
             self.magnetic_basis_functions[pair] = generate_basis_functions(subintervals)
             self.basis_functions["Magnetic_interaction"][pair] = generate_basis_functions(subintervals)
-            
+
         self.partition_sizes_w_magnetism = self.modify_feature_partition_sizes()
         ci, cf = self.modify_frozen_indices(offset_1b=self.offset_1b,
                                             n_lead=self.leading_trim,
                                             n_trail=self.trailing_trim)
-        
+
         self.col_idx = ci
         self.frozen_c = cf
-    
+
     def modify_feature_partition_sizes(self):
         """Get partition sizes: for two-body magnetic terms"""
         partition_sizes_w_magnetism = super().get_feature_partition_sizes()
@@ -834,7 +834,7 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             partition_sizes_w_magnetism.append(size)
         self.partition_sizes_w_magnetism = partition_sizes_w_magnetism
         return partition_sizes_w_magnetism
-    
+
     def modify_interaction_partitions(self):
         component_sizes, component_offsets = super().get_interaction_partitions()
         component_sizes["Magnetic_interaction"] = {}
@@ -849,13 +849,13 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             component_sizes["Magnetic_interaction"][interaction] = partition_sizes_w_magnetism[j]
             component_offsets["Magnetic_interaction"][interaction] = offsets[j]
         return component_sizes, component_offsets
-    
+
     def modify_frozen_indices(self,
                               offset_1b: bool = True,
                               n_lead: int = 0,
                               n_trail: int = 3,
                               value: float = 0.0):
-        
+
         """
 
 
@@ -886,12 +886,12 @@ class BSplineBasis_with_magnetism(BSplineBasis):
                 idx = offset + size - trim_idx
                 col_idx.append(idx)
                 frozen_c.append(value)
-                
+
         col_idx = np.array(col_idx, dtype=int)
         frozen_c = np.array(frozen_c)
         return col_idx, frozen_c
-        
-        
+
+
     def modify_column_names(self):
         column_names = self.get_column_names()
         magnetic_feature_columns = []
@@ -904,7 +904,7 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             magnetic_feature_columns.extend(names)
         column_names.extend(magnetic_feature_columns)
         return column_names
-    
+
     def modify_regularization_matrix(self,ridge_map={},
                                      curvature_map={},
                                      **kwargs):
@@ -913,32 +913,33 @@ class BSplineBasis_with_magnetism(BSplineBasis):
             kwargs.pop("ridge_Magnetic_interaction")
         else:
             ridge_map_for_magnetism = {"ridge_Magnetic_interaction":1e-5}
-            
+
         if "curve_Magnetic_interaction" in kwargs.keys():
             curve_map_for_magnetism={"curve_Magnetic_interaction":kwargs[curve_Magnetic_interaction]}
             kwargs.pop("curve_Magnetic_interaction")
         else:
             curve_map_for_magnetism = {"curve_Magnetic_interaction":regularize.DEFAULT_REGULARIZER_GRID["curve_2b"]}
-            
-            
+
+
         regularization_matrix = self.get_regularization_matrix(ridge_map=ridge_map,
                                                               curvature_map=curvature_map,
                                                               kwargs=kwargs)
         matrices = [regularization_matrix]
-        
+
         r = ridge_map_for_magnetism["ridge_Magnetic_interaction"]
         c = curve_map_for_magnetism["curve_Magnetic_interaction"]
-        
+
         for interaction in self.interactions_map["Magnetic_interaction"]:
             size = self.resolution_map["Magnetic_interaction"][interaction]
             matrix = regularize.get_regularizer_matrix(size+3,
                                                        ridge=r,
                                                        curvature=c)
             matrices.append(matrix)
-        
+
         combined_matrix = regularize.combine_regularizer_matrices(matrices)
         return combined_matrix
-    
+
+
 def find_symmetry_3B(trio: Tuple, 
                      r_min: List,
                      r_max: List, 
@@ -1112,6 +1113,126 @@ def featurize_force_2B(basis_functions,
         x[:, :, bspline_idx] = x_splines
     x = -x
     return x
+
+
+def evaluate_basis_functions_w_magnetism(points,
+                                         mag_points,
+                                         mag_type,
+                                         basis_functions,
+                                         nu=0,
+                                         n_lead=0,
+                                         n_trail=0,
+                                         flatten=True):
+    n_splines = len(basis_functions)
+    values_per_spline = [0] * n_splines
+    for idx in range(n_lead, n_splines - n_trail):
+        # loop over number of basis functions
+        bspline_values = basis_functions[idx](points, nu=nu)
+        bspline_values[np.isnan(bspline_values)] = 0
+        values_per_spline[idx] = bspline_values
+        if len(values_per_spline[idx]) != len(mag_points):
+            print('Distance_map and magmom_map not matching!')
+            break
+        else:
+            for k in range(len(mag_points)):
+                m_i = np.asarray(mag_points[k])[0]
+                m_j = np.asarray(mag_points[k])[1]
+                if str(mag_type) == 'exchange':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*m_i*m_j
+                elif str(mag_type) == 'self_quadratic':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*m_i**2
+                elif str(mag_type) == 'self_biquadratic':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*m_i**4
+                else:
+                    print('Wrong magnetic term requested!')
+    if not flatten:
+        return values_per_spline
+    value_per_spline = np.array([np.sum(values) for values in values_per_spline])
+    return value_per_spline
+
+
+def evaluate_force_2B_w_magnetism_ma(points,
+                                     mag_points,
+                                     mag_type,
+                                     basis_functions,
+                                     nu=0,
+                                     n_lead=0,
+                                     n_trail=0,
+                                     flatten=True):
+    n_splines = len(basis_functions)
+    values_per_spline = [0] * n_splines
+    for idx in range(n_lead, n_splines - n_trail):
+        # loop over number of basis functions
+        bspline_values = basis_functions[idx](points, nu=nu)
+        bspline_values[np.isnan(bspline_values)] = 0
+        values_per_spline[idx] = bspline_values
+        if len(values_per_spline[idx]) != len(mag_points):
+            print('Distance_map and magmom_map not matching!')
+            break
+        else:
+            for k in range(len(mag_points)):
+                m_i = np.asarray(mag_points[k])[0]
+                m_j = np.asarray(mag_points[k])[1]
+                if str(mag_type) == 'exchange':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*m_j
+                elif str(mag_type) == 'self_quadratic':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*2*m_i
+                elif str(mag_type) == 'self_biquadratic':
+                    values_per_spline[idx][k] = values_per_spline[idx][k]*4*m_i**3
+                else:
+                    print('Wrong magnetic term requested!')
+    if not flatten:
+        return values_per_spline
+    value_per_spline = np.array([np.sum(values) for values in values_per_spline])
+    return value_per_spline
+
+
+def featurize_force_2B_w_magnetism_ra(basis_functions,
+                                      distances,
+                                      drij_dR,
+                                      mag_type,
+                                      mag_points,
+                                      magmom_list,
+                                      knot_sequence,
+                                      n_lead=0,
+                                      n_trail=0,
+                                     ):
+
+    n_splines = len(basis_functions)
+    n_atoms, _, n_distances = drij_dR.shape
+    x = np.zeros((n_atoms, 3, n_splines))
+    if n_distances != len(mag_points):
+        raise ValueError('Distance_map and magmom_map not matching!')
+    else:
+        for i in range(drij_dR.shape[0]):
+            for z in range(drij_dR.shape[1]):
+                for j in range(drij_dR.shape[2]):
+                    m_i = np.asarray(magmom_list[i])
+                    m_j = np.asarray(mag_points[j])[1]
+                    if str(mag_type) == 'exchange':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i*m_j
+                    elif str(mag_type) == 'self_quadratic':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i**2
+                    elif str(mag_type) == 'self_biquadratic':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i**4
+                    else:
+                        raise ValueError('Wrong magnetic term requested!')
+        for bspline_idx in np.arange(n_lead, n_splines - n_trail):
+            # loop over number of basis functions
+            basis_function = basis_functions[bspline_idx]
+            b_knots = knot_sequence[bspline_idx: bspline_idx+5]
+            mask = np.logical_and(distances > b_knots[0],
+                                  distances < b_knots[-1])
+            # first derivative
+            bspline_values = basis_function(distances[mask], nu=1)
+            # mask position deltas by distances
+            deltas = drij_dR[:, :, mask]
+            # broadcast multiplication over atomic and cartesian axis dimensions
+            x_splines = np.multiply(bspline_values, deltas)
+            x_splines = np.sum(x_splines, axis=-1)
+            x[:, :, bspline_idx] = x_splines
+    x = -x
+    return x              
 
 
 def fit_spline_1d(x, y, knot_sequence):
