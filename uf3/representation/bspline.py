@@ -1203,6 +1203,19 @@ def featurize_force_2B_w_magnetism_ra(basis_functions,
     if n_distances != len(mag_points):
         raise ValueError('Distance_map and magmom_map not matching!')
     else:
+        for i in range(drij_dR.shape[0]):
+            for z in range(drij_dR.shape[1]):
+                for j in range(drij_dR.shape[2]):
+                    m_i = np.asarray(mag_points[i])[0]
+                    m_j = np.asarray(mag_points[j])[1]
+                    if str(mag_type) == 'exchange':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i*m_j
+                    elif str(mag_type) == 'self_quadratic':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i**2
+                    elif str(mag_type) == 'self_biquadratic':
+                        drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i**4
+                    else:
+                        raise ValueError('Wrong magnetic term requested!')
         for bspline_idx in np.arange(n_lead, n_splines - n_trail):
             # loop over number of basis functions
             basis_function = basis_functions[bspline_idx]
@@ -1213,22 +1226,12 @@ def featurize_force_2B_w_magnetism_ra(basis_functions,
             bspline_values = basis_function(distances[mask], nu=1)
             # mask position deltas by distances
             deltas = drij_dR[:, :, mask]
+            # broadcast multiplication over atomic and cartesian axis dimensions
             x_splines = np.multiply(bspline_values, deltas)
             x_splines = np.sum(x_splines, axis=-1)
-            for k in range(len(mag_points)):
-                m_i = np.asarray(mag_points[k])[0]
-                m_j = np.asarray(mag_points[k])[1]
-                if str(mag_type) == 'exchange':
-                    x_splines[k] = x_splines[k]*m_i*m_j
-                elif str(mag_type) == 'self_quadratic':
-                    x_splines[k] = x_splines[k]*m_i**2
-                elif str(mag_type) == 'self_biquadratic':
-                    x_splines[k] = x_splines[k]*m_i**4
-                else:
-                    print('Wrong magnetic term requested!')
             x[:, :, bspline_idx] = x_splines
-        x = -x
-        return x              
+    x = -x
+    return x              
 
 
 def fit_spline_1d(x, y, knot_sequence):
