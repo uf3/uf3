@@ -1192,6 +1192,7 @@ def featurize_force_2B_w_magnetism_ra(basis_functions,
                                       drij_dR,
                                       mag_type,
                                       mag_points,
+                                      magmom_list,
                                       knot_sequence,
                                       n_lead=0,
                                       n_trail=0,
@@ -1206,7 +1207,7 @@ def featurize_force_2B_w_magnetism_ra(basis_functions,
         for i in range(drij_dR.shape[0]):
             for z in range(drij_dR.shape[1]):
                 for j in range(drij_dR.shape[2]):
-                    m_i = np.asarray(mag_points[i])[0]
+                    m_i = np.asarray(magmom_list[i])
                     m_j = np.asarray(mag_points[j])[1]
                     if str(mag_type) == 'exchange':
                         drij_dR[i][z][j] =  drij_dR[i][z][j]*m_i*m_j
