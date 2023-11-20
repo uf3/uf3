@@ -1006,7 +1006,7 @@ def generate_uniform_knots(r_min: float,
     knots = np.linspace(r_min, r_max, n_intervals + 1)
     if sequence:
         knots = knot_sequence_from_points(knots)
-    return knots
+    return np.round(knots,10)
 
 
 def generate_inv_knots(r_min: float,
