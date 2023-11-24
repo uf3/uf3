@@ -106,7 +106,7 @@ void PairUF3::coeff(int narg, char **arg)
 {
   if (!allocated) allocate();
   
-  if (narg != 3 && narg != 4){
+  if (narg != 3 && narg != 6){
      /*error->warning(FLERR, "\nUF3: WARNING!! It seems that you are using the \n\
              older style of specifying UF3 POT files. This style of listing \n\
              all the potential files on a single line will be depcrecated in \n\
@@ -118,15 +118,18 @@ void PairUF3::coeff(int narg, char **arg)
       error->all(FLERR, "UF3: Invalid number of argument in pair coeff;\n\
               Provide the species number followed by the LAMMPS POT file\n\
               Eg. 'pair_coeff 1 1 POT_FILE' for 2-body and \n\
-              'pair_coeff 1 2 2 POT_FILE' for 3-body.");
+              'pair_coeff 1 1 1 2 2 POT_FILE' for 3-body(the first two\n\
+              numbers are ignored).");
   }
-  if (narg == 3 || narg == 4){
+  if (narg == 3 || narg == 6){
     int ilo, ihi, jlo, jhi, klo, khi;
     utils::bounds(FLERR, arg[0], 1, atom->ntypes, ilo, ihi, error);
     utils::bounds(FLERR, arg[1], 1, atom->ntypes, jlo, jhi, error);
-    if (narg == 4)
-      utils::bounds(FLERR, arg[2], 1, atom->ntypes, klo, khi, error);
- 
+    if (narg == 6){
+      utils::bounds(FLERR, arg[2], 1, atom->ntypes, ilo, ihi, error);
+      utils::bounds(FLERR, arg[3], 1, atom->ntypes, jlo, jhi, error);
+      utils::bounds(FLERR, arg[4], 1, atom->ntypes, klo, khi, error);
+    }
 
     if (narg == 3){
       if (utils::strmatch(arg[0],".*\\*.*") || utils::strmatch(arg[1],".*\\*.*")){
@@ -148,25 +151,25 @@ void PairUF3::coeff(int narg, char **arg)
       }
     }
 
-    if (narg == 4){
-      if (utils::strmatch(arg[0],".*\\*.*") || utils::strmatch(arg[1],".*\\*.*") || utils::strmatch(arg[2],".*\\*.*")){
+    if (narg == 6){
+      if (utils::strmatch(arg[2],".*\\*.*") || utils::strmatch(arg[3],".*\\*.*") || utils::strmatch(arg[4],".*\\*.*")){
         for (int i = ilo; i <= ihi; i++) {
           for (int j = jlo; j <= jhi; j++) {
             for (int k = MAX(klo, jlo); k <= khi; k++) {
               if (comm->me == 0)
-                utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[3]);
-              uf3_read_pot_file(i,j,k,arg[3]);
+                utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[5]);
+              uf3_read_pot_file(i,j,k,arg[5]);
             }
           }
         }
       }
       else{
         if (comm->me == 0)
-          utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[3]);
-        int i = utils::inumeric(FLERR, arg[0], true, lmp);
-        int j = utils::inumeric(FLERR, arg[1], true, lmp);
-        int k = utils::inumeric(FLERR, arg[2], true, lmp);
-        uf3_read_pot_file(i,j,k,arg[3]);
+          utils::logmesg(lmp, "\nUF3: Opening {} file\n", arg[5]);
+        int i = utils::inumeric(FLERR, arg[2], true, lmp);
+        int j = utils::inumeric(FLERR, arg[3], true, lmp);
+        int k = utils::inumeric(FLERR, arg[4], true, lmp);
+        uf3_read_pot_file(i,j,k,arg[5]);
       }
     }
   }
