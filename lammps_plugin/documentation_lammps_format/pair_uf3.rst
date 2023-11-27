@@ -29,7 +29,7 @@ Examples
 
     pair_style uf3 3 1
     pair_coeff 1 1 Nb_Nb
-    pair_coeff 1 1 1 Nb_Nb_Nb
+    pair_coeff 3b 1 1 1 Nb_Nb_Nb
 
     pair_style uf3 2 2
     pair_coeff 1 1 Nb_Nb
@@ -39,8 +39,8 @@ Examples
     pair_style uf3 3 2
     pair_coeff 1 * Nb_Nb
     pair_coeff 2 * Sn_Sn
-    pair_style 1 * * Nb_Sn_Sn
-    pair_style 2 * * Sn_Sn_Sn
+    pair_style 3b 1 * * Nb_Sn_Sn
+    pair_style 3b 2 * * Sn_Sn_Sn
 
 Description
 """""""""""
@@ -57,7 +57,7 @@ The *uf3* style computes the :ref:`Ultra-Fast Force Fields (UF3) <Xie23>` potent
 
 where :math:`V_2(r_{ij})` and :math:`V_3 (r_{ij},r_{ik},r_{jk})` are the two- and three-body interactions. For the two-body the summation is over all neighbours J and for the three-body the summation is over all neighbors J and K of atom I within a cutoff distance determined from the potential files. :math:`B_n(r_{ij})` are the cubic bspline basis, :math:`c_n` and :math:`c_{l,m,n}` are the machine-learned interaction parameters and :math:`K`, :math:`K_l`, :math:`K_m`, and :math:`K_n` denote the number of basis functions per spline or tensor spline dimension.
 
-The UF3 LAMMPS potential files are provided using single or multiple pair_coeff commands. 
+The UF3 LAMMPS potential files are provided using multiple pair_coeff commands. 
 
 .. note::
 
@@ -71,12 +71,12 @@ As an example, if a LAMMPS simulation contains 2 atom types (elements 'A' and 'B
     pair_coeff 1 1 A_A
     pair_coeff 1 2 A_B
     pair_coeff 2 2 B_B
-    pair_coeff 1 1 1 A_A_A
-    pair_coeff 1 1 2 A_A_B
-    pair_coeff 1 2 2 A_B_B
-    pair_coeff 2 1 1 B_A_A
-    pair_coeff 2 1 2 B_A_B
-    pair_coeff 2 2 2 B_B_B
+    pair_coeff 3b 1 1 1 A_A_A
+    pair_coeff 3b 1 1 2 A_A_B
+    pair_coeff 3b 1 2 2 A_B_B
+    pair_coeff 3b 2 1 1 B_A_A
+    pair_coeff 3b 2 1 2 B_A_B
+    pair_coeff 3b 2 2 2 B_B_B
 
 LAMMPS wild-card character "*" can also be used to specify a single UF3 LAMMPS potential file for multiple interaction. For example- 
 
@@ -84,10 +84,10 @@ LAMMPS wild-card character "*" can also be used to specify a single UF3 LAMMPS p
 
     pair_style uf3 3 2
     pair_coeff * * A_A
-    pair_coeff 1 * * A_A_A
-    pair_coeff 2 * * B_B_B
+    pair_coeff 3b 1 * * A_A_A
+    pair_coeff 3b 2 * * B_B_B
 
-The file A_A will be used for 2-body interaction between atom types 1-1, 1-2 and 2-2; file A_A_A will be used 3-body interaction for atom types 1-1-1, 1-1-2, 1-2-2; and so on. If a value of "2" is specified in the :code:`pair_style uf3` command, only the two-body potential files are needed. For 3-body interaction the first atom type is the central atom. We recommend using the :code:`generate_uf3_lammps_pots.py` script (found `here <https://github.com/monk-04/uf3/tree/lammps_impl    ementation/lammps_plugin/scripts>`_) for generating the UF3 LAMMPS potential files from the UF3 JSON potentials.
+The file A_A will be used for 2-body interaction between atom types 1-1, 1-2 and 2-2; file A_A_A will be used 3-body interaction for atom types 1-1-1, 1-1-2, 1-2-2; and so on. If a value of "2" is specified in the :code:`pair_style uf3` command, only the two-body potential files are needed. For 3-body interaction the first atom type is the central atom. We recommend using the :code:`generate_uf3_lammps_pots.py` script (found `here <https://github.com/uf3/uf3/tree/master/lammps_plugin/scripts>`_) for generating the UF3 LAMMPS potential files from the UF3 JSON potentials.
 
 UF3 LAMMPS potential files in the *potentials* directory of the LAMMPS distribution have a ".uf3" suffix. All UF3 LAMMPS potential files should start with :code:`#UF3 POT` and with :code:`#` characters. Following shows the format of a generic 2-body UF3 LAMMPS potential file-
 
