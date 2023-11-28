@@ -31,8 +31,7 @@ PairStyle(uf3/kk/device,PairUF3Kokkos<LMPDeviceType>)
 #include "pair_kokkos.h"
 #include "pair_uf3.h"
 
-template <int NEIGHFLAG, int EVFLAG> struct TagPairUF3ComputeFullA {
-};
+template <int NEIGHFLAG, int EVFLAG> struct TagPairUF3ComputeFullA {};
 struct TagPairUF3ComputeShortNeigh {};
 
 namespace LAMMPS_NS {
@@ -42,10 +41,12 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
   PairUF3Kokkos(class LAMMPS *);
   ~PairUF3Kokkos() override;
   void compute(int, int) override;
-  void coeff(int, char **) override;
   void settings(int, char **) override;
+  void coeff(int, char **) override;
+  void allocate();
   void init_style() override;
   void init_list(int, class NeighList *) override;    // needed for ptr to full neigh list
+  double init_one(int, int) override;                 // needed for cutoff radius for neighbour list
   double single(int, int, int, int, double, double, double, double &) override;
 
   template <typename T, typename V> void copy_2d(V &d, T **h, int m, int n);
@@ -69,8 +70,17 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
   typedef EV_FLOAT value_type;
 
  protected:
-  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_cutsq, d_cut_3b_list;
-  Kokkos::View<F_FLOAT ***, LMPDeviceType::array_layout, LMPDeviceType> d_cut_3b;
+  typename AT::tdual_ffloat_2d k_cutsq;//Create a DualView, defination of tdual_ffloat_2d in kokkos_type.h
+  typename AT::t_ffloat_2d d_cutsq; //t_ffloat_2d = t_dev ==> Creates a new View d_cutsq
+  //the type of d_cutsq is decided by the Device(not host) type for the DualView k_cutsq
+  //Meaning the memory location of d_cutsq is the same as the Device(not host) memory location of
+  //k_cutsq
+  typedef Kokkos::DualView<F_FLOAT***, Kokkos::LayoutRight, DeviceType> tdual_ffloat_3d;
+  tdual_ffloat_3d k_cut_3b;
+  typename tdual_ffloat_3d::t_dev d_cut_3b;
+  template <typename TYPE> void destroy_3d(TYPE data, typename TYPE::value_type*** &array);
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> /*d_cutsq,*/ d_cut_3b_list;
+  //Kokkos::View<F_FLOAT ***, LMPDeviceType::array_layout, LMPDeviceType> d_cut_3b;
 
   Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_coefficients_2b;
   Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_dncoefficients_2b;
@@ -93,6 +103,8 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
   std::vector<F_FLOAT> get_constants(double *knots, double coefficient);
   std::vector<F_FLOAT> get_dnconstants(double *knots, double coefficient);
 
+  int coefficients_created = 0;
+  void create_coefficients();
   void create_3b_coefficients();
   void create_2b_coefficients();
   std::vector<F_FLOAT> get_coefficients(const double *knots, const double coefficient) const;

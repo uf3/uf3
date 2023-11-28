@@ -184,8 +184,8 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
     const double basis_iji = basis_ij[i]; // prevent repeated access of same memory location
     for (int j = 0; j < 4; j++) {
       const double factor = basis_iji * basis_ik[j]; // prevent repeated access of same memory location
-      const double* _noalias slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk]; // declare a contigues 1D slice of memory and let the compiler know that the memory that this pointer points to has no overlap with other pointers.
-      double _alignvar(, 8) tmp[4]; // declare tmp array that holds the 4 tmp values so the can be computed simultaniously in 4 separate registeres.
+      const double* slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk]; // declare a contigues 1D slice of memory
+      double tmp[4]; // declare tmp array that holds the 4 tmp values so the can be computed simultaniously in 4 separate registeres.
       tmp[0] = slice[0] * basis_jk[0];
       tmp[1] = slice[1] * basis_jk[1];
       tmp[2] = slice[2] * basis_jk[2];
@@ -219,8 +219,8 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
     const double dnbasis_iji = dnbasis_ij[i];
     for (int j = 0; j < 4; j++) {
       const double factor = dnbasis_iji * basis_ik[j];
-      const double* _noalias slice = &dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk];
-      double _alignvar(, 8) tmp[4];
+      const double* slice = &dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[4];
       tmp[0] = slice[0] * basis_jk[0];
       tmp[1] = slice[1] * basis_jk[1];
       tmp[2] = slice[2] * basis_jk[2];
@@ -234,8 +234,8 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
     const double basis_iji = basis_ij[i];
     for (int j = 0; j < 3; j++) {
       const double factor = basis_iji * dnbasis_ik[j];
-      const double* _noalias slice = &dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk];
-      double _alignvar(, 8) tmp[4];
+      const double* slice = &dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[4];
       tmp[0] = slice[0] * basis_jk[0];
       tmp[1] = slice[1] * basis_jk[1];
       tmp[2] = slice[2] * basis_jk[2];
@@ -249,8 +249,8 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
     const double basis_iji = basis_ij[i];
     for (int j = 0; j < 4; j++) {
       const double factor = basis_iji * basis_ik[j];
-      const double* _noalias slice = &dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk];
-      double _alignvar(, 8) tmp[3];
+      const double* slice = &dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[3];
       tmp[0] = slice[0] * dnbasis_jk[0];
       tmp[1] = slice[1] * dnbasis_jk[1];
       tmp[2] = slice[2] * dnbasis_jk[2];
