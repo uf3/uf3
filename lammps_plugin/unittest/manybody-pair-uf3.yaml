@@ -1,9 +1,9 @@
 ---
 lammps_version: 24 Mar 2022
 tags: generated
-date_generated: Thu Jun  8 23:16:30 2023
-epsilon: 1e-9
-skip_tests: ""
+date_generated: Tue Nov 28 14:51:03 2023
+epsilon: 1e-09
+skip_tests: 
 prerequisites: ! |
   pair uf3
 pre_commands: ! |
@@ -15,7 +15,7 @@ input_file: in.manybody
 pair_style: uf3 3 8
 pair_coeff: ! |
   * * A_A.uf3_pot
-  * * * A_A_A.uf3_pot
+  3b * * * A_A_A.uf3_pot
 extract: ! ""
 natoms: 64
 init_vdwl: -76.14388662099438
