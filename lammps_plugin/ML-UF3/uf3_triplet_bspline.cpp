@@ -157,19 +157,19 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Calculate energies
 
-  double basis_ij[4];
+  double _alignvar(, 8) basis_ij[4]; // Force memory alignment on 8 byte boundaries
   basis_ij[0] = bsplines_ij[iknot_ij].eval3(rth_ij, rsq_ij, value_rij);
   basis_ij[1] = bsplines_ij[iknot_ij + 1].eval2(rth_ij, rsq_ij, value_rij);
   basis_ij[2] = bsplines_ij[iknot_ij + 2].eval1(rth_ij, rsq_ij, value_rij);
   basis_ij[3] = bsplines_ij[iknot_ij + 3].eval0(rth_ij, rsq_ij, value_rij);
 
-  double basis_ik[4];
+  double _alignvar(, 8) basis_ik[4]; // Force memory alignment on 8 byte boundaries
   basis_ik[0] = bsplines_ik[iknot_ik].eval3(rth_ik, rsq_ik, value_rik);
   basis_ik[1] = bsplines_ik[iknot_ik + 1].eval2(rth_ik, rsq_ik, value_rik);
   basis_ik[2] = bsplines_ik[iknot_ik + 2].eval1(rth_ik, rsq_ik, value_rik);
   basis_ik[3] = bsplines_ik[iknot_ik + 3].eval0(rth_ik, rsq_ik, value_rik);
 
-  double basis_jk[4];
+  double _alignvar(, 8) basis_jk[4]; // Force memory alignment on 8 byte boundaries
   basis_jk[0] = bsplines_jk[iknot_jk].eval3(rth_jk, rsq_jk, value_rjk);
   basis_jk[1] = bsplines_jk[iknot_jk + 1].eval2(rth_jk, rsq_jk, value_rjk);
   basis_jk[2] = bsplines_jk[iknot_jk + 2].eval1(rth_jk, rsq_jk, value_rjk);
@@ -197,19 +197,19 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
 
   // Calculate forces
 
-  double dnbasis_ij[4];
+  double _alignvar(, 8) dnbasis_ij[4];
   dnbasis_ij[0] = dnbsplines_ij[iknot_ij].eval2(rsq_ij, value_rij);
   dnbasis_ij[1] = dnbsplines_ij[iknot_ij + 1].eval1(rsq_ij, value_rij);
   dnbasis_ij[2] = dnbsplines_ij[iknot_ij + 2].eval0(rsq_ij, value_rij);
   dnbasis_ij[3] = 0;
 
-  double dnbasis_ik[4];
+  double _alignvar(, 8) dnbasis_ik[4];
   dnbasis_ik[0] = dnbsplines_ik[iknot_ik].eval2(rsq_ik, value_rik);
   dnbasis_ik[1] = dnbsplines_ik[iknot_ik + 1].eval1(rsq_ik, value_rik);
   dnbasis_ik[2] = dnbsplines_ik[iknot_ik + 2].eval0(rsq_ik, value_rik);
   dnbasis_ik[3] = 0;
 
-  double dnbasis_jk[4];
+  double _alignvar(, 8) dnbasis_jk[4];
   dnbasis_jk[0] = dnbsplines_jk[iknot_jk].eval2(rsq_jk, value_rjk);
   dnbasis_jk[1] = dnbsplines_jk[iknot_jk + 1].eval1(rsq_jk, value_rjk);
   dnbasis_jk[2] = dnbsplines_jk[iknot_jk + 2].eval0(rsq_jk, value_rjk);

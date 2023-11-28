@@ -68,7 +68,6 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
   }
 }
 
-
 template <class DeviceType>
 template <typename TYPE> 
 void PairUF3Kokkos<DeviceType>::destroy_3d(TYPE data, typename TYPE::value_type*** &array)
@@ -865,7 +864,6 @@ KOKKOS_INLINE_FUNCTION void
 PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>, const int &ii,
                                       EV_FLOAT &ev) const
 {
-
   // The f array is duplicated for OpenMP, atomic for CUDA, and neither for Serial
 
   auto v_f = vscatter.access();
