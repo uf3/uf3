@@ -62,6 +62,7 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
     memoryKK->destroy_kokkos(k_vatom, vatom);
     memoryKK->destroy_kokkos(k_cutsq,cutsq);
     destroy_3d(k_cut_3b,cut_3b);
+    destroy_4d(k_min_cut_3b,min_cut_3b);
     eatom = NULL;
     vatom = NULL;
     cvatom = NULL;
@@ -71,6 +72,16 @@ template <class DeviceType> PairUF3Kokkos<DeviceType>::~PairUF3Kokkos()
 template <class DeviceType>
 template <typename TYPE> 
 void PairUF3Kokkos<DeviceType>::destroy_3d(TYPE data, typename TYPE::value_type*** &array)
+{
+  if (array == nullptr) return;
+  data = TYPE();
+  memory->sfree(array);
+  array = nullptr;
+}
+
+template <class DeviceType>
+template <typename TYPE> 
+void PairUF3Kokkos<DeviceType>::destroy_4d(TYPE data, typename TYPE::value_type**** &array)
 {
   if (array == nullptr) return;
   data = TYPE();
@@ -140,7 +151,9 @@ void PairUF3Kokkos<DeviceType>::allocate()
   //view of k_cutsq and assign it to d_cutsq; in the header file we just
   //decleared d_cutsq's type
   memoryKK->create_kokkos(k_cut_3b,n+1,n+1,n+1,"threebody:cut");
+  memoryKK->create_kokkos(k_min_cut_3b,n+1,n+1,n+1,3,"threebody:cut");
   d_cut_3b = k_cut_3b.template view<DeviceType>();
+  d_min_cut_3b = k_min_cut_3b.template view<DeviceType>();
 }
 
 
@@ -211,11 +224,22 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_coefficients(
           if (UFBS3b[i][j][k].knot_spacing_type != 0)
             error->all(FLERR,"UF3Kokkos: Currently only uniform knot-spacing is suupoted");
           k_cut_3b.h_view(i,j,k) = cut_3b[i][j][k];
-          k_cut_3b.h_view(i,k,j) = cut_3b[i][k][j];
+
+          // Notice the order of min_cut_3b[i][j][k]
+          //In min_cut_3b[i][j][k],
+          //min_cut_3b[i][j][k][0] is the knot_vector along jk,
+          //min_cut_3b[i][j][k][1] is the knot_vector along ik,
+          //min_cut_3b[i][j][k][2] is the knot_vector along ij,
+          //see pair_uf3.cpp for more details
+          k_min_cut_3b.h_view(i,j,k,0) = min_cut_3b[i][j][k][0];
+          k_min_cut_3b.h_view(i,j,k,1) = min_cut_3b[i][j][k][1];
+          k_min_cut_3b.h_view(i,j,k,2) = min_cut_3b[i][j][k][2];
+          //k_cut_3b.h_view(i,k,j) = cut_3b[i][k][j];
         }
       }
     }
     k_cut_3b.template modify<LMPHostType>();
+    k_min_cut_3b.template modify<LMPHostType>();
   }
   //copy_2d(d_cutsq, cutsq, num_of_elements + 1, num_of_elements + 1); //copy cutsq from
   //host to device memory
@@ -745,6 +769,7 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::compute(int eflag_in
   k_cutsq.template sync<DeviceType>(); //Sync the device memory of k_cutsq with
   //the array from the host memory; this updates d_cutsq also
   k_cut_3b.template sync<DeviceType>();
+  k_min_cut_3b.template sync<DeviceType>();
   
   inum = list->inum;
   const int ignum = inum + list->gnum;
@@ -946,6 +971,14 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
       int k = d_neighbors_short(i, kk);
       k &= NEIGHMASK;
       const int ktype = type[k];
+
+      // Notice the order of d_min_cut_3b[i][j][k]
+      //In d_min_cut_3b[i][j][k],
+      //d_min_cut_3b[i][j][k][0] is the knot_vector along jk,
+      //d_min_cut_3b[i][j][k][1] is the knot_vector along ik,
+      //d_min_cut_3b[i][j][k][2] is the knot_vector along ij,
+      //see pair_uf3.cpp for more details
+      if (rij < d_min_cut_3b(itype, jtype, ktype, 2)) continue;
       if (rij > d_cut_3b(itype, jtype, ktype)) continue;
 
       del_rki[0] = x(k, 0) - xtmp;
@@ -954,6 +987,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
       F_FLOAT rik =
           sqrt(del_rki[0] * del_rki[0] + del_rki[1] * del_rki[1] + del_rki[2] * del_rki[2]);
 
+      if (rik < d_min_cut_3b(itype, jtype, ktype, 1)) continue;
       if (rik > d_cut_3b(itype, ktype, jtype)) continue;
 
       del_rkj[0] = x(k, 0) - x(j, 0);
@@ -961,7 +995,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
       del_rkj[2] = x(k, 2) - x(j, 2);
       F_FLOAT rjk =
           sqrt(del_rkj[0] * del_rkj[0] + del_rkj[1] * del_rkj[1] + del_rkj[2] * del_rkj[2]);
-
+      if (rjk < d_min_cut_3b(itype, jtype, ktype, 0)) continue;
       this->template threebody<EVFLAG>(itype, jtype, ktype, rij, rik, rjk, evdwl3, triangle_eval);
 
       fij[0] = *(triangle_eval + 0) * (del_rji[0] / rij);
