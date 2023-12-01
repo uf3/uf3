@@ -148,11 +148,15 @@ class WeightedLinearModel(BasicLinearModel):
     """
     def __init__(self,
                  bspline_config,
+                 ridge_map,
+                 curvature_map,
                  regularizer=None,
                  data_coverage=None,
                  **params):
         super().__init__(regularizer)
         self.bspline_config = bspline_config
+        self.ridge_map = ridge_map
+        self.curvature_map = curvature_map
         n_basis = np.sum(self.bspline_config.get_feature_partition_sizes())
         if data_coverage is not None:
             if len(data_coverage) == n_basis:
@@ -168,6 +172,11 @@ class WeightedLinearModel(BasicLinearModel):
         if self.regularizer is None:
             # initialize regularizer matrix if unspecified.
             self.set_params(**params)
+       # if self.ridge_map is None:
+        #    self.set_params(**params)
+        #if self.curvature_map is None:
+         #   self.set_params(**params)
+
 
     def set_params(self, **params):
         """Set parameters from keyword arguments. Initializes
@@ -176,11 +185,17 @@ class WeightedLinearModel(BasicLinearModel):
             self.bspline_config = params["bspline_config"]
         if "regularizer" in params:
             self.regularizer = params["regularizer"]
+        if "ridge_map" in params:
+            self.ridge_map = params["ridge_map"]
+        if "curvature_map" in params:
+            self.curvature_map = params["curvature_map"]
         elif self.regularizer is None:
             reg_params = {k: v for k, v in params.items()
                           if isinstance(v, (int, float, np.floating))}
-            reg = self.bspline_config.get_regularization_matrix(**reg_params)
+            reg,ridge_map,curvature_map = self.bspline_config.get_regularization_matrix(**reg_params)
             self.regularizer = reg
+            self.ridge_map = ridge_map
+            self.curvature_map = curvature_map 
 
     @staticmethod
     def from_config(config):
@@ -211,6 +226,8 @@ class WeightedLinearModel(BasicLinearModel):
         knots_map = self.bspline_config.knots_map
         dump = dict(coefficients=solution,
                     knots=knots_map,
+                    ridge_map = self.ridge_map,
+                    curvature_map = self.curvature_map,
                     data_coverage=self.data_coverage,
                     **self.bspline_config.as_dict())
         return dump
