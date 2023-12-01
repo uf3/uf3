@@ -303,17 +303,21 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_2b_coefficien
   // Copy knots from array to view
 
   Kokkos::realloc(d_n2b_knot, interaction_count, max_knots);
+  Kokkos::realloc(d_n2b_knot_spacings, interaction_count);
   auto d_n2b_knot_view = Kokkos::create_mirror(d_n2b_knot);
+  auto d_n2b_knot_spacings_view = Kokkos::create_mirror(d_n2b_knot_spacings);
 
   for (int i = 1; i < num_of_elements + 1; i++) {
     for (int j = i; j < num_of_elements + 1; j++) {
       for (int k = 0; k < n2b_knot[i][j].size(); k++) {
         d_n2b_knot_view(map2b_view(i, j), k) = n2b_knot[i][j][k];
       }
+      d_n2b_knot_spacings_view(map2b_view(i, j)) = UFBS2b[i][j].knot_spacing;
     }
   }
-  Kokkos::deep_copy(d_n2b_knot, d_n2b_knot_view);
 
+  Kokkos::deep_copy(d_n2b_knot, d_n2b_knot_view);
+  Kokkos::deep_copy(d_n2b_knot_spacings, d_n2b_knot_spacings_view);
   // Set spline constants
 
   Kokkos::realloc(constants_2b, interaction_count, max_knots - 4);
@@ -371,6 +375,12 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
   // Count max knots for view
 
   int max_knots = 0;
+  //In n3b_knot_matrix[i][j][k],
+  //n3b_knot_matrix[i][j][k][0] is the knot_vector along jk,
+  //n3b_knot_matrix[i][j][k][1] is the knot_vector along ik,
+  //n3b_knot_matrix[i][j][k][2] is the knot_vector along ij,
+  //see pair_uf3.cpp for more details
+
   for (int i = 1; i < n3b_knot_matrix.size(); i++)
     for (int j = 1; j < n3b_knot_matrix[i].size(); j++)
       for (int k = 1; k < n3b_knot_matrix[i][j].size(); k++)
@@ -382,7 +392,9 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
   // Init knot matrix view
 
   Kokkos::realloc(d_n3b_knot_matrix, interaction_count, 3, max_knots);
+  Kokkos::realloc(d_n3b_knot_matrix_spacings, interaction_count, 3);
   auto d_n3b_knot_matrix_view = Kokkos::create_mirror(d_n3b_knot_matrix);
+  auto d_n3b_knot_matrix_spacings_view = Kokkos::create_mirror(d_n3b_knot_matrix_spacings);
 
   for (int i = 1; i < n3b_knot_matrix.size(); i++)
     for (int j = 1; j < n3b_knot_matrix[i].size(); j++)
@@ -393,8 +405,13 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
           d_n3b_knot_matrix_view(map3b_view(i, j, k), 1, m) = n3b_knot_matrix[i][j][k][1][m];
         for (int m = 0; m < n3b_knot_matrix[i][j][k][2].size(); m++)
           d_n3b_knot_matrix_view(map3b_view(i, j, k), 2, m) = n3b_knot_matrix[i][j][k][2][m];
+
+        d_n3b_knot_matrix_spacings_view(map3b_view(i, j, k),2) = UFBS3b[i][j][k].knot_spacing_ij;
+        d_n3b_knot_matrix_spacings_view(map3b_view(i, j, k),1) = UFBS3b[i][j][k].knot_spacing_ik;
+        d_n3b_knot_matrix_spacings_view(map3b_view(i, j, k),0) = UFBS3b[i][j][k].knot_spacing_jk;
       }
   Kokkos::deep_copy(d_n3b_knot_matrix, d_n3b_knot_matrix_view);
+  Kokkos::deep_copy(d_n3b_knot_matrix_spacings, d_n3b_knot_matrix_spacings_view);
 
   // Set knots spacings
 
@@ -444,6 +461,18 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
                   max_knots - 4);
   auto d_dncoefficients_3b_view = Kokkos::create_mirror(d_dncoefficients_3b);
 
+  //Notice the order for d_dncoefficients_3b_view(map3b_view(n, m, o), X, i, j, k)
+  //d_dncoefficients_3b_view(map3b_view(n, m, o), 2, i, j, k) --> coeff for rjk
+  //d_dncoefficients_3b_view(map3b_view(n, m, o), 1, i, j, k) --> coeff for rik
+  //d_dncoefficients_3b_view(map3b_view(n, m, o), 0, i, j, k) --> coeff for rij
+  //
+  //This is because-
+  //In n3b_knot_matrix[i][j][k],
+  //n3b_knot_matrix[i][j][k][0] is the knot_vector along jk,
+  //n3b_knot_matrix[i][j][k][1] is the knot_vector along ik,
+  //n3b_knot_matrix[i][j][k][2] is the knot_vector along ij,
+  //see pair_uf3.cpp for more details
+
   for (int n = 1; n < num_of_elements + 1; n++) {
     for (int m = 1; m < num_of_elements + 1; m++) {
       for (int o = 1; o < num_of_elements + 1; o++) {
@@ -492,11 +521,16 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
   Kokkos::realloc(constants_3b, interaction_count, 3, max_knots - 4);
   auto constants_3b_view = Kokkos::create_mirror(constants_3b);
 
+  //In n3b_knot_matrix[i][j][k],
+  //n3b_knot_matrix[i][j][k][0] is the knot_vector along jk,
+  //n3b_knot_matrix[i][j][k][1] is the knot_vector along ik,
+  //n3b_knot_matrix[i][j][k][2] is the knot_vector along ij,
+  //see pair_uf3.cpp for more details
   for (int n = 1; n < num_of_elements + 1; n++) {
     for (int m = 1; m < num_of_elements + 1; m++) {
       for (int o = 1; o < num_of_elements + 1; o++) {
-        for (int l = 0; l < n3b_knot_matrix[n][m][o][0].size() - 4; l++) {
-          auto c = get_constants(&n3b_knot_matrix[n][m][o][0][l], 1);
+        for (int l = 0; l < n3b_knot_matrix[n][m][o][2].size() - 4; l++) {
+          auto c = get_constants(&n3b_knot_matrix[n][m][o][2][l], 1);
           for (int k = 0; k < 16; k++)
             constants_3b_view(map3b_view(n, m, o), 0, l, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
@@ -507,8 +541,8 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
             constants_3b_view(map3b_view(n, m, o), 1, l, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
         }
-        for (int l = 0; l < n3b_knot_matrix[n][m][o][2].size() - 4; l++) {
-          auto c = get_constants(&n3b_knot_matrix[n][m][o][2][l], 1);
+        for (int l = 0; l < n3b_knot_matrix[n][m][o][0].size() - 4; l++) {
+          auto c = get_constants(&n3b_knot_matrix[n][m][o][0][l], 1);
           for (int k = 0; k < 16; k++)
             constants_3b_view(map3b_view(n, m, o), 2, l, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
@@ -524,8 +558,8 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
   for (int n = 1; n < num_of_elements + 1; n++) {
     for (int m = 1; m < num_of_elements + 1; m++) {
       for (int o = 1; o < num_of_elements + 1; o++) {
-        for (int l = 1; l < n3b_knot_matrix[n][m][o][0].size() - 5; l++) {
-          auto c = get_dnconstants(&n3b_knot_matrix[n][m][o][0][l], 1);
+        for (int l = 1; l < n3b_knot_matrix[n][m][o][2].size() - 5; l++) {
+          auto c = get_dnconstants(&n3b_knot_matrix[n][m][o][2][l], 1);
           for (int k = 0; k < 9; k++)
             dnconstants_3b_view(map3b_view(n, m, o), 0, l - 1, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
@@ -536,8 +570,8 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_3b_coefficien
             dnconstants_3b_view(map3b_view(n, m, o), 1, l - 1, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
         }
-        for (int l = 1; l < n3b_knot_matrix[n][m][o][2].size() - 5; l++) {
-          auto c = get_dnconstants(&n3b_knot_matrix[n][m][o][2][l], 1);
+        for (int l = 1; l < n3b_knot_matrix[n][m][o][0].size() - 5; l++) {
+          auto c = get_dnconstants(&n3b_knot_matrix[n][m][o][0][l], 1);
           for (int k = 0; k < 9; k++)
             dnconstants_3b_view(map3b_view(n, m, o), 2, l - 1, k) =
                 (std::isinf(c[k]) || std::isnan(c[k])) ? 0 : c[k];
@@ -559,6 +593,7 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::twobody(const int itype, 
   int interaction_id = map2b(itype, jtype);
   int start_index = 3;
   while (r > d_n2b_knot(interaction_id, start_index + 1)) start_index++;
+  //int start_index = 3+(int)((r-d_n2b_knot(interaction_id,0))/d_n2b_knot_spacings(interaction_id));
 
   F_FLOAT r_values[4];
   r_values[0] = 1;
@@ -612,17 +647,26 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
   F_FLOAT evals[3][4];
   F_FLOAT dnevals[3][4];
   int start_indices[3];
-  F_FLOAT r[3] = {value_rjk, value_rik, value_rij};
+  F_FLOAT r[3] = {value_rij, value_rik, value_rjk};
   int interaction_id = map3b(itype, jtype, ktype);
 
   auto coefficients =
       Kokkos::subview(d_coefficients_3b, interaction_id, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
   auto dncoefficients = Kokkos::subview(d_dncoefficients_3b, interaction_id, Kokkos::ALL,
                                         Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-
+  //Notice the 2-d in d_n3b_knot_matrix
+  //
+  //In d_n3b_knot_matrix[i][j][k],
+  //d_n3b_knot_matrix[i][j][k][0] is the knot_vector along jk,
+  //d_n3b_knot_matrix[i][j][k][1] is the knot_vector along ik,
+  //d_n3b_knot_matrix[i][j][k][2] is the knot_vector along ij,
+  //
+  //and r[0] = rij, r[1] = rik and r[2] = rjk
+  //see n3b_knot_matrix and pair_uf3.cpp for more details
   for (int d = 0; d < 3; d++) {
     start_indices[d] = 3;
-    while (r[d] > d_n3b_knot_matrix(interaction_id, d, start_indices[d] + 1)) start_indices[d]++;
+    while (r[d] > d_n3b_knot_matrix(interaction_id, 2-d, start_indices[d] + 1)) start_indices[d]++;
+    //start_indices[d] = 3+(int)((r[d]-d_n3b_knot_matrix(interaction_id, 2-d, 0))/d_n3b_knot_matrix_spacings(interaction_id, 2-d));
 
     F_FLOAT r_values[4];
     r_values[0] = 1;
@@ -665,8 +709,8 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
     for (int i = 0; i < 4; i++) {
       for (int j = 0; j < 4; j++) {
         for (int k = 0; k < 4; k++) {
-          evdwl += coefficients(start_indices[2] - i, start_indices[1] - j, start_indices[0] - k) *
-              evals[2][i] * evals[1][j] * evals[0][k];
+          evdwl += coefficients(start_indices[0] - i, start_indices[1] - j, start_indices[2] - k) *
+              evals[0][i] * evals[1][j] * evals[2][k];
         }
       }
     }
@@ -675,9 +719,9 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 4; k++) {
-        fforce[0] += dncoefficients(0, start_indices[2] - 3 + i, start_indices[1] - 3 + j,
-                                    start_indices[0] - 3 + k) *
-            dnevals[2][2 - i] * evals[1][3 - j] * evals[0][3 - k];
+        fforce[0] += dncoefficients(0, start_indices[0] - 3 + i, start_indices[1] - 3 + j,
+                                    start_indices[2] - 3 + k) *
+            dnevals[0][2 - i] * evals[1][3 - j] * evals[2][3 - k];
       }
     }
   }
@@ -685,9 +729,9 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
       for (int k = 0; k < 4; k++) {
-        fforce[1] += dncoefficients(1, start_indices[2] - 3 + i, start_indices[1] - 3 + j,
-                                    start_indices[0] - 3 + k) *
-            evals[2][3 - i] * dnevals[1][2 - j] * evals[0][3 - k];
+        fforce[1] += dncoefficients(1, start_indices[0] - 3 + i, start_indices[1] - 3 + j,
+                                    start_indices[2] - 3 + k) *
+            evals[0][3 - i] * dnevals[1][2 - j] * evals[2][3 - k];
       }
     }
   }
@@ -695,9 +739,9 @@ KOKKOS_INLINE_FUNCTION void PairUF3Kokkos<DeviceType>::threebody(
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
       for (int k = 0; k < 3; k++) {
-        fforce[2] += dncoefficients(2, start_indices[2] - 3 + i, start_indices[1] - 3 + j,
-                                    start_indices[0] - 3 + k) *
-            evals[2][3 - i] * evals[1][3 - j] * dnevals[0][2 - k];
+        fforce[2] += dncoefficients(2, start_indices[0] - 3 + i, start_indices[1] - 3 + j,
+                                    start_indices[2] - 3 + k) *
+            evals[0][3 - i] * evals[1][3 - j] * dnevals[2][2 - k];
       }
     }
   }

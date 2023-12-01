@@ -97,6 +97,7 @@ template <class DeviceType> class PairUF3Kokkos : public PairUF3 {
   Kokkos::View<F_FLOAT ****, LMPDeviceType::array_layout, LMPDeviceType> d_coefficients_3b;
   Kokkos::View<F_FLOAT *****, LMPDeviceType::array_layout, LMPDeviceType> d_dncoefficients_3b;
   Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_n3b_knot_spacings;
+  Kokkos::View<F_FLOAT **, LMPDeviceType::array_layout, LMPDeviceType> d_n3b_knot_matrix_spacings;
   Kokkos::View<int ***, LMPDeviceType::array_layout, LMPDeviceType> map3b;
 
   Kokkos::View<F_FLOAT **[16], LMPDeviceType::array_layout, LMPDeviceType> constants_2b;
