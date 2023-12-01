@@ -208,21 +208,21 @@ template <class DeviceType> void PairUF3Kokkos<DeviceType>::create_coefficients(
 {
   coefficients_created = 1;
   
-  for (int i = 1; i < num_of_elements + 1; i++) {
+  /*for (int i = 1; i < num_of_elements + 1; i++) {
     for (int j = 1; j < num_of_elements + 1; j++) {
       //Check for knot_spacing type
       //Currently only uniform is supported
       if (UFBS2b[i][j].knot_spacing_type != 0)
         error->all(FLERR,"UF3Kokkos: Currently only uniform knot-spacing is suupoted");
     }
-  }
+  }*/
 
   if (pot_3b){
     for (int i = 1; i < num_of_elements + 1; i++) {
       for (int j = 1; j < num_of_elements + 1; j++) {
         for (int k = 1; k < num_of_elements + 1; k++) {
-          if (UFBS3b[i][j][k].knot_spacing_type != 0)
-            error->all(FLERR,"UF3Kokkos: Currently only uniform knot-spacing is suupoted");
+          /*if (UFBS3b[i][j][k].knot_spacing_type != 0)
+            error->all(FLERR,"UF3Kokkos: Currently only uniform knot-spacing is suupoted");*/
           k_cut_3b.h_view(i,j,k) = cut_3b[i][j][k];
 
           // Notice the order of min_cut_3b[i][j][k]
