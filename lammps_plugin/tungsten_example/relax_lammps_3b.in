@@ -11,7 +11,7 @@ neighbor	0.0 bin
 pair_style  zero 10.0
 pair_style  uf3 3 1
 pair_coeff  1 1 W_W
-pair_coeff  1 1 1 W_W_W
+pair_coeff  3b 1 1 1 W_W_W
 
 #----------------------Run Minimization-------------------------
 reset_timestep	0
