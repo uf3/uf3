@@ -38,9 +38,21 @@ If you want to compile with MPI support enabled, you additionally have to set th
 
 Kokkos
 =====
-The kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU support) is under active development. For an early access refer to the :code:`README` found here_.
+The source files for kokkos accelerator variants of uf3 (i.e. :code:`pair_style uf3/kk` with GPU support) are available in the :code:`ML-UF3_KOKKOS` directory. To compile lammps with support for the kokkos accelerator variants of uf3 do-
 
-.. _here: https://github.com/monk-04/uf3/tree/lammps_implementation_v2/lammps_plugin#kokkos
+.. code:: bash
+
+ cp ML-UF3_KOKKOS/pair_uf3_kokkos.cpp ML-UF3_KOKKOS/pair_uf3_kokkos.h LAMMPS_BASE_DIR/src/KOKKOS/.
+ mkdir LAMMPS_BASE_DIR/build_kokkos
+ cmake -D LAMMPS_EXCEPTIONS=ON -D BUILD_SHARED_LIBS=ON -D PKG_KOKKOS=yes KOKKOS_FLAGS -D PKG_ML-UF3=ON -D CMAKE_POSITION_INDEPENDENT_CODE=ON -D CMAKE_EXE_FLAGS="-dynamic" ../cmake
+
+where :code:`KOKKOS_FLAGS` are machine specific flags. For example when compiling for Nvidia A100 GPUs-
+
+.. code:: bash
+
+ cmake -D LAMMPS_EXCEPTIONS=ON -D BUILD_SHARED_LIBS=ON -D PKG_KOKKOS=yes -D Kokkos_ARCH_AMPERE80=ON -D Kokkos_ENABLE_CUDA=yes -D PKG_ML-UF3=ON -D CMAKE_POSITION_INDEPENDENT_CODE=ON -D CMAKE_EXE_FLAGS="-dynamic" ../cmake
+
+Refer to `lammps documentation <https://docs.lammps.org/Speed_kokkos.html>`_ for more details.
 
 =====
 Running lammps with UF3 potential
