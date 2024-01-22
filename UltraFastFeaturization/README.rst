@@ -1,7 +1,7 @@
 This document describes how to featruize data using the Ultra Fast Featurization module.
 
 
-In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library.
+In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library. Preliminary testes indicate that ~50 times faster than the python version. Currently only 2-body energy and force is supported. Support for 3-body will be added in near future.
 
 
 Dependencies
@@ -36,4 +36,8 @@ UF3 needs to be re-installed to enable this feature-
    git checkout UltraFastFeaturization
    pip install .
       
+Usage
+----
 
+Curently only :code:`trailing_trim = 0` and :code:`leading_trim = 0` is supported.
+See the UltraFastFeaturize_demo.ipynb notebook.
