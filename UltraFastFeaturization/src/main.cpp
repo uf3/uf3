@@ -83,10 +83,14 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              &UltraFastFeaturize::set_geom_data,
              "Sets the data for geometry and supercell",
              py::arg("atoms_array"),
+             py::arg("energy_array"),
+             py::arg("forces_array"),
              py::arg("cell_array"),
              py::arg("crystal_index"),
              py::arg("supercell_factors"),
-             py::arg("geom_posn"))
+             py::arg("geom_array_posn"),
+             py::arg("structure_names"),
+             py::arg("column_names"))
         
         .def("featurize",
              &UltraFastFeaturize::featurize,
@@ -96,6 +100,10 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              py::arg("filename"))
         .def_readonly("constants_2b",
                        &UltraFastFeaturize::constants_2b)
+        .def_readonly("constants_2b_deri1",
+                       &UltraFastFeaturize::constants_2b_deri1)
+        .def_readonly("constants_2b_deri2",
+                       &UltraFastFeaturize::constants_2b_deri2)
         .def_readonly("write_hdf5_counter",
                 &UltraFastFeaturize::write_hdf5_counter);
         /*.def("set_geom_posn",

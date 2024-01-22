@@ -21,9 +21,16 @@ class UltraFastFeaturize{
     const py::array_t<int, py::array::c_style> n2b_num_knots;
 
     py::array_t<double, py::array::c_style> atoms_array, supercell_array, cell_array;
+    py::array_t<double, py::array::c_style> energy_array, forces_array;
     py::array_t<int, py::array::c_style> crystal_index, geom_posn, supercell_factors;
+    std::vector<std::string> structure_names, column_names;
 
     double *rmin_max_2b_sq;
+
+    int atom_count=0;
+    int prev_CI = 0;
+    int tot_crystals, tot_atoms, prev_data_len;
+    bool incomplete = false;
 
   public:
     bspline_config_ff BsplineConfig;
@@ -41,21 +48,26 @@ class UltraFastFeaturize{
     int batch_size = 0;
     int num_batches = 0;
     int max_num_neigh = 0;
-    std::vector<double> Neighs;
+    double neigh_in_sphere = 0;
+    std::vector<double> Neighs, Neighs_del;
     std::vector<double> Tot_num_Neighs;
     
     void set_geom_data(py::array_t<double, py::array::c_style> _atoms_array,
+                       py::array_t<double, py::array::c_style> _energy_array,
+                       py::array_t<double, py::array::c_style> _forces_array,
                        py::array_t<double, py::array::c_style> _cell_array,
                        py::array_t<int, py::array::c_style> _crystal_index,
                        py::array_t<int, py::array::c_style> _supercell_factors,
-                       py::array_t<int, py::array::c_style> _geom_posn);
+                       py::array_t<int, py::array::c_style> _geom_posn,
+                       py::list _structure_names, py::list _column_names);
 
     py::array featurize(int _batch_size, bool return_Neigh, 
                         std::string& _filename);
 
     std::vector<std::vector<std::vector<double>>> constants_2b;
+    std::vector<std::vector<std::vector<double>>> constants_2b_deri1, constants_2b_deri2;
     
-    int reprn_length=0;
+    int reprn_length=0, tot_complete_crystals;
     std::vector<double> atomic_Reprn, crystal_Reprn, incomplete_crystal_Reprn;
     // Representation = [[y, n_El1, n_El2, ..., El1El1_0, El1El1_1, ...],...]
 
@@ -66,7 +78,9 @@ class UltraFastFeaturize{
     int write_hdf5_counter=0;
     void write_hdf5(const hsize_t num_rows, const hsize_t num_cols,
                     const int batch_num, const H5::H5File &file_fp,
-                    const std::vector<double> &Data);
+                    const std::vector<double> &Data, int first_crystal_CI,
+                    int tot_complete_crystals, std::vector<std::string> &column_names,
+                    py::array_t<int, py::array::c_style> &geom_posn);
     
     /*std::vector<double> evaluate_basis3(const double r,
                                         const std::vector<double> &knots,
