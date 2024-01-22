@@ -7,11 +7,14 @@ containing ase.Atoms configurations.
 import os
 import warnings
 import sqlite3
+import time
 import numpy as np
 import pandas as pd
 from uf3.representation import distances
 from uf3.representation import angles
 from uf3.representation import bspline
+from uf3.representation.utility_uff import get_data_for_UltraFastFeaturization
+from uf3.representation.ultra_fast_featurize import UltraFastFeaturize
 from uf3.data import io
 from uf3.data import geometry
 from uf3.util import parallel
@@ -289,6 +292,43 @@ class BasisFeaturizer:
                                                  client,
                                                  **kwargs)
             save_feature_db(df_features, filename, table_name=table_name)
+
+    def batched_to_hdf_uff(self,
+                          filename,
+                          df_data,
+                          n_jobs=16,
+                          batch_size=1000,
+                          **kwargs):
+
+        st = time.process_time()
+
+        (interactions_map_ff, n2b_knots_map_ff, n2b_num_knots_ff,
+                atoms_array, energy_array, forces_array, cell_array,
+                crystal_index, supercell_factors,
+                geom_array_posn, struct_names) = \
+        get_data_for_UltraFastFeaturization(bspline_config=self.bspline_config,
+                                            df=df_data)
+
+        UFF = UltraFastFeaturize(degree=self.bspline_config.degree,
+                                nelements=len(self.bspline_config.element_list),
+                                interactions_map=interactions_map_ff,
+                                n2b_knots_map = n2b_knots_map_ff,
+                                n2b_num_knots = n2b_num_knots_ff)
+
+        UFF.set_geom_data(atoms_array = atoms_array, 
+                            energy_array = energy_array,
+                            forces_array = forces_array, 
+                            cell_array = cell_array,
+                            crystal_index = crystal_index,
+                            supercell_factors = supercell_factors,
+                            geom_array_posn = geom_array_posn, 
+                            structure_names = struct_names, 
+                            column_names = self.columns)
+
+        Neighs = UFF.featurize(batch_size, True, filename)
+
+        et = time.process_time()
+        print("Featurization took-%d secs"%(et-st))
 
     def evaluate_configuration(self,
                                geom,

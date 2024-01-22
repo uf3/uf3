@@ -6,10 +6,12 @@ from featurized DataFrames using regularized least squares.
 from typing import List, Dict, Collection, Tuple
 import os
 import warnings
+import h5py
 import numpy as np
 import pandas as pd
 import ndsplines
 from uf3.representation import bspline, process
+from uf3.representation.utility_uff import open_uff_feature 
 from uf3.data import io
 from uf3.data import composition
 from uf3.util import json_io
@@ -360,7 +362,8 @@ class WeightedLinearModel(BasicLinearModel):
                       sample_weights: Dict = None,
                       energy_key="energy",
                       progress: str = "bar",
-                      drop_columns: List[str] = None):
+                      drop_columns: List[str] = None,
+                      UFF: bool = False):
         """
         Accumulate inputs and outputs from batched parsing of HDF5 file
         and compute direct solution via LU decomposition.
@@ -379,18 +382,30 @@ class WeightedLinearModel(BasicLinearModel):
                 the cutoffs of the feature vectors from HDF5 file. No internal
                 checks are performed to see if dropping provided columns produce
                 features of the intended cutoffs. Use with Caution.
+            UFF (bool): Whether the HDF5 file was created using 
+                        Ultra Fast Featurization
         """
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
-        n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
         gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
         e_variance = VarianceRecorder()
         f_variance = VarianceRecorder()
-        table_iterator = parallel.progress_iter(np.arange(n_tables),
-                                                style=progress)
+        if not UFF:
+            n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
+            table_iterator = parallel.progress_iter(np.arange(n_tables),
+                                                    style=progress)
+        else:
+            h5py_fp = h5py.File(filename)
+            table_iterator = list(h5py_fp.keys())
+            h5py_fp.close()
+
         for j in table_iterator:
-            table_name = table_names[j]
-            df = process.load_feature_db(filename, table_name)
+            if not UFF:
+                table_name = table_names[j]
+                df = process.load_feature_db(filename, table_name)
+            else:
+                df = open_uff_feature(filename, j)
+
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
@@ -487,7 +502,8 @@ class WeightedLinearModel(BasicLinearModel):
                         keys: List[str] = None,
                         table_names: List[str] = None,
                         score: bool = True,
-                        drop_columns: List[str] = None):
+                        drop_columns: List[str] = None,
+                        UFF: bool = False):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
 
@@ -508,6 +524,8 @@ class WeightedLinearModel(BasicLinearModel):
                 the cutoffs of the feature vectors from HDF5 file. No internal
                 checks are performed to see if dropping provided columns produce
                 features of the intended cutoffs. Use with Caution.
+            UFF (bool): Whether the HDF5 file was created using 
+                        Ultra Fast Featurization
         """
         n_elements = len(self.bspline_config.element_list)
         y_e, p_e, y_f, p_f = batched_prediction(self,
@@ -515,7 +533,8 @@ class WeightedLinearModel(BasicLinearModel):
                                                 table_names=table_names,
                                                 subset_keys=keys,
                                                 n_elements=n_elements,
-                                                drop_columns=drop_columns)
+                                                drop_columns=drop_columns,
+                                                UFF=UFF)
         if score:
             rmse_e = rmse_metric(y_e, p_e)
             rmse_f = rmse_metric(y_f, p_f)
@@ -967,6 +986,7 @@ def batched_prediction(model: WeightedLinearModel,
                        table_names: Collection = None,
                        subset_keys: Collection = None,
                        drop_columns: List[str] = None,
+                       UFF: bool =False,
                        **kwargs):
     """
     Convenience function for optimization workflow. Read inputs/outputs
@@ -988,9 +1008,15 @@ def batched_prediction(model: WeightedLinearModel,
         y_f (np.ndarray): target values for forces.
         p_f (np.ndarray): prediction values for forces.
     """
-    if table_names is None:
-        _, _, table_names, _ = io.analyze_hdf_tables(filename)
-    df_batches = io.dataframe_batch_loader(filename, table_names)
+    if not UFF:
+        if table_names is None:
+            _, _, table_names, _ = io.analyze_hdf_tables(filename)
+    else:
+        h5py_fp = h5py.File(filename)
+        table_names = list(h5py_fp.keys())
+        h5py_fp.close()
+
+    df_batches = io.dataframe_batch_loader(filename, table_names, UFF)
     y_e = []
     p_e = []
     y_f = []

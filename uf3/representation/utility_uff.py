@@ -2,10 +2,11 @@
 # More documentation will be added
 
 import numpy as np
-
+import pandas as pd
 from uf3.data.geometry import get_supercell_factors
 import ase
 from ase import symbols as ase_symbols
+import h5py
 
 def get_interactions_map_ff(interactions_map):
     interactions_map_ff = []
@@ -79,6 +80,12 @@ def get_supercell_array(df, bspline_config):
     supercell = get_supercell(ase_atom, bspline_config.r_cut)
     return convert_ase_atom_to_array(supercell)
 
+def get_force_array(df):
+    fx = df['fx']
+    fy = df['fy']
+    fz = df['fz']
+    return np.stack([fx,fy,fz],axis=1)
+
 def get_data_for_UltraFastFeaturization(bspline_config, df):
     chemical_system = bspline_config.chemical_system
     interactions_map_ff = get_interactions_map_ff(chemical_system.interactions_map)
@@ -87,6 +94,11 @@ def get_data_for_UltraFastFeaturization(bspline_config, df):
 
     df['atoms_array'] = df.apply(get_atoms_array,axis=1)
     atoms_array = np.concatenate(df['atoms_array'])
+
+    energy_array = np.array(df["energy"])
+
+    df["force_array"] = df.apply(get_force_array, axis=1)
+    forces_array = np.concatenate(df["force_array"])
 
     df['crystal_index'] = range(0,len(df))
     df['crystal_index'] = df.apply(get_crystal_index,axis=1)
@@ -107,6 +119,36 @@ def get_data_for_UltraFastFeaturization(bspline_config, df):
     geom_array_posn = np.cumsum(geom_array_posn)
     geom_array_posn = np.concatenate([[0], geom_array_posn]).astype(np.int32)
 
+    struct_names = [str(i) for i in df.index]
+
     return [interactions_map_ff, n2b_knots_map_ff, n2b_num_knots_ff,
-            atoms_array, cell_array, crystal_index, supercell_factors, 
-            geom_array_posn]
+            atoms_array, energy_array, forces_array, cell_array, 
+            crystal_index, supercell_factors, geom_array_posn,
+            struct_names]
+
+
+def open_uff_feature(filename,key):
+    h5py_fp = h5py.File(filename)
+    if key not in h5py_fp.keys():
+        h5py_fp.close()
+        raise KeyError('%s not found in %s'%(key,filename))
+    
+    group = h5py_fp[key]
+    if len(group.keys()) != 7:
+        raise ValueError('Group %s is not of the right size'%(key))
+
+    df = {}
+    column_names = [i.decode('utf-8') for i in group['axis0'][:]]
+    struct_names = [i.decode('utf-8') for i in group['axis1_level0'][:]]
+    CI, desc_size = np.unique(group['axis1_label0'][:], return_counts=True)
+    desc_row_name = [i.decode('utf-8') for i in group['axis1_level1'][:]]
+
+    index = pd.MultiIndex.from_tuples([
+        (struct_names[j],desc_row_name[k]) for j in range(0,len(struct_names)) \
+                for k in range(0,desc_size[j])])
+
+    data = group['block0_values'][:]
+
+    df = pd.DataFrame(data, index=index, columns=column_names)
+    h5py_fp.close()
+    return df

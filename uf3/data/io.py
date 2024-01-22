@@ -19,6 +19,7 @@ from ase.calculators import singlepoint
 from ase.calculators import calculator as ase_calc
 from uf3.util import subsample
 from uf3.util import parallel
+from uf3.representation.utility_uff import open_uff_feature
 
 
 class DataCoordinator:
@@ -956,7 +957,8 @@ def analyze_hdf_tables(filename: str) -> Tuple[int, int, List, Dict]:
     return n_chunks, n_entries, chunk_names, chunk_lengths
 
 
-def dataframe_batch_loader(filename: str, table_names: List) -> pd.DataFrame:
+def dataframe_batch_loader(filename: str, table_names: List,
+                            UFF: bool = False) -> pd.DataFrame:
     """
     Iterator for reading DataFrames from HDF5 using a list of table names,
     i.e. from io.analyze_hdf_tables.
@@ -966,8 +968,12 @@ def dataframe_batch_loader(filename: str, table_names: List) -> pd.DataFrame:
         table_names (list): list of table names in HDF5 to read.
     """
     for table_name in table_names:
-        df = pd.read_hdf(filename, table_name)
-        yield df
+        if not UFF:
+            df = pd.read_hdf(filename, table_name)
+            yield df
+        else:
+            df = open_uff_feature(filename, table_name)
+            yield df
 
 
 def resolve_name_conflict(path: str) -> int:
