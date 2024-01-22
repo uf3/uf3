@@ -17,3 +17,4 @@ elastic
 phonopy>=2.6.0
 seekpath
 spglib
+h5py
