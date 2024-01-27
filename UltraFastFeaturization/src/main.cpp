@@ -32,22 +32,37 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
     py::class_<bspline_config_ff>(m, "bspline_config_ff")
         .def(py::init<int, int, py::tuple, 
                       py::array_t<double, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
+                      py::array_t<double, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
                       py::array_t<int, py::array::c_style>>(),
              py::arg("degree"),
              py::arg("nelements"),
              py::arg("interactions_map"),
              py::arg("n2b_knots_map"),
-             py::arg("n2b_num_knots"))
+             py::arg("n2b_num_knots"),
+             py::arg("n3b_knots_map"),
+             py::arg("n3b_num_knots"),
+             py::arg("n3b_symm_array"),
+             py::arg("n3b_feature_sizes"))
         .def_readonly("degree", &bspline_config_ff::degree)
         .def_readonly("nelements", &bspline_config_ff::nelements)
         .def_readonly("interactions_map", &bspline_config_ff::interactions_map)
         .def_readonly("n2b_interactions", &bspline_config_ff::n2b_interactions)
+        .def_readonly("n3b_interactions", &bspline_config_ff::n3b_interactions)
         .def_readonly("n2b_knots_map", &bspline_config_ff::n2b_knots_map)
+        .def_readonly("n3b_knots_map", &bspline_config_ff::n3b_knots_map)
         .def_readonly("n2b_num_knots", &bspline_config_ff::n2b_num_knots)
+        .def_readonly("n3b_num_knots", &bspline_config_ff::n3b_num_knots)
         .def_readonly("n2b_types", &bspline_config_ff::n2b_types)
+        .def_readonly("n3b_types", &bspline_config_ff::n3b_types)
         .def("get_rmin_max_2b",
              &bspline_config_ff::get_rmin_max_2b_sq,
-             "get_rmin_max_2b")
+             "get_rmin_max_2b_sq")
+        .def("get_rmin_max_3b",
+             &bspline_config_ff::get_rmin_max_3b,
+             "get_rmin_max_3b")
         .def("__repr__",
             [](const bspline_config_ff &a){
                 /*std::string interactions_map_str = "";
