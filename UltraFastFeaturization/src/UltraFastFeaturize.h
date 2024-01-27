@@ -61,7 +61,7 @@ class UltraFastFeaturize{
     int max_num_neigh = 0;
     double neigh_in_sphere = 0;
     std::vector<double> Neighs, Neighs_del;
-    std::vector<double> Tot_num_Neighs;
+    std::vector<int> Tot_num_Neighs;
     
     void set_geom_data(py::array_t<double, py::array::c_style> _atoms_array,
                        py::array_t<double, py::array::c_style> _energy_array,
