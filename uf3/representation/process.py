@@ -14,7 +14,11 @@ from uf3.representation import distances
 from uf3.representation import angles
 from uf3.representation import bspline
 from uf3.representation.utility_uff import get_data_for_UltraFastFeaturization
-from uf3.representation.ultra_fast_featurize import UltraFastFeaturize
+try:
+    from uf3.representation.ultra_fast_featurize import UltraFastFeaturize
+except ModuleNotFoundError:
+    warnings.warn(ImportWarning('UltraFastFeaturize was not imported.\n\
+            Ultra fast featurization is diabled.'))
 from uf3.data import io
 from uf3.data import geometry
 from uf3.util import parallel
