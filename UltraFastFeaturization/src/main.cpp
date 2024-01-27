@@ -65,13 +65,20 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
     py::class_<UltraFastFeaturize>(m, "UltraFastFeaturize")
         .def(py::init<int, int, py::tuple, 
                       py::array_t<double, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
+                      py::array_t<double, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
+                      py::array_t<int, py::array::c_style>,
                       py::array_t<int, py::array::c_style>>(),
-                      //py::array_t<double, py::array::c_style>>(),
              py::arg("degree"),
              py::arg("nelements"),
              py::arg("interactions_map"),
              py::arg("n2b_knots_map"),
-             py::arg("n2b_num_knots"))
+             py::arg("n2b_num_knots"),
+             py::arg("n3b_knots_map"),
+             py::arg("n3b_num_knots"),
+             py::arg("n3b_symm_array"),
+             py::arg("n3b_feature_sizes"))
         .def_readonly("BsplineConfig", &UltraFastFeaturize::BsplineConfig)
         .def_readonly("max_num_neigh", &UltraFastFeaturize::max_num_neigh)
         .def_readonly("num_batches", &UltraFastFeaturize::num_batches)
@@ -97,7 +104,8 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              "Featurize the set data",
              py::arg("batch_size"),
              py::arg("bool return_Neigh"),
-             py::arg("filename"))
+             py::arg("filename"),
+             py::arg("featurize_3b"))
         .def_readonly("constants_2b",
                        &UltraFastFeaturize::constants_2b)
         .def_readonly("constants_2b_deri1",

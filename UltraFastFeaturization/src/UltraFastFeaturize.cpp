@@ -18,27 +18,41 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
                              int _nelements,
                              py::tuple _interactions_map,
                              py::array_t<double, py::array::c_style> _n2b_knots_map,
-                             py::array_t<int, py::array::c_style> _n2b_num_knots)
-                             //py::array_t<double, py::array::c_style> _data)
+                             py::array_t<int, py::array::c_style> _n2b_num_knots,
+                             py::array_t<double, py::array::c_style> _n3b_knots_map,
+                             py::array_t<int, py::array::c_style> _n3b_num_knots,
+                             py::array_t<int, py::array::c_style> _n3b_symm_array,
+                             py::array_t<int, py::array::c_style> _n3b_feature_sizes)
         : degree(_degree), nelements(_nelements), 
           interactions_map(_interactions_map),
           n2b_knots_map(_n2b_knots_map),
           n2b_num_knots(_n2b_num_knots),
-          //data(_data),
+          n3b_knots_map(_n3b_knots_map),
+          n3b_num_knots(_n3b_num_knots),
+          n3b_symm_array(_n3b_symm_array),
+          n3b_feature_sizes(_n3b_feature_sizes),
           // As bspline_config_ff conatins const members, we have to use the
           // copy constructor of 'bspline_config_ff' and initialize the 
           // BsplineConfig here
-          BsplineConfig(degree, nelements, interactions_map, n2b_knots_map, n2b_num_knots)
+          BsplineConfig(degree, nelements, interactions_map, n2b_knots_map, n2b_num_knots,
+                        n3b_knots_map, n3b_num_knots, n3b_symm_array, n3b_feature_sizes)
 {
-  num_of_interxns = {static_cast<int>(this->BsplineConfig.n2b_interactions)};
+  num_of_interxns = {static_cast<int>(this->BsplineConfig.n2b_interactions), 
+                     static_cast<int>(this->BsplineConfig.n3b_interactions)};
+  
   n2b_types = this->BsplineConfig.n2b_types;
+  if (this->BsplineConfig.degree ==3)
+    n3b_types = this->BsplineConfig.n3b_types;
+
   elements = std::vector<int> (nelements,0);
   for (int i=0; i<nelements; i++)
     elements[i] = interactions_map[i].cast<int>();
 
   rmin_max_2b_sq = this->BsplineConfig.rmin_max_2b_sq;
+  if (this->BsplineConfig.degree ==3)
+    rmin_max_3b = this->BsplineConfig.rmin_max_3b;
 
-  ////Create bspline basis constant
+  ////Create 2b bspline basis constant
   auto n2b_knots_map_un = n2b_knots_map.unchecked<2>();
   auto n2b_num_knots_un = n2b_num_knots.unchecked<1>();
   //Find max_num_2b_knots
@@ -72,6 +86,7 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
   n2b_knots_array = std::vector<std::vector<double>> (num_of_interxns[0], std::vector<double>(max_num_2b_knots));
 
   reprn_length = 1+nelements;
+  //2b
   for (int interxn=0; interxn < num_of_interxns[0]; interxn++) {
     //clamped knots --> -4
     for (int knot_no = 0; knot_no < n2b_num_knots_un(interxn) - 4; knot_no++) {
@@ -95,31 +110,15 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
                                           n2b_knots_map_un(interxn,knot_no+1),
                                           n2b_knots_map_un(interxn,knot_no+2),
                                           n2b_knots_map_un(interxn,knot_no+3)};
-      /*py::print("1", n2b_knots_map_un(interxn,knot_no), 
-                     n2b_knots_map_un(interxn,knot_no+1),
-                     n2b_knots_map_un(interxn,knot_no+2),
-                     n2b_knots_map_un(interxn,knot_no+3));*/
       
-      /*double *temp_knots2 = new double[4] {n2b_knots_map_un(interxn,knot_no+1),
-                                          n2b_knots_map_un(interxn,knot_no+2),
-                                          n2b_knots_map_un(interxn,knot_no+3),
-                                          n2b_knots_map_un(interxn,knot_no+4)};
-      py::print("2", n2b_knots_map_un(interxn,knot_no+1), 
-                     n2b_knots_map_un(interxn,knot_no+2),
-                     n2b_knots_map_un(interxn,knot_no+3),
-                     n2b_knots_map_un(interxn,knot_no+4));*/
 
       std::vector<double> c1 = get_dnconstants(temp_knots1,
                                                3/(temp_knots1[3]-temp_knots1[0]));
-      //std::vector<double> c2 = get_dnconstants(temp_knots2,1);
-                                            //3*(temp_knots2[3]-temp_knots2[0]));
 
 
       for (int i=0; i < 9; i++){
         constants_2b_deri1[interxn][knot_no][i] = (std::isinf(c1[i]) || 
                                              std::isnan(c1[i])) ? 0 : c1[i];
-        //constants_2b_deri2[interxn][knot_no][i] = (std::isinf(c2[i]) || 
-        //                                     std::isnan(c2[i])) ? 0 : c2[i];
       }
       delete[] temp_knots1;// temp_knots2;
       
@@ -131,6 +130,42 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
 
     reprn_length = reprn_length + n2b_num_knots_un(interxn)-4;
   }
+  //3b
+  ////Create 3b bspline basis constant
+  //Find max_num_3b_knots
+  int max_num_3b_knots = 0;
+  if (this->BsplineConfig.degree ==3) {
+    auto n3b_knots_map_un = n3b_knots_map.unchecked<3>();
+    auto n3b_num_knots_un = n3b_num_knots.unchecked<2>();
+    auto n3b_feature_sizes_un = n3b_feature_sizes.unchecked<1>();
+
+    for (int interxn=0; interxn < num_of_interxns[1]; interxn++) {
+      max_num_3b_knots = std::max(max_num_3b_knots, n3b_num_knots_un(interxn,0));
+      max_num_3b_knots = std::max(max_num_3b_knots, n3b_num_knots_un(interxn,1));
+      max_num_3b_knots = std::max(max_num_3b_knots, n3b_num_knots_un(interxn,2));
+    }
+
+    n3b_num_knots_array = std::vector<std::vector<int>> (num_of_interxns[1], 
+            std::vector<int>(3, 0));
+    n3b_knots_array = 
+        std::vector<std::vector<std::vector<double>>> (num_of_interxns[1],
+                std::vector<std::vector<double>>(3, 
+                    std::vector<double>(max_num_3b_knots, 0)));
+
+    for (int interxn=0; interxn < num_of_interxns[1]; interxn++) {
+      n3b_num_knots_array[interxn][0] = n3b_num_knots_un(interxn,0); 
+      n3b_num_knots_array[interxn][1] = n3b_num_knots_un(interxn,1); 
+      n3b_num_knots_array[interxn][2] = n3b_num_knots_un(interxn,2);
+
+      for (int i=0; i < 3; i++) {
+        for (int knot_no = 0; knot_no < max_num_3b_knots; knot_no++)
+          n3b_knots_array[interxn][i][knot_no] = n3b_knots_map_un(interxn,i,knot_no);
+      }
+
+      //int num_knot_ij = n3b_num_knots_array_un(interxn,)
+      reprn_length = reprn_length + n3b_feature_sizes_un(interxn);
+    }
+  } //if degree==3
 }
 
 UltraFastFeaturize::~UltraFastFeaturize()
@@ -198,12 +233,6 @@ void UltraFastFeaturize::set_geom_data(py::array_t<double, py::array::c_style> _
 
   //Loop over all crystal structures and find the max num of neigh an atom
   //can have
-  /*max_num_neigh = 0;
-  for (int i=0; i<= cell_array.shape(0); i++){
-    int supercell_size = supercell_factors_un(i,0)*supercell_factors_un(i,1)*supercell_factors_un(i,2);
-    supercell_size = supercell_size*(geom_posn_un(i+1)-geom_posn_un(i));
-    max_num_neigh = std::max(max_num_neigh,supercell_size);
-  }*/
 
   if (cell_array.shape(0) !=  _structure_names.size())
     throw std::length_error("structure_names is not of the right length");
@@ -228,8 +257,19 @@ void UltraFastFeaturize::set_geom_data(py::array_t<double, py::array::c_style> _
 }
 
 py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
-                                    std::string& _filename)
+                                    std::string& _filename, bool featurize_3b)
 {
+  if (featurize_3b) {
+    if (this->BsplineConfig.degree !=3)
+      throw std::domain_error("featurize_3b is True but bspling_config contains\n\
+              no 3body info! I refuse to continue!");
+  }
+  else {
+    if (this->BsplineConfig.degree ==3)
+      throw std::domain_error("featurize_3b is false but bspling_config contains\n\
+              3body info! I refuse to continue!");
+  }
+
   incomplete = false;
   //Create Neighs to store distance of neighbors by interaction
   //Remember Neighs has to be contigous as we are returning a 3d numpy array
@@ -330,7 +370,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
       neigh_in_sphere = std::max(neigh_in_sphere, max_sphere_vol*num_atoms/vol);
     }
     //cols = static_cast<int>(max_num_neigh);
-    //py::print("max_num_neighs", static_cast<int>(neigh_in_sphere));
     cols = static_cast<int>(std::ceil(neigh_in_sphere));
 
     ////----------------Find Neighs-------------------////
@@ -361,7 +400,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
 
     //Loop over central atoms in this batch
     for (int atom1=batch_start; atom1<batch_end; atom1++) {
-
     //for (int atom1=0; atom1<batch_size; atom1++) {
 
       //get the atomic number; x,y,z cart-cordinates; crystal_index; lattice_vects
@@ -429,11 +467,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
         int c = 0;// = posn_to_neigh[n2b_type];
 
         // atom in (0,0,0) supercell aka the unit cell
-        /*double rsq = pow((x2-x1),2) + pow((y2-y1),2) + pow((z2-z1),2);
-        if ((rmin_sq <= rsq) && (rsq < rmax_sq)){
-          Neighs[d*(rows*cols)+(r*cols)+c] = sqrt(rsq);
-          posn_to_neigh[n2b_type]++;
-        }*/
 
         for (int ix=-1*scf1; ix<=scf1; ix++) {
         //for (int ix=0; ix<=scf1; ix++) {
@@ -471,7 +504,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
               if ((rmin_sq <= rsq) && (rsq < rmax_sq)){
                 double rij = sqrt(rsq);
                 int temp_index = d*(rows*cols)+(r*cols)+posn_to_neigh[n2b_type];
-
                 Neighs[temp_index] = rij;
                 
                 int temp_index2 = d*(rows*cols*3)+(r*cols*3)+posn_to_neigh_del[n2b_type];
@@ -554,28 +586,24 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
 
           int basis_posn = basis_start_posn+knot_posn;
           atomic_Reprn[d*reprn_length+basis_posn] += 
-              //atomic_Reprn[d*reprn_length+knot_posn] +
               (constants_2b[interxn][knot_posn][0] +
               (r*constants_2b[interxn][knot_posn][1]) +
               (rsq*constants_2b[interxn][knot_posn][2]) +
               (rth*constants_2b[interxn][knot_posn][3]));
 
           atomic_Reprn[d*reprn_length+basis_posn-1] += 
-              //atomic_Reprn[d*reprn_length+knot_posn-1] +
               (constants_2b[interxn][knot_posn-1][4] +
               (r*constants_2b[interxn][knot_posn-1][5]) +
               (rsq*constants_2b[interxn][knot_posn-1][6]) +
               (rth*constants_2b[interxn][knot_posn-1][7]));
 
           atomic_Reprn[d*reprn_length+basis_posn-2] += 
-              //atomic_Reprn[d*reprn_length+knot_posn-2] +
               (constants_2b[interxn][knot_posn-2][8] +
               (r*constants_2b[interxn][knot_posn-2][9]) +
               (rsq*constants_2b[interxn][knot_posn-2][10]) +
               (rth*constants_2b[interxn][knot_posn-2][11]));
 
           atomic_Reprn[d*reprn_length+basis_posn-3] +=
-              //atomic_Reprn[d*reprn_length+knot_posn-3] +
               (constants_2b[interxn][knot_posn-3][12] +
               (r*constants_2b[interxn][knot_posn-3][13]) +
               (rsq*constants_2b[interxn][knot_posn-3][14]) +
@@ -602,7 +630,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
           fpair[2] = 2*(basis3-basis2);
           fpair[3] = -2*basis3;
 
-          //double r = Neighs[d*(rows*cols)+(interxn*cols)+atom2];
           int temp_index2 = ((d/4)*(rows*cols*3))+(interxn*cols*3)+(atom2*3);
           double delx = Neighs_del[temp_index2];
           double dely = Neighs_del[temp_index2+1];
@@ -632,6 +659,38 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
         basis_start_posn += (num_knots-4);
       }// End of interx loop
     } //End of atom1 loop
+
+    if (featurize_3b) { 
+    ////3b loop
+    //Loop over central atoms in this batch
+    //loop over 3b interaction
+    //get 3b symmetry
+    //get Neigh list indices for this 3b interaction --> index_ij, index_ik
+    //make local atomic_3b_Reprn_matrix_energy, atomic_3b_Reprn_matrix_fx,
+    //atomic_3b_Reprn_matrix_fy, atomic_3b_Reprn_matrix_fz
+    //make atomic_3b_Reprn_matrix_flatten_energyenergy,
+    //atomic_3b_Reprn_matrix_flatten_fx, atomic_3b_Reprn_matrix_flatten_fy,
+    //atomic_3b_Reprn_matrix_flatten_fz
+    //loop over neighbors in Neigh[atom1][index_ij]
+    //loop over neighbors in Neigh[atom1][index_ik]
+    //distance jk? get from del_ij, rij, rik and del_ik --> r_ij, r_ik, r_jk
+    //rsq_ij, rsq_ik, rsq_jk
+    //rth_ij, rth_ik, rth_jk
+    //knot_posn_ij, knot_posn_ik, knot_posn_jk
+    //basis_posn_ij, basis_posn_ik, basis_jk
+    //energy descriptor in atomic_3b_Reprn_matrix
+    //force descriptor in atomic_3b_Reprn_matrix
+    //atomic_3b_Reprn_matrix_flatten_energy += atomic_3b_Reprn_matrix_energy
+    //atomic_3b_Reprn_matrix_flatten_fx += atomic_3b_Reprn_matrix_fx, ...
+    //
+    //close loop over neighbors in Neigh[atom1][index_ik]
+    //close loop over neighbors in Neigh[atom1][index_ij]
+    //
+    //atomic_Reprn[atom1_energy][3b_interxn] = atomic_3b_Reprn_matrix_flatten_energy
+    //atomic_Reprn[atom1_fx][3b_interxn] = atomic_3b_Reprn_matrix_flatten_fx, ...
+    //
+    //close loop over central atoms in this batch
+    }
     
     //Add all atomic representation of atoms that part of the same crystal
     //
@@ -664,7 +723,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
           for (int i=0; i<reprn_length; i++)
             crystal_Reprn[prev*reprn_length+i] = incomplete_crystal_Reprn[prev*reprn_length+i];
         }
-        //py::print("Atoms in icomp_cR1",crystal_Reprn[1]);
 
       }
       else{
@@ -672,27 +730,23 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
         std::fill(crystal_Reprn.begin(), crystal_Reprn.end(), 0);
       }
     }
-
+    
 
     if (incomplete){
       int prev_data_len = incomplete_crystal_Reprn.size()/reprn_length;
       atom_count = (prev_data_len-1)/3;
-      //
     }
     else{
-
       atom_count = 0;
       prev_CI = crystal_index_un(batch_start);
     }
-    //
-
+    
     int IfCR = 0; //index for crystal representation
     for (int atom1=batch_start; atom1<batch_end; atom1++) {
       int CI1 = crystal_index_un(atom1); //crystal index of current atom
       int d = 4*(atom1-batch_start); //d=0 is the first atom in this batch
                                      //d=3 is the second atom in this batch
       int atoms_in_ccrys = geom_posn_un(CI1+1)-geom_posn_un(CI1); //atom in curent crystal
-      //py::print("CI1 =",CI1,"d =",d,"atoms_in_ccrys",atoms_in_ccrys, "IfCR =",IfCR, "atom_count =",atom_count);
 
       if (CI1 != prev_CI){
         //natoms_in_Pcrys --> num atom in previous crystal
@@ -700,14 +754,12 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
         IfCR = IfCR + (natoms_in_Pcrys*3) + 1;
         atom_count = 0;
         prev_CI = CI1;
-        //py::print("natoms_in_Pcrys =", natoms_in_Pcrys, "IfCR =",IfCR, "prev_CI =", prev_CI);
       }
       //index for crystal_Repren --> dC
       //int dC = crystal_index_un(atom1) - crystal_start; //dC=0 is the first crystal
                                                         //in this batch
       for (int i=0; i<reprn_length; i++){
         //eng feature
-        //
         crystal_Reprn[IfCR*reprn_length+i] += atomic_Reprn[d*reprn_length+i];
         //fx
         crystal_Reprn[(IfCR+(atom_count*3)+1)*reprn_length+i] = atomic_Reprn[(d+1)*reprn_length+i];
@@ -720,11 +772,11 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
       crystal_Reprn[IfCR*reprn_length+0] = energy_array_un(CI1);
       atom_count++;
     }
-
+    
     //crystal_Reprn will have atmost 1 incomplete crystal representation
     //If it has incomplete crystal representation it will be the last crystal
     //IfCR is the position of the last crystal
-
+    
     //Determine if the last crystal representation is incomplete
     ////batch_end-1 is the last atom of this batch
     int last_crystal_CI = crystal_index_un(batch_end-1);
@@ -740,7 +792,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
                             std::ceil(
                                 crystal_Reprn[IfCR*reprn_length+1+i]));
     }
-    //py::print("num_atoms =",num_atoms);
     
     //Create incomplete_crystal_Reprn
     if (num_atoms_from_CR!=num_atoms){ //last crystal representation is incomplete
@@ -761,7 +812,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
       for (int i=0; i<reprn_length; i++)
         incomplete_crystal_Reprn[i] = 
             crystal_Reprn[IfCR*reprn_length+i];
-
       //store forces
       for (int atom1=0; atom1<num_atoms_from_CR; atom1++){
         for (int i=0; i<reprn_length; i++){
@@ -784,7 +834,6 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
       incomplete_crystal_Reprn.resize(0);
 
     }
-    //py::print(tot_crystals, num_atoms_from_CR, num_atoms, 1+(num_atoms_from_CR*3));
     //Write all complete crystal representations to hdf5 file
     if (tot_crystals==1) {//Just 1 crystal in this batch
       if (num_atoms_from_CR==num_atoms) //crystal representation complete

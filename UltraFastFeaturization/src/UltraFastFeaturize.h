@@ -19,13 +19,17 @@ class UltraFastFeaturize{
     const py::tuple interactions_map;
     const py::array_t<double, py::array::c_style> n2b_knots_map;
     const py::array_t<int, py::array::c_style> n2b_num_knots;
+    const py::array_t<double, py::array::c_style> n3b_knots_map;
+    const py::array_t<int, py::array::c_style> n3b_num_knots;
+    const py::array_t<int, py::array::c_style> n3b_symm_array;
+    const py::array_t<int, py::array::c_style> n3b_feature_sizes;
 
     py::array_t<double, py::array::c_style> atoms_array, supercell_array, cell_array;
     py::array_t<double, py::array::c_style> energy_array, forces_array;
     py::array_t<int, py::array::c_style> crystal_index, geom_posn, supercell_factors;
     std::vector<std::string> structure_names, column_names;
 
-    double *rmin_max_2b_sq;
+    double *rmin_max_2b_sq, *rmin_max_3b;
 
     int atom_count=0;
     int prev_CI = 0;
@@ -37,11 +41,18 @@ class UltraFastFeaturize{
 
     UltraFastFeaturize(int _degree, int _nelements, py::tuple _interactions_map,
                         py::array_t<double, py::array::c_style> _n2b_knots_map,
-                        py::array_t<int, py::array::c_style> _n2b_num_knots);
+                        py::array_t<int, py::array::c_style> _n2b_num_knots,
+                        py::array_t<double, py::array::c_style> _n3b_knots_map,
+                        py::array_t<int, py::array::c_style> _n3b_num_knots,
+                        py::array_t<int, py::array::c_style> _n3b_symm_array,
+                        py::array_t<int, py::array::c_style> _n3b_feature_sizes);
                         //py::array_t<double, py::array::c_style> _data);
 
-    std::vector<int> num_of_interxns, n2b_types, n2b_num_knots_array, elements;
+    std::vector<int> num_of_interxns, n2b_types, n3b_types, n2b_num_knots_array, elements;
     std::vector<std::vector<double>> n2b_knots_array;
+    std::vector<std::vector<int>> n3b_num_knots_array;
+    std::vector<std::vector<std::vector<double>>> n3b_knots_array;
+
 
     ~UltraFastFeaturize();
 
@@ -62,9 +73,9 @@ class UltraFastFeaturize{
                        py::list _structure_names, py::list _column_names);
 
     py::array featurize(int _batch_size, bool return_Neigh, 
-                        std::string& _filename);
+                        std::string& _filename, bool featurize_3b);
 
-    std::vector<std::vector<std::vector<double>>> constants_2b;
+    std::vector<std::vector<std::vector<double>>> constants_2b;//, constants_2b_deri;
     std::vector<std::vector<std::vector<double>>> constants_2b_deri1, constants_2b_deri2;
     
     int reprn_length=0, tot_complete_crystals;
