@@ -34,8 +34,21 @@ class bspline_config_ff {
     std::vector<int> n2b_types, n3b_types;
 
     double *rmin_max_2b_sq, *rmin_max_3b;
+    double rcut_max_sq = 0.0;
 
     py::array get_rmin_max_2b_sq(), get_rmin_max_3b();
+
+
+    std::vector<double> get_symmetry_weights(int n3b_symmetry,
+                                              std::vector<double> &ij_knots,
+                                              std::vector<double> &ik_knots,
+                                              std::vector<double> &jk_knots,
+                                              int ij_num_knots,
+                                              int ik_num_knots,
+                                              int jk_num_knots,
+                                              int n3b_lead,
+                                              int n3b_trail);
+    std::vector<double> template_array_flatten;
 
 
 };

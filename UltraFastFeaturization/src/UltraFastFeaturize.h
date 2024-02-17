@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <H5Cpp.h>
+//#include <Eigen/Dense>
 
 #include "bspline_config_ff.h"
 
@@ -30,6 +31,7 @@ class UltraFastFeaturize{
     std::vector<std::string> structure_names, column_names;
 
     double *rmin_max_2b_sq, *rmin_max_3b;
+    double rcut_max_sq;
 
     int atom_count=0;
     int prev_CI = 0;
@@ -46,7 +48,6 @@ class UltraFastFeaturize{
                         py::array_t<int, py::array::c_style> _n3b_num_knots,
                         py::array_t<int, py::array::c_style> _n3b_symm_array,
                         py::array_t<int, py::array::c_style> _n3b_feature_sizes);
-                        //py::array_t<double, py::array::c_style> _data);
 
     std::vector<int> num_of_interxns, n2b_types, n3b_types, n2b_num_knots_array, elements;
     std::vector<std::vector<double>> n2b_knots_array;
@@ -77,8 +78,10 @@ class UltraFastFeaturize{
 
     std::vector<std::vector<std::vector<double>>> constants_2b;//, constants_2b_deri;
     std::vector<std::vector<std::vector<double>>> constants_2b_deri1, constants_2b_deri2;
+    std::vector<std::vector<std::vector<std::vector<double>>>> constants_3b, constants_3b_deri;
     
     int reprn_length=0, tot_complete_crystals;
+    int tot_2b_features_size = 0;
     std::vector<double> atomic_Reprn, crystal_Reprn, incomplete_crystal_Reprn;
     // Representation = [[y, n_El1, n_El2, ..., El1El1_0, El1El1_1, ...],...]
 
@@ -92,7 +95,48 @@ class UltraFastFeaturize{
                     const std::vector<double> &Data, int first_crystal_CI,
                     int tot_complete_crystals, std::vector<std::string> &column_names,
                     py::array_t<int, py::array::c_style> &geom_posn);
+
+    /*void n3b_compress(std::vector<Eigen::MatrixXd> &atomic_3b_Reprn_matrix,
+                      std::vector<double> &atomic_3b_Reprn_flatten,
+                      int n3b_symm);*/
     
+    void n3b_compress(std::vector<double> &atomic_3b_Reprn_matrix,
+                      std::vector<double> &atomic_3b_Reprn_flatten,
+                      int n3b_symm, int template_mask_start, int template_mask_end,
+                      int bl, int bm, int bn);
+
+    py::array get_symmetry_weights(int interxn, int lead, int trail);
+
+    std::vector<double> template_array_flatten_test, tempftest;
+    std::vector<double> flat_weights;
+    std::vector<int> template_mask;
+
+    py::array get_flat_weights();
+    py::array get_template_mask();
+    
+    void compute_3b_energy_feature(const double r_ij, const double r_ik, const double r_jk,
+                       const double rsq_ij, const double rsq_ik, const double rsq_jk,
+                       const double rth_ij, const double rth_ik, const double rth_jk,
+                       int knot_posn_ij, int knot_posn_ik, int knot_posn_jk,
+                       const int bl, const int bm, const int bn,
+                       const std::vector<double>& knots_ij,
+                       const std::vector<double>& knots_ik,
+                       const std::vector<double>& knots_jk,
+                       const std::vector<std::vector<double>>& constants_ij,
+                       const std::vector<std::vector<double>>& constants_ik,
+                       const std::vector<std::vector<double>>& constants_jk,
+                       std::vector<double>& atomic_3b_Reprn_matrix_energy);
+    
+    std::array<double, 4>  get_basis_set(const double r_ij,
+                                                         const double rsq_ij,
+                                                         const double rth_ij,
+                                                         const std::vector<std::vector<double>>& constants_ij,
+                                                         const int knot_posn_ij);
+    
+    std::array<double, 3>  get_basis_deri_set(const double r_ij,
+                                              const double rsq_ij,
+                                              const std::vector<std::vector<double>>& constants_ij_deri,
+                                              const int knot_posn_ij);
     /*std::vector<double> evaluate_basis3(const double r,
                                         const std::vector<double> &knots,
                                         const int num_knots,

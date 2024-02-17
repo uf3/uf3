@@ -16,7 +16,8 @@ UltraFastNeighs::UltraFastNeighs(py::detail::unchecked_reference<double, 2>& _at
                                  py::detail::unchecked_reference<int, 2>& _supercell_factors_un,
                                  std::vector<int>& _num_of_interxns,
                                  std::vector<int>& _n2b_types,
-                                 double* _rmin_max_2b_sq)
+                                 double* _rmin_max_2b_sq,
+                                 double _rcut_max_sq)
                 : atoms_array_un(_atoms_array_un),
                   crystal_index_un(_crystal_index_un),
                   cell_array_un(_cell_array_un),
@@ -24,7 +25,8 @@ UltraFastNeighs::UltraFastNeighs(py::detail::unchecked_reference<double, 2>& _at
                   supercell_factors_un(_supercell_factors_un),
                   num_of_interxns(_num_of_interxns),
                   n2b_types(_n2b_types),
-                  rmin_max_2b_sq(_rmin_max_2b_sq)
+                  rmin_max_2b_sq(_rmin_max_2b_sq),
+                  rcut_max_sq(_rcut_max_sq)
 {
 
 }
@@ -135,11 +137,12 @@ void UltraFastNeighs::set_Neighs(int batch_start, int batch_end,
               
             //+x,+y,+z
             double rsq = pow((x2_pi-x1),2) + pow((y2_pi-y1),2) + pow((z2_pi-z1),2);
-            if ((rmin_sq <= rsq) && (rsq < rmax_sq)){
+            //if ((rmin_sq <= rsq) && (rsq < rmax_sq)){
+            if ((0 < rsq) && (rsq < rcut_max_sq)){
               double rij = sqrt(rsq);
               int temp_index = d*(rows*cols)+(r*cols)+posn_to_neigh[n2b_type];
               Neighs[temp_index] = rij;
-                
+
               int temp_index2 = d*(rows*cols*3)+(r*cols*3)+posn_to_neigh_del[n2b_type];
               Neighs_del[temp_index2] = (x2_pi-x1)/rij;
               Neighs_del[temp_index2+1] = (y2_pi-y1)/rij;

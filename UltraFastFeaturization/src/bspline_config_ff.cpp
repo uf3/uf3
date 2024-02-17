@@ -106,6 +106,7 @@ bspline_config_ff::bspline_config_ff(int _degree,
                   std::to_string(n2b_interactions+nelements);
       throw std::length_error(error_message);
     }
+
   }
   if (degree ==3){
     //Should be equal to 3body interactions + 2body interactions + 1body interactions
@@ -116,6 +117,7 @@ bspline_config_ff::bspline_config_ff(int _degree,
                                          n2b_interactions+nelements);
       throw std::length_error(error_message);
     }
+
   }
 
   //Check size of n2b_knots_map
@@ -166,6 +168,8 @@ bspline_config_ff::bspline_config_ff(int _degree,
   for (int i=0; i<n2b_interactions; i++) {
     rmin_max_2b_sq[2*i] = pow(n2b_knots_map_un(i,0),2);
     rmin_max_2b_sq[2*i+1] = pow(n2b_knots_map_un(i,n2b_num_knots_un(i)-1),2);
+
+    rcut_max_sq = std::max(rcut_max_sq, rmin_max_2b_sq[2*i+1]);
   }
 
   if (degree ==3) {
@@ -174,12 +178,16 @@ bspline_config_ff::bspline_config_ff(int _degree,
     rmin_max_3b = new double[n3b_interactions*2*3];
     for (int i=0; i<n3b_interactions; i++) {
       rmin_max_3b[6*i] = n3b_knots_map_un(i,0,0);
-      rmin_max_3b[6*i+1] = n3b_knots_map_un(i,1,0);
-      rmin_max_3b[6*i+2] = n3b_knots_map_un(i,2,0);
+      rmin_max_3b[6*i+1] = n3b_knots_map_un(i,0,n3b_num_knots_un(i,0)-1);
+      rcut_max_sq = std::max(rcut_max_sq,rmin_max_3b[6*i+1]*rmin_max_3b[6*i+1]);
 
-      rmin_max_3b[6*i+3] = n3b_knots_map_un(i,0,n3b_num_knots_un(i,0)-1);
-      rmin_max_3b[6*i+4] = n3b_knots_map_un(i,1,n3b_num_knots_un(i,1)-1);
+      rmin_max_3b[6*i+2] = n3b_knots_map_un(i,1,0);
+      rmin_max_3b[6*i+3] = n3b_knots_map_un(i,1,n3b_num_knots_un(i,1)-1);
+      rcut_max_sq = std::max(rcut_max_sq,rmin_max_3b[6*i+3]*rmin_max_3b[6*i+3]);
+      
+      rmin_max_3b[6*i+4] = n3b_knots_map_un(i,2,0);
       rmin_max_3b[6*i+5] = n3b_knots_map_un(i,2,n3b_num_knots_un(i,2)-1);
+      rcut_max_sq = std::max(rcut_max_sq,rmin_max_3b[6*i+5]*rmin_max_3b[6*i+5]);
     }
 
     if (n3b_symm_array.shape(0) != n3b_interactions){
@@ -233,3 +241,112 @@ py::array bspline_config_ff::get_rmin_max_3b() {
 
   return py::array(rmin_max_3b_buff_info);
  };
+
+std::vector<double> bspline_config_ff::get_symmetry_weights(int n3b_symmetry,
+                                                            std::vector<double> &ij_knots,
+                                                            std::vector<double> &ik_knots,
+                                                            std::vector<double> &jk_knots,
+                                                            int ij_num_knots,
+                                                            int ik_num_knots,
+                                                            int jk_num_knots,
+                                                            int n3b_lead,
+                                                            int n3b_trail)
+{
+  int l = ij_num_knots-4;
+  int m = ik_num_knots-4;
+  int n = jk_num_knots-4;
+
+  std::vector<std::vector<std::vector<double>>> template_array (l, 
+                                        std::vector<std::vector<double>>(m, 
+                                            std::vector<double>(n, 1)));
+
+  switch(n3b_symmetry){
+    case 2:
+      for (int i=0; i<l; i++){
+        for (int j=0; j<m; j++){
+          for (int k=0; k<n; k++) {
+            if (i>j)
+              template_array[i][j][k] = 0;
+            else if (i==j)
+              template_array[i][j][k] = 0.5;
+          }}}
+      break;
+
+    case 3:
+      for (int i=0; i<l; i++) {
+        for (int j=0; j<m; j++) {
+          for (int k=0; k<n; k++) {
+            if (i==j && i==k)
+              template_array[i][j][k] = 1.0/6;
+            else if (i > j || j > k)
+              template_array[i][j][k] = 0;
+            else if (i==k || i==j || j==k)
+              template_array[i][j][k] = 0.5;
+          }}}
+      break;
+
+    //default:
+    //  throw std::invalid_argument("Provided n3b_symmetry is value is not correct");
+  }
+
+  //triangle restriction
+  for (int i=0; i<l; i++) {
+    for (int j=0; j<m; j++) {
+      for (int k=0; k<n; k++) {
+        if ((ij_knots[i+4] + ik_knots[j+4]) <= jk_knots[k])
+           template_array[i][j][k] = 0;
+        else if ((ij_knots[i+4] + jk_knots[k+4]) <= ik_knots[j])
+            template_array[i][j][k] = 0;
+        else if ((ik_knots[j+4] + jk_knots[k+4]) <= ij_knots[i])
+            template_array[i][j][k] = 0;
+      }}}
+
+  if (n3b_lead > 0) {
+    for (int trim=0; trim<n3b_lead; trim++){
+      for (int j=0; j<m; j++) {
+        for (int k=0; k<n; k++) {
+          template_array[trim][j][k] = 0;
+        }
+      }
+      for (int i=0; i<l; i++) {
+        for (int k=0; k<n; k++) {
+          template_array[i][trim][k] = 0;
+        }
+      }
+      for (int i=0; i<l; i++) {
+        for (int j=0; j<m; j++) {
+          template_array[i][j][trim] = 0;
+        }
+      }
+    }
+  }
+
+  if (n3b_trail > 0) {
+    for (int trim=0; trim<n3b_trail; trim++) {
+      for (int j=0; j<m; j++) {
+        for (int k=0; k<n; k++) {
+          template_array[l-1-trim][j][k] = 0;
+        }
+      }
+      for (int i=0; i<l; i++) {
+        for (int k=0; k<n; k++) {
+          template_array[i][m-1-trim][k] = 0;
+        }
+      }
+      for (int i=0; i<l; i++) {
+        for (int j=0; j<m; j++) {
+          template_array[i][j][n-1-trim] = 0;
+        }
+      }
+    }
+  }
+
+  template_array_flatten = std::vector<double> (l*m*n,0);
+  for (int i=0; i<l; i++) {
+    for (int j=0; j<m; j++) {
+      for (int k=0; k<n; k++) {
+        template_array_flatten[(i*m*n)+(j*n)+k] = template_array[i][j][k];
+      }}}
+
+  return template_array_flatten;
+}

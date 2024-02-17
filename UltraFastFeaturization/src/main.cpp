@@ -57,6 +57,8 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
         .def_readonly("n3b_num_knots", &bspline_config_ff::n3b_num_knots)
         .def_readonly("n2b_types", &bspline_config_ff::n2b_types)
         .def_readonly("n3b_types", &bspline_config_ff::n3b_types)
+        .def_readonly("rcut_max_sq",
+                &bspline_config_ff::rcut_max_sq)
         .def("get_rmin_max_2b",
              &bspline_config_ff::get_rmin_max_2b_sq,
              "get_rmin_max_2b_sq")
@@ -121,12 +123,27 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              py::arg("bool return_Neigh"),
              py::arg("filename"),
              py::arg("featurize_3b"))
+        .def("get_symmetry_weights",
+             &UltraFastFeaturize::get_symmetry_weights,
+             py::arg("interaction_3b"),
+             py::arg("lead"),
+             py::arg("trail"))
+        .def("get_flat_weights",
+             &UltraFastFeaturize::get_flat_weights)
+        .def("get_template_mask",
+             &UltraFastFeaturize::get_template_mask)
         .def_readonly("constants_2b",
                        &UltraFastFeaturize::constants_2b)
         .def_readonly("constants_2b_deri1",
                        &UltraFastFeaturize::constants_2b_deri1)
         .def_readonly("constants_2b_deri2",
                        &UltraFastFeaturize::constants_2b_deri2)
+        .def_readonly("constants_3b",
+                      &UltraFastFeaturize::constants_3b)
+        .def_readonly("constants_3b_deri",
+                      &UltraFastFeaturize::constants_3b_deri)
+        .def_readonly("tempftest",
+                      &UltraFastFeaturize::tempftest)
         .def_readonly("write_hdf5_counter",
                 &UltraFastFeaturize::write_hdf5_counter);
         /*.def("set_geom_posn",
