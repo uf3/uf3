@@ -44,6 +44,7 @@ class CMakeBuild(build_ext):
 
             if not self.hdf5_include_dir or not self.hdf5_lib_dir:
                 raise RuntimeError("HDF5_INCLUDE_DIR and HDF5_LIB_DIR environment variables must be set")
+
             
             # Must be in this form due to bug in .resolve() only fixed in Python 3.10+
             ext_fullpath = Path.cwd() / self.get_ext_fullpath(ext.name)
