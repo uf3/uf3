@@ -4,10 +4,7 @@ project(UltraFastFeaturization)
 # Find required packages
 find_package(pybind11 REQUIRED)
 
-#find_package(HDF5 COMPONENTS C CXX REQUIRED)
 # Set HDF5 custom include and library directories
-#include_directories("/home/ajinkya.hire/ls/envs/uf3_env/include")
-#link_directories("/home/ajinkya.hire/ls/envs/uf3_env/lib")
 # Require the user to specify custom HDF5 directories
 set(HDF5_INCLUDE_DIR "" CACHE PATH "Path to HDF5 include directory")
 set(HDF5_LIB_DIR "" CACHE PATH "Path to HDF5 library directory")
@@ -21,13 +18,11 @@ if(NOT HDF5_LIB_DIR)
     message(FATAL_ERROR "HDF5 library directory not specified. Please set HDF5_LIB_DIR.")
 endif()
 
+
 # Use the specified HDF5 directories
 include_directories(${HDF5_INCLUDE_DIR})
 link_directories(${HDF5_LIB_DIR})
 
-
-# Define the output directory for the shared library
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/uf3)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
