@@ -307,17 +307,22 @@ class BasisFeaturizer:
         st = time.process_time()
 
         (interactions_map_ff, n2b_knots_map_ff, n2b_num_knots_ff,
+                n3b_knots_map_ff, n3b_num_knots_ff, symm_array, feature_size_3b,
                 atoms_array, energy_array, forces_array, cell_array,
-                crystal_index, supercell_factors,
-                geom_array_posn, struct_names) = \
-        get_data_for_UltraFastFeaturization(bspline_config=self.bspline_config,
+                crystal_index, supercell_factors, geom_array_posn,
+                struct_names) = \
+                        get_data_for_UltraFastFeaturization(bspline_config=self.bspline_config,
                                             df=df_data)
 
         UFF = UltraFastFeaturize(degree=self.bspline_config.degree,
                                 nelements=len(self.bspline_config.element_list),
                                 interactions_map=interactions_map_ff,
                                 n2b_knots_map = n2b_knots_map_ff,
-                                n2b_num_knots = n2b_num_knots_ff)
+                                n2b_num_knots = n2b_num_knots_ff,
+                                n3b_knots_map = n3b_knots_map_ff,
+                                n3b_num_knots = n3b_num_knots_ff,
+                                n3b_symm_array=symm_array,
+                                n3b_feature_sizes=feature_size_3b)
 
         UFF.set_geom_data(atoms_array = atoms_array, 
                             energy_array = energy_array,
@@ -329,10 +334,15 @@ class BasisFeaturizer:
                             structure_names = struct_names, 
                             column_names = self.columns)
 
-        Neighs = UFF.featurize(batch_size, True, filename)
+        if self.bspline_config.degree == 3:
+            featurize_3b = True
+        else:
+            featurize_3b = False
+
+        Neighs = UFF.featurize(batch_size, True, filename, featurize_3b)
 
         et = time.process_time()
-        print("Featurization took-%d secs"%(et-st))
+        print("Featurization took-%f secs"%(et-st))
 
     def evaluate_configuration(self,
                                geom,
