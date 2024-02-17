@@ -49,6 +49,37 @@ def get_2b_num_knots_ff(bspline_config):
 
     return knots_size_2b_ff
 
+def get_3b_knots_map_ff(bspline_config):
+    max_num_knots = 0
+    for i in bspline_config.interactions_map[3]:
+        for j in bspline_config.knots_map[i]:
+            max_num_knots = max(len(j),max_num_knots)
+
+    knots_map_ff = np.zeros((len(bspline_config.interactions_map[3]),3,
+                             max_num_knots))
+
+    for i, trio in enumerate(bspline_config.interactions_map[3]):
+        for j, knots in enumerate(bspline_config.knots_map[trio]):
+            shape = knots.shape[0]
+            knots_map_ff[i][j][0:shape] = knots
+
+    return knots_map_ff
+
+def get_3b_num_knots_ff(bspline_config):
+    knots_size_3b_ff = np.zeros((len(bspline_config.interactions_map[3]),3),
+                                dtype=np.int32)
+
+    for i, trio in enumerate(bspline_config.interactions_map[3]):
+        for j, knots in enumerate(bspline_config.knots_map[trio]):
+            knots_size_3b_ff[i][j] = len(knots)
+
+    return knots_size_3b_ff
+
+def get_3b_feature_size(bspline_config):
+    nelements = len(bspline_config.chemical_system.element_list)
+    n_pairs = int(nelements*(nelements+1)/2)
+    return np.array(bspline_config.partition_sizes[nelements+n_pairs:],dtype=np.int32)
+
 def convert_ase_atom_to_array(ase_atom):
     #cell = np.concatenate([[[0],[0],[0]], ase_atom.cell.array],axis=1)
     shape_0 = ase_atom.get_atomic_numbers().shape[0]
@@ -91,6 +122,16 @@ def get_data_for_UltraFastFeaturization(bspline_config, df):
     interactions_map_ff = get_interactions_map_ff(chemical_system.interactions_map)
     n2b_knots_map_ff = get_2b_knots_map_ff(bspline_config)
     n2b_num_knots_ff = get_2b_num_knots_ff(bspline_config)
+    if bspline_config.degree ==3:
+        n3b_knots_map_ff = get_3b_knots_map_ff(bspline_config)
+        n3b_num_knots_ff = get_3b_num_knots_ff(bspline_config)
+        symm_array = np.array(list(bspline_config.symmetry.values()),dtype=np.int32)
+        feature_size_3b = get_3b_feature_size(bspline_config)
+    else:
+        n3b_knots_map_ff = np.zeros(1,dtype=np.float64)
+        n3b_num_knots_ff = np.zeros(1,dtype=np.int32)
+        symm_array = np.zeros(1,dtype=np.int32)
+        feature_size_3b = np.zeros(1,dtype=np.int32)
 
     df['atoms_array'] = df.apply(get_atoms_array,axis=1)
     atoms_array = np.concatenate(df['atoms_array'])
@@ -122,6 +163,7 @@ def get_data_for_UltraFastFeaturization(bspline_config, df):
     struct_names = [str(i) for i in df.index]
 
     return [interactions_map_ff, n2b_knots_map_ff, n2b_num_knots_ff,
+            n3b_knots_map_ff, n3b_num_knots_ff, symm_array, feature_size_3b,
             atoms_array, energy_array, forces_array, cell_array, 
             crystal_index, supercell_factors, geom_array_posn,
             struct_names]
