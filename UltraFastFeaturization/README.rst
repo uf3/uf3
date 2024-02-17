@@ -1,7 +1,7 @@
 This document describes how to featruize data using the Ultra Fast Featurization module.
 
 
-In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library. Preliminary testes indicate that ~50 times faster than the python version. Currently only 2-body energy and force is supported. Support for 3-body will be added in near future.
+In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library. Preliminary testes indicate that ~50 times faster than the python version. Currently only 2-body energy, 2b forces for multicomponent is supported. For 3b energy and 3b force support is for single component system.
 
 
 Dependencies
@@ -24,7 +24,7 @@ UF3 needs to be re-installed to enable this feature-
 .. code:: bash
 
    export HDF5_INCLUDE_DIR=/Path/to/HDF5/include/dir
-   export HDF5_LIB_DIR=/Path/to/HDF5/lib/dir 
+   export HDF5_LIB_DIR=/Path/to/HDF5/lib/dir
    export ULTRA_FAST_FEATURIZER=True
 
 2. git clone the latest version of uf3 and select UltraFastFeaturization branch
