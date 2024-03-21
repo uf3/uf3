@@ -544,10 +544,12 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
         n3b_knot_matrix[itype][jtype][ktype][0][i];
   }
 
-  min_cut_3b[itype][jtype][ktype][0] = n3b_knot_matrix[itype][jtype][ktype][0][0];
+  min_cut_3b[itype][jtype][ktype][0] = n3b_knot_matrix[itype][jtype][ktype][0][0]; 
+                    //min_cut_3b[itype][jtype][ktype][0] --> cutoff for jk distance
+                    
   min_cut_3b[itype][ktype][jtype][0] = n3b_knot_matrix[itype][ktype][jtype][0][0];
   if (comm->me == 0)
-      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_0={} {}-{}-{}_0={}\n",
+      utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_jk={} {}-{}-{}_jk={}\n",
               potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][0],
               itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][0]);
 
@@ -568,9 +570,11 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
     }
 
   min_cut_3b[itype][jtype][ktype][1] = n3b_knot_matrix[itype][jtype][ktype][1][0];
+                    //min_cut_3b[itype][jtype][ktype][1] --> cutoff for ik distance
+
   min_cut_3b[itype][ktype][jtype][2] = n3b_knot_matrix[itype][ktype][jtype][2][0];
   if (comm->me == 0)
-    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_1={} {}-{}-{}_2={}\n",
+    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_ik={} {}-{}-{}_ik={}\n",
             potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][1],
             itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][2]);
 
@@ -591,9 +595,10 @@ void PairUF3::uf3_read_pot_file(int itype, int jtype, int ktype, char *potf_name
     }
 
   min_cut_3b[itype][jtype][ktype][2] = n3b_knot_matrix[itype][jtype][ktype][2][0];
+                    //min_cut_3b[itype][jtype][ktype][2] --> cutoff for ij distance 
   min_cut_3b[itype][ktype][jtype][1] = n3b_knot_matrix[itype][ktype][jtype][1][0];
   if (comm->me == 0)
-    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_2={} {}-{}-{}_1={}\n",
+    utils::logmesg(lmp, "UF3: 3b min cutoff {} {}-{}-{}_ij={} {}-{}-{}_ij={}\n",
             potf_name,itype,jtype,ktype,min_cut_3b[itype][jtype][ktype][2],
             itype,ktype,jtype,min_cut_3b[itype][ktype][jtype][1]);
 
@@ -1107,7 +1112,7 @@ void PairUF3::compute(int eflag, int vflag)
             ((del_rki[0] * del_rki[0]) + (del_rki[1] * del_rki[1]) + (del_rki[2] * del_rki[2])));
 
         if ((rij <= cut_3b[itype][jtype][ktype]) && (rik <= cut_3b[itype][ktype][jtype]) &&
-                (rij >= min_cut_3b[itype][jtype][ktype][0]) && 
+                (rij >= min_cut_3b[itype][jtype][ktype][2]) && 
                 (rik >= min_cut_3b[itype][jtype][ktype][1])) {
 
           del_rkj[0] = x[k][0] - x[j][0];
@@ -1116,7 +1121,7 @@ void PairUF3::compute(int eflag, int vflag)
           rjk = sqrt(
               ((del_rkj[0] * del_rkj[0]) + (del_rkj[1] * del_rkj[1]) + (del_rkj[2] * del_rkj[2])));
 
-          if (rjk >= min_cut_3b[itype][jtype][ktype][2]){
+          if (rjk >= min_cut_3b[itype][jtype][ktype][0]){
             double *triangle_eval = UFBS3b[itype][jtype][ktype].eval(rij, rik, rjk);
 
             fij[0] = *(triangle_eval + 1) * (del_rji[0] / rij);
