@@ -13,12 +13,12 @@ Syntax
 
     pair_style style BodyFlag NumAtomType
 
- * style = *uf3* or *uf3/kk*
- 
-   .. parsed-literal::
+* style = *uf3* or *uf3/kk*
 
-        BodyFlag = Indicates whether to calculate only 2-body or 2 and 3-body interactions. Possible values- 2 or 3
-        NumAtomType = Number of atoms types in the simulation
+  .. parsed-literal::
+
+       BodyFlag = Indicates whether to calculate only 2-body or 2 and 3-body interactions. Possible values- 2 or 3
+       NumAtomType = Number of atoms types in the simulation
 
 
 
