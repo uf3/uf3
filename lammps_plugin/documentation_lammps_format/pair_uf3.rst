@@ -66,7 +66,7 @@ The UF3 LAMMPS potential files are provided using multiple pair_coeff commands. 
 
 .. note::
 
-   Unlike other MANYBODY and ML potentials in LAMMPS, the atom type for which the specified potential file should be used for is not determined from the potential file. But is rather determined from the user provided atom type numbers after pair_coeff.
+   Unlike other MANYBODY and ML potentials in LAMMPS, the atom type for which the specified potential file should be used for is not determined from the potential file, but is rather determined from the user provided atom type numbers after pair_coeff.
 
 As an example, if a LAMMPS simulation contains 2 atom types (elements 'A' and 'B'), the pair_coeff command will be-
 
@@ -114,6 +114,7 @@ The second line indicates whether the potential file contains data for 2-body (:
 The format of a generic 3-body UF3 LAMMPS potential file is as follow-
 
 .. code-block:: LAMMPS
+
    #UF3 POT
    3B LEADING_TRIM TRAILING_TRIM
    Rjk_CUTOFF Rik_CUTOFF Rij_CUTOFF NUM_OF_KNOTS_JK NUM_OF_KNOTS_IK NUM_OF_KNOTS_IJ
