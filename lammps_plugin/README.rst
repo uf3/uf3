@@ -64,11 +64,11 @@ To use UF3 potentials in lammps just add the following tags to the lammps input 
 
 .. code:: bash
 
-   pair_style uf3 3 1
+   pair_style uf3 3
    pair_coeff 1 1 W_W 
    pair_coeff 3b 1 1 1 W_W_W
 
-The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. The last number of this line specifies the number of elemnts in the system. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions on a system containing only 1 element.
+The 'uf3' keyword in :code:`pair_style` invokes the UF3 potentials in lammps. The number next to the :code:`uf3` keyword tells lammps whether the user wants to run the MD code with just 2-body or 2 and 3-body UF3 potentials. So in the above example, the user wants to run MD simulation with UF3 potentials containing both 2-body and 3-body interactions.
 
 The :code:`pair_coeff` tag is used to read in the user-provided UF3 lammps potential files. These files can be generated directly from the :code:`json` potential files of UF3. We recommend using the :code:`generate_uf3_lammps_pots.py` script (`found here </lammps_plugin/scripts>`_) for generating the UF3 lammps potential files. It will also additionally print lines that should be added to the lammps input file for using UF3 lammps potential files. **Note, nothing is inferred from the name of the UF3 lammps potential file. The name of the files can be completely arbitrary**
 
@@ -78,7 +78,7 @@ As an example for a multicomponet system containing elements 'A' and 'B' the abo
 
 .. code:: bash
 
-   pair_style uf3 3 2
+   pair_style uf3 3
    pair_coeff 1 1 A_A
    pair_coeff 1 2 A_B
    pair_coeff 2 2 B_B
@@ -94,7 +94,7 @@ If potential file is specified for 2-1 interaction (:code:`pair_coeff 2 1 FileNa
 
 .. code:: bash
 
-   pair_style uf3 3 2
+   pair_style uf3 3
    
    pair_coeff 2 2 A_A
    pair_coeff 1 1 B_B
@@ -113,7 +113,7 @@ Following format is also a valid for system containing elements 'A' and 'B'
 
 .. code:: bash
 
-   pair_style uf3 3 2
+   pair_style uf3 3
    pair_coeff * * A_A
    pair_coeff 3b 1 * * A_A_A
    pair_coeff 3b 2 * * B_B_B
@@ -123,7 +123,7 @@ Alternatively, if the user wishes to use only the 2-body interactions from a mod
 
 .. code:: bash
 
-   pair_style uf3 2 2
+   pair_style uf3 2
    pair_coeff 1 1 A_A
    pair_coeff 1 2 A_B
    pair_coeff 2 2 B_B
@@ -144,7 +144,7 @@ The 2-body UF3 lammps potential file should have the following format-
 
 .. code:: bash
 
-   #UF3 POT
+   #UF3 POT UNITS: metal DATE: TODAYS_DATE AUTHOR: AUTHOR_NAME CITATION: XXX
    2B LEADING_TRIM TRAILING_TRIM TYPE_OF_KNOT_SPACING
    Rij_CUTOFF NUM_OF_KNOTS
    BSPLINE_KNOTS
@@ -152,7 +152,7 @@ The 2-body UF3 lammps potential file should have the following format-
    COEFF
    #
 
-The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction. This is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message. The :code:`TYPE_OF_KNOT_SPACING` specifies if the spacing between the knots is constant :code:`uk` (uniform-knots/linear-knots) or is non-uniform :code:`nk`.
+The first line of all UF3 lammps potential files should start with :code:`#UF3 POT` characters, followed by the metadata. The next line indicates whether the file contains UF3 lammps potential data for 2-body (:code:`2B`) or 3-body (:code:`3B`) interaction. This is followed by :code:`LEADING_TRIM` and :code:`TRAILING_TRIM` number. The current implementation is only tested for :code:`LEADING_TRIM=0` and :code:`TRAILING_TRIM=3`. If other values are used LAMMPS will stop with an error message. The :code:`TYPE_OF_KNOT_SPACING` specifies if the spacing between the knots is constant :code:`uk` (uniform-knots/linear-knots) or is non-uniform :code:`nk`.
 
 The :code:`Rij_CUTOFF` sets the 2-body cutoff for the interaction described by the potential file. :code:`NUM_OF_KNOTS` is the number of knots (or the length of the knot vector) present on the very next line. The :code:`BSPLINE_KNOTS` line should contain all the knots in ascending order. :code:`NUM_OF_COEFF` is the number of coefficients in the :code:`COEFF` line. All the numbers in the BSPLINE_KNOTS and COEFF line should be space-separated. 
 
@@ -165,7 +165,7 @@ The 3-body UF3 lammps potential file has a format similar to the 2-body potentia
 
 .. code:: bash
 
-   #UF3 POT
+   #UF3 POT UNITS: metal DATE: TODAYS_DATE AUTHOR: AUTHOR_NAME CITATION: XXX
    3B LEADING_TRIM TRAILING_TRIM TYPE_OF_KNOT_SPACING
    Rjk_CUTOFF Rik_CUTOFF Rij_CUTOFF NUM_OF_KNOTS_JK NUM_OF_KNOTS_IK NUM_OF_KNOTS_IJ
    BSPLINE_KNOTS_FOR_JK
