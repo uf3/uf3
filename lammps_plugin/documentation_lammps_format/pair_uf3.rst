@@ -11,7 +11,7 @@ Syntax
 
 .. code-block:: LAMMPS
 
-    pair_style style BodyFlag NumAtomType
+    pair_style style BodyFlag
 
 * style = *uf3* or *uf3/kk*
 
@@ -24,16 +24,16 @@ Examples
 
 .. code-block:: LAMMPS
 
-    pair_style uf3
+    pair_style uf3 3
     pair_coeff 1 1 Nb_Nb.uf3
     pair_coeff 3b 1 1 1 Nb_Nb_Nb.uf3
 
-    pair_style uf3
+    pair_style uf3 2
     pair_coeff 1 1 Nb_Nb.uf3
     pair_coeff 1 2 Nb_Sn.uf3
     pair_coeff 2 2 Sn_Sn.uf3
 
-    pair_style uf3
+    pair_style uf3 3
     pair_coeff 1 1 Nb_Nb.uf3
     pair_coeff 1 2 Nb_Sn.uf3
     pair_coeff 2 2 Sn_Sn.uf3
@@ -86,7 +86,7 @@ As an example, if a LAMMPS simulation contains 2 atom types (elements
 
 .. code-block:: LAMMPS
 
-   pair_style uf3
+   pair_style uf3 3
    pair_coeff 1 1 A_A.uf3
    pair_coeff 1 2 A_B.uf3
    pair_coeff 2 2 B_B.uf3
@@ -129,7 +129,7 @@ shows the format of a generic 2-body UF3 LAMMPS potential file-
 
 .. code-block:: LAMMPS
 
-   #UF3 POT UNITS: units DATE: TODAYS_DATE AUTHOR: AUTHOR_NAME CITATION: CITE
+   #UF3 POT UNITS: units DATE: POT_GEN_DATE AUTHOR: AUTHOR_NAME CITATION: CITE
    2B LEADING_TRIM TRAILING_TRIM
    Rij_CUTOFF NUM_OF_KNOTS
    BSPLINE_KNOTS
@@ -143,7 +143,7 @@ The format of a generic 3-body UF3 LAMMPS potential file is as follow-
 
 .. code-block:: LAMMPS
 
-   #UF3 POT UNITS: units DATE: TODAYS_DATE AUTHOR: AUTHOR_NAME CITATION: CITE
+   #UF3 POT UNITS: units DATE: POT_GEN_DATE AUTHOR: AUTHOR_NAME CITATION: CITE
    3B LEADING_TRIM TRAILING_TRIM
    Rjk_CUTOFF Rik_CUTOFF Rij_CUTOFF NUM_OF_KNOTS_JK NUM_OF_KNOTS_IK NUM_OF_KNOTS_IJ
    BSPLINE_KNOTS_FOR_JK
