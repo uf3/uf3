@@ -81,10 +81,16 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
         key = '_'.join(interaction)
         files[key] = "#UF3 POT UNITS: metal DATE: %s AUTHOR: %s CITATION: \n"%(datetime.datetime.now(), args["author"])
         #files[key] = "#UF3 POT\n"
+        files[key] += "2B %s %s %i %i"%(interaction[0],
+                                        interaction[1],
+                                        model.bspline_config.leading_trim,
+                                        model.bspline_config.trailing_trim)
         if model.bspline_config.knot_strategy == 'linear':
-            files[key] += "2B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            #files[key] += "2B %s %s %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            files[key] += " uk\n"
         else:
-            files[key] += "2B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            #files[key] += "2B %s %s %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            files[key] += " nk\n"
 
         files[key] += str(model.bspline_config.r_max_map[interaction]) + " " + \
                 str(len(model.bspline_config.knots_map[interaction]))+"\n"
@@ -107,10 +113,17 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
             key = '_'.join(interaction)
             #files[key] = "#UF3 POT\n"
             files[key] = "#UF3 POT UNITS: metal DATE: %s AUTHOR: %s CITATION: \n"%(datetime.datetime.now(), args["author"])
+            files[key] += "3B %s %s %s %i %i"%(interaction[0],
+                                               interaction[1],
+                                               interaction[2],
+                                               model.bspline_config.leading_trim,
+                                               model.bspline_config.trailing_trim)
             if model.bspline_config.knot_strategy == 'linear':
-                files[key] += "3B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+                #files[key] += "3B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+                files[key] += " uk\n"
             else:
-                files[key] += "3B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+                #files[key] += "3B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+                files[key] += " nk\n"
 
             files[key] += str(model.bspline_config.r_max_map[interaction][2]) \
                     + " " + str(model.bspline_config.r_max_map[interaction][1]) \
@@ -145,11 +158,17 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
                     
             files[key] += "#"
 
+    fp_unified = open(pot_dir+"/"+"".join(chemical_sys.element_list)+".uf3","w")
     for k, v in files.items():
         if not overwrite and os.path.exists(pot_dir + k):
             continue
-        with open(pot_dir +"/"+ k, "w") as f:
-            f.write(v)
+        #with open(pot_dir +"/"+ k, "w") as f:
+        #    f.write(v)
+
+        fp_unified.write(v)
+        fp_unified.write("\n")
+
+    fp_unified.close()
     return files.keys()
 
 
