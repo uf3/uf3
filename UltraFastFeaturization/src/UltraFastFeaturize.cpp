@@ -646,6 +646,7 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
                         (n3b_num_knots_array[0][2]-4)), 0);
       for (int atom1=batch_start; atom1<batch_end; atom1++){
         int d = atom1-batch_start;
+        int Z1 = atoms_array_un(atom1,0);
         //loop over 3b interaction
         int index_for_symm_weights = 0;
         int basis_start_posn = 1 + nelements + tot_2b_features_size;
@@ -704,6 +705,23 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
             throw std::domain_error(error_mesg);
           }
 
+          //match the current atom type to the atom types in the 3-body pair
+          //if no match found skip 3-body interaction
+          bool Z1_in_3b_interxn = false;
+          int Z1_index_in_3b_interxn = -1;
+          if (Z1==n3b_types[3*interxn]){
+            Z1_in_3b_interxn = true;
+            Z1_index_in_3b_interxn = 0;
+          }
+          else if (Z1==n3b_types[3*interxn+1]){
+            Z1_in_3b_interxn = true;
+            Z1_index_in_3b_interxn = 1;
+          }
+          else if (Z1==n3b_types[3*interxn+2]){
+            Z1_in_3b_interxn = true;
+            Z1_index_in_3b_interxn = 2;
+          }
+
           //For traingle permutation- A-B-C, B-A-C and C-B-A
           bool swappable_ij = false;
           if (ij_pair[0] == ij_pair[1])
@@ -719,7 +737,7 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
           const int num_neighs_ij = Tot_num_Neighs[d*rows+index_ij];
           const int num_neighs_ik = Tot_num_Neighs[d*rows+index_ik];
           
-          if ((num_neighs_ij>0) && (num_neighs_ik>0)) {
+          if ((num_neighs_ij>0) && (num_neighs_ik>0) && Z1_in_3b_interxn) {
 
           int ij_num_knots = n3b_num_knots_array[interxn][0];
           int ik_num_knots = n3b_num_knots_array[interxn][1];
