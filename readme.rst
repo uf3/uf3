@@ -4,7 +4,9 @@ Ultra-Fast Force Fields (UF3)
 |Tests|
 
 
-\Xie, S.R., Rupp, M. & Hennig, R.G., "Ultra-fast interpretable machine-learning potentials", npj Comput Mater 9, 162 (2023). `https://doi.org/10.1038/s41524-023-01092-7`_.
+\Xie, S.R., Rupp, M. & Hennig, R.G., "Ultra-fast interpretable machine-learning potentials", npj Comput Mater 9, 162 (2023). https://doi.org/10.1038/s41524-023-01092-7
+
+.. _https://doi.org/10.1038/s41524-023-01092-7: https://doi.org/10.1038/s41524-023-01092-7
 
 All-atom dynamics simulations have become an indispensable quantitative
 tool in physics, chemistry, and materials science, but large systems and
