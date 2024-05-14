@@ -52,7 +52,7 @@ def main():
 
     print("\n\n***Add the following line to the lammps input script***\n\n")
     print(lines)
-    print("\n\nCitation meta-data has been left blank. Please enter appopriate"\
+    print("\n\nCitation meta-data has been left blank. Please enter appropriate"\
             "i citation for the generated UF3 LAMMPS potential\n\n")
 
 def write_uf3_lammps_pot_files(chemical_sys,
