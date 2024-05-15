@@ -489,8 +489,10 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight = 1 / e_variance.n / e_variance.std
-        force_weight = 1 / f_variance.n / f_variance.std
+        energy_weight, force_weight = calc_E_F_weights(e_variance.n,
+                                                       f_variance.n,
+                                                       e_variance.std,
+                                                       f_variance.std)
         _, n_entries, _, _ = io.analyze_hdf_tables(filename)
 
             
