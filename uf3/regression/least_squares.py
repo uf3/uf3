@@ -300,10 +300,12 @@ class WeightedLinearModel(BasicLinearModel):
                                   self.col_idx)
         gram_e, ord_e = batched_moore_penrose(x_e, y_e, batch_size=batch_size)
         if x_f is not None:
-            energy_weight, force_weight = calc_E_F_weights(len(y_e),
-                                                           len(y_f),
-                                                           np.std(y_e),
-                                                           np.std(y_f))
+            try:
+                energy_weight = 1 / len(y_e) / np.std(y_e)
+                force_weight = 1 / len(y_f) / np.std(y_f)
+            except (ZeroDivisionError, FloatingPointError):
+                energy_weight = 1.0
+                force_weight = 1 / len(y_f)
             x_f, y_f = freeze_columns(x_f,
                                       y_f,
                                       self.mask,
@@ -346,10 +348,10 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x) for fitting.
             ordinate (np.ndarray): ordinate (x^T y) for fitting.
         """
-        gram = ((weight * energy_weight**2 * gram_e)
-                + ((1 - weight) * force_weight**2 * gram_f))
-        ordinate = ((weight * energy_weight**2 * ord_e)
-                    + ((1 - weight) * force_weight**2 * ord_f))
+        gram = (((weight * energy_weight) ** 2 * gram_e)
+                + (((1 - weight) * force_weight) ** 2 * gram_f))
+        ordinate = (((weight * energy_weight) ** 2 * ord_e)
+                    + (((1 - weight) * force_weight) ** 2 * ord_f))
         return gram, ordinate
 
     def fit_from_file(self,
@@ -360,7 +362,8 @@ class WeightedLinearModel(BasicLinearModel):
                       sample_weights: Dict = None,
                       energy_key="energy",
                       progress: str = "bar",
-                      drop_columns: List[str] = None):
+                      npz_file: str = None,
+                      overwrite: bool = False):
         """
         Accumulate inputs and outputs from batched parsing of HDF5 file
         and compute direct solution via LU decomposition.
@@ -375,10 +378,67 @@ class WeightedLinearModel(BasicLinearModel):
             sample_weights (dict):
             energy_key (str): column name for energies, default "energy".
             progress (str): style for progress indicators.
-            drop_columns (list): list of columns to drop. Used when modifying
-                the cutoffs of the feature vectors from HDF5 file. No internal
-                checks are performed to see if dropping provided columns produce
-                features of the intended cutoffs. Use with Caution.
+        """
+        _, n_entries_h5, _, _ = io.analyze_hdf_tables(filename)
+        if not os.path.isfile(filename):
+            raise FileNotFoundError(filename)
+        if npz_file is None:
+            gram, ordinate, _ = self.generate_gram_ordinate(filename,
+                                                            subset,
+                                                            weight=weight,
+                                                            batch_size=batch_size,
+                                                            sample_weights=sample_weights,
+                                                            energy_key=energy_key,
+                                                            progress=progress)
+        else:
+            if os.path.isfile(npz_file):
+                gram_ordinate = np.load(npz_file)
+                if n_entries_h5 == gram_ordinate["n_entries"][0]:
+                    gram = gram_ordinate["gram"]
+                    ordinate = gram_ordinate["ordinate"]
+                else: 
+                    if overwrite == True:
+                        gram, ordinate, n_entries = self.generate_gram_ordinate(filename,
+                                                                        subset,
+                                                                        weight=weight,
+                                                                        batch_size=batch_size,
+                                                                        sample_weights=sample_weights,
+                                                                        energy_key=energy_key,
+                                                                        progress=progress)
+                        self.save_gram_ordinate(npz_file, gram, ordinate, n_entries)
+                    else:
+                        raise ValueError("Number of entries in HDF5 file and npz file are not the same.")
+            else:
+                gram, ordinate, n_entries = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                weight=weight,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress)
+                self.save_gram_ordinate(npz_file, gram, ordinate, n_entries)
+        self.fit_with_gram(gram, ordinate)
+
+    def generate_gram_ordinate(self,
+                                filename: str,
+                                subset: Collection,
+                                weight: float = 0.5,
+                                batch_size=2500,
+                                sample_weights: Dict = None,
+                                energy_key="energy",
+                                progress: str = "bar"):
+
+        """
+        Generate gram and ordinate arrays.
+
+        Args:
+            filename (str): path to HDF5 file.
+            subset (list): list of keys for training.
+            batch_size (int): batch size, in rows, for matrix multiplication
+                operations in constructing gram matrices.
+            sample_weights (dict):
+            energy_key (str): column name for energies, default "energy".
+            progress (str): style for progress indicators.
         """
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
@@ -394,10 +454,6 @@ class WeightedLinearModel(BasicLinearModel):
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
-
-            if drop_columns != None:
-                df.drop(columns=drop_columns,inplace=True)
-
             intermediates = self.gram_from_df(df,
                                               keys,
                                               e_variance=e_variance,
@@ -410,10 +466,8 @@ class WeightedLinearModel(BasicLinearModel):
             gram_f += g_f
             ord_e += o_e
             ord_f += o_f
-        energy_weight, force_weight = calc_E_F_weights(e_variance.n,
-                                                       f_variance.n,
-                                                       e_variance.std,
-                                                       f_variance.std)
+        energy_weight = 1 / e_variance.n / e_variance.std
+        force_weight = 1 / f_variance.n / f_variance.std
         gram, ordinate = self.combine_weighted_gram(gram_e,
                                                     gram_f,
                                                     ord_e,
@@ -421,8 +475,41 @@ class WeightedLinearModel(BasicLinearModel):
                                                     energy_weight,
                                                     force_weight,
                                                     weight)
+        _, n_entries, _, _ = io.analyze_hdf_tables(filename)
+        n_entries = np.array([n_entries])
+            
+        return gram, ordinate, n_entries
+
+    def save_gram_ordinate(self, 
+                            filename: str,
+                            gram: np.ndarray,
+                            ordinate: np.ndarray,
+                            n_entries: np.ndarray):
+        """
+        Saving gram and ordinate to npz files for later fitting.
+
+        Args:
+            filename (str): path to output npz file.
+            gram (np.ndarray): gram matrix (x^T x)
+            ordinate (np.ndarray: ordinate (x^T y)
+            n_entries (np.ndarray): number of energy and force entries.
+        """
+        np.savez_compressed(filename ,gram=gram, ordinate=ordinate, n_entries=n_entries)
+
+    def fit_from_gram(self,
+                    gram_ordinate_file: str):
+        """
+        Fit model with saved gram and ordinate npz file.
+
+        Args:
+            gram_ordinate_file (str): path to npz file.
+        """
+        gram_ordinate = np.load(gram_ordinate_file)
+        gram = gram_ordinate["gram"]
+        ordinate = gram_ordinate["ordinate"]
         self.fit_with_gram(gram, ordinate)
 
+        
     def initialize_gram_ordinate(self):
         """Initialize empty matrices for gram matrices and ordinates."""
         n_columns = self.n_feats - len(self.col_idx)
@@ -486,8 +573,7 @@ class WeightedLinearModel(BasicLinearModel):
                         filename: str,
                         keys: List[str] = None,
                         table_names: List[str] = None,
-                        score: bool = True,
-                        drop_columns: List[str] = None):
+                        score: bool = True):
         """
         Extract inputs and outputs from HDF5 file and predict energies/forces.
 
@@ -504,18 +590,13 @@ class WeightedLinearModel(BasicLinearModel):
             p_f (np.ndarray): prediction values for forces.
             rmse_e (np.ndarray): RMSE across energy predictions.
             rmse_e (np.ndarray): RMSE across force predictions.
-            drop_columns (list): list of columns to drop. Used when modifying
-                the cutoffs of the feature vectors from HDF5 file. No internal
-                checks are performed to see if dropping provided columns produce
-                features of the intended cutoffs. Use with Caution.
         """
         n_elements = len(self.bspline_config.element_list)
         y_e, p_e, y_f, p_f = batched_prediction(self,
                                                 filename,
                                                 table_names=table_names,
                                                 subset_keys=keys,
-                                                n_elements=n_elements,
-                                                drop_columns=drop_columns)
+                                                n_elements=n_elements)
         if score:
             rmse_e = rmse_metric(y_e, p_e)
             rmse_f = rmse_metric(y_f, p_f)
@@ -684,6 +765,9 @@ def dataframe_to_tuples(df_features,
         y (np.ndarray): target vector.
         w (np.ndarray): weight vector for machine learning.
     """
+    if len(df_features) <= 1:
+        raise ValueError(
+            "Not enough samples ({} provided)".format(len(df_features)))
     names = df_features.index.get_level_values(0)
     y_index = df_features.index.get_level_values(-1)
     energy_mask = (y_index == energy_key)
@@ -861,7 +945,7 @@ def freeze_columns(x: np.ndarray,
 def freeze_regularizer(regularizer: np.ndarray,
                        mask: np.ndarray) -> np.ndarray:
     """Apply freezing mask to regularizer, eliminating masked columns."""
-    regularizer = regularizer[:, mask]
+    regularizer = regularizer[mask, :][:, mask]
     return regularizer
 
 
@@ -966,7 +1050,6 @@ def batched_prediction(model: WeightedLinearModel,
                        filename: str,
                        table_names: Collection = None,
                        subset_keys: Collection = None,
-                       drop_columns: List[str] = None,
                        **kwargs):
     """
     Convenience function for optimization workflow. Read inputs/outputs
@@ -977,10 +1060,6 @@ def batched_prediction(model: WeightedLinearModel,
         model (WeightedLinearModel): fitted model.
         table_names (list): list of table names to query from HDF5 file.
         subset_keys (list): list of keys to query from DataFrame.
-        drop_columns (list): list of columns to drop. Used when modifying
-            the cutoffs of the feature vectors from HDF5 file. No internal
-            checks are performed to see if dropping provided columns produce
-            features of the intended cutoffs. Use with Caution.
 
     Returns:
         y_e (np.ndarray): target values for energies.
@@ -996,9 +1075,6 @@ def batched_prediction(model: WeightedLinearModel,
     y_f = []
     p_f = []
     for df in df_batches:
-        if drop_columns != None:
-            df.drop(columns=drop_columns,inplace=True)
-
         predictions = subset_prediction(df,
                                         model,
                                         subset_keys=subset_keys,
@@ -1142,28 +1218,3 @@ def find_pair_potential_well(coefficients, rounding_factor):
             # no actual well
             well_idx = peak_idx + 1
     return well_idx
-
-
-def calc_E_F_weights(n_e, n_f, std_e, std_f):
-    """
-    Calculates weights applied to energy and force components of the
-    least-squares problem (excluding kappa, which is applied in
-    self.combine_weighted_gram()).
-
-    Args:
-        n_e (int): number of energy samples.
-        n_f (int): number of force samples.
-        e_stddev (float): standard deviation of energy samples.
-        f_stddev (float): standard deviation of force samples.
-
-    Returns:
-        energy_weight (float): weight applied to energy components.
-        force_weight (float): weight applied to force components.
-    """
-    if std_e == 0:  # single point or really bad dataset
-        energy_weight = 1.0
-        force_weight = 1 / np.sqrt(n_f)
-    else:
-        energy_weight = 1 / np.sqrt(n_e) / std_e
-        force_weight = 1 / np.sqrt(n_f) / std_f
-    return energy_weight, force_weight
