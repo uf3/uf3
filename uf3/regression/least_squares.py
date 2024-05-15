@@ -385,52 +385,58 @@ class WeightedLinearModel(BasicLinearModel):
             overwrite (bool): whether to overwrite npz file if it exists.
         """
         _, n_entries_h5, _, _ = io.analyze_hdf_tables(filename)
+        n_entries = int(n_entries_h5[0])
         if not os.path.isfile(filename):
             raise FileNotFoundError(filename)
         if npz_file is None:
-            gram, ordinate, _ = self.generate_gram_ordinate(filename,
+            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
                                                             subset,
-                                                            weight=weight,
                                                             batch_size=batch_size,
                                                             sample_weights=sample_weights,
                                                             energy_key=energy_key,
                                                             progress=progress,
                                                             drop_columns=drop_columns)
+
         else:
             if os.path.isfile(npz_file):
                 gram_ordinate = np.load(npz_file)
-                if n_entries_h5 == gram_ordinate["n_entries"][0]:
-                    gram = gram_ordinate["gram"]
-                    ordinate = gram_ordinate["ordinate"]
+                if n_entries_h5 == gram_ordinate["n_entries"]:
+                    gram_e = gram_ordinate["gram_e"]
+                    gram_f = gram_ordinate["gram_f"]
+                    ord_e = gram_ordinate["ord_e"]
+                    ord_f = gram_ordinate["ord_f"]
+                    energy_weight = gram_ordinate["energy_weight"]
+                    force_weight = gram_ordinate["force_weight"]
+                    n_entries = gram_ordinate["n_entries"]
                 else: 
                     if overwrite == True:
-                        gram, ordinate, n_entries = self.generate_gram_ordinate(filename,
+                        gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
                                                                         subset,
-                                                                        weight=weight,
                                                                         batch_size=batch_size,
                                                                         sample_weights=sample_weights,
                                                                         energy_key=energy_key,
                                                                         progress=progress,
                                                                         drop_columns=drop_columns)
-                        self.save_gram_ordinate(npz_file, gram, ordinate, n_entries)
+                        self.save_gram_ordinate(npz_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
                     else:
                         raise ValueError("Number of entries in HDF5 file and npz file are not the same.")
             else:
-                gram, ordinate, n_entries = self.generate_gram_ordinate(filename,
+                gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
                                                                 subset,
-                                                                weight=weight,
                                                                 batch_size=batch_size,
                                                                 sample_weights=sample_weights,
                                                                 energy_key=energy_key,
                                                                 progress=progress,
                                                                 drop_columns=drop_columns)
-                self.save_gram_ordinate(npz_file, gram, ordinate, n_entries)
+                self.save_gram_ordinate(npz_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
+        gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
+                                                        ord_f, energy_weight,
+                                                        force_weight, weight)
         self.fit_with_gram(gram, ordinate)
 
     def generate_gram_ordinate(self,
                                 filename: str,
                                 subset: Collection,
-                                weight: float = 0.5,
                                 batch_size=2500,
                                 sample_weights: Dict = None,
                                 energy_key="energy",
@@ -443,8 +449,6 @@ class WeightedLinearModel(BasicLinearModel):
         Args:
             filename (str): path to HDF5 file.
             subset (list): list of keys for training.
-            weight (float): parameter balancing contribution from energies
-                vs. forces. Higher values favor energies; defaults to 0.5.
             batch_size (int): batch size, in rows, for matrix multiplication
                 operations in constructing gram matrices.
             sample_weights (dict):
@@ -487,45 +491,59 @@ class WeightedLinearModel(BasicLinearModel):
             ord_f += o_f
         energy_weight = 1 / e_variance.n / e_variance.std
         force_weight = 1 / f_variance.n / f_variance.std
-        gram, ordinate = self.combine_weighted_gram(gram_e,
-                                                    gram_f,
-                                                    ord_e,
-                                                    ord_f,
-                                                    energy_weight,
-                                                    force_weight,
-                                                    weight)
         _, n_entries, _, _ = io.analyze_hdf_tables(filename)
-        n_entries = np.array([n_entries])
+
             
-        return gram, ordinate, n_entries
+        return gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries
 
     def save_gram_ordinate(self, 
                             filename: str,
-                            gram: np.ndarray,
-                            ordinate: np.ndarray,
-                            n_entries: np.ndarray):
+                            gram_e: np.ndarray,
+                            gram_f: np.ndarray,
+                            ord_e: np.ndarray,
+                            ord_f: np.ndarray,
+                            energy_weight: float,
+                            force_weight: float,
+                            n_entries: int):
         """
         Saving gram and ordinate to npz files for later fitting.
 
         Args:
             filename (str): path to output npz file.
-            gram (np.ndarray): gram matrix (x^T x)
-            ordinate (np.ndarray: ordinate (x^T y)
-            n_entries (np.ndarray): number of energy and force entries.
+            gram_e (np.ndarray): gram matrix (x^T x) for energies.
+            gram_f (np.ndarray): gram matrix (x^T x) for forces.
+            ord_e (np.ndarray): ordinate (x^T y) for energies.
+            ord_f (np.ndarray): ordinate (x^T y) for forces.
+            energy_weight: 1 / (# energies * sqrt(Var(energies)))
+            force_weight: 1 / (# forces * sqrt(Var(forces)))
+            n_entries (int): number of energy and force entries.
         """
-        np.savez_compressed(filename ,gram=gram, ordinate=ordinate, n_entries=n_entries)
+    
+        np.savez_compressed(filename ,gram_e=gram_e, gram_f=gram_f,
+                             ord_e=ord_e, ord_f=ord_f, energy_weight=energy_weight,
+                              force_weight=force_weight, n_entries=n_entries)
 
     def fit_from_gram(self,
-                    gram_ordinate_file: str):
+                    gram_ordinate_file: str,
+                    weight: float = 0.5):
         """
         Fit model with saved gram and ordinate npz file.
 
         Args:
             gram_ordinate_file (str): path to npz file.
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
         """
         gram_ordinate = np.load(gram_ordinate_file)
-        gram = gram_ordinate["gram"]
-        ordinate = gram_ordinate["ordinate"]
+        gram_e = gram_ordinate["gram_e"]
+        gram_f = gram_ordinate["gram_f"]
+        ord_e = gram_ordinate["ord_e"]
+        ord_f = gram_ordinate["ord_f"]
+        energy_weight = gram_ordinate["energy_weight"]
+        force_weight = gram_ordinate["force_weight"]
+        gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
+                                                        ord_f, energy_weight,
+                                                        force_weight, weight)
         self.fit_with_gram(gram, ordinate)
 
     def initialize_gram_ordinate(self):
