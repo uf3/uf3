@@ -35,7 +35,7 @@ def simple_binary():
     
 class TestMagneticMolecule:
     def test_distances_and_magmom(self, simple_molecule):
-        geom = simple_unary
+        geom = simple_molecule
         # parameters
         mag_element_list = ['Fe']
         magmom_list = [2.2]
@@ -64,7 +64,7 @@ class TestMagneticMolecule:
         assert magmom_matrix.shape == (3, 3)
         assert magmom_matrix[2][-1] == [2.2, 2.2]
     def test_distances_derivatives_and_magmom(self, simple_molecule):
-        geom = simple_unary
+        geom = simple_molecule
         # parameters
         mag_element_list = ['Fe']
         magmom_list = [2.2]
