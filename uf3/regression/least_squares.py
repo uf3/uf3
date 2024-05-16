@@ -16,8 +16,10 @@ from uf3.util import json_io
 from uf3.util import parallel
 
 
+
 class VarianceRecorder:
     """Convenience class for computing online variance and mean"""
+
     def __init__(self, mean=0, std=0, n=0):
         self.mean = mean
         self.std = std
@@ -34,36 +36,38 @@ class VarianceRecorder:
         Returns:
             (current mean, current standard deviation, current entry count)
         """
-        if self.n == 0:
-            self.mean = np.mean(batch, axis=0)
-            self.std = np.std(batch, axis=0)
-            self.n = len(batch)
-            return self.mean, self.std, self.n
-        else:
-            batch_std = np.std(batch, axis=0)
-            batch_mean = np.mean(batch, axis=0)
-            m = float(self.n)
-            n = len(batch)
-            std = (m / (m + n) * self.std**2
-                   + n / (m + n) * batch_std**2
-                   + m * n / (m + n)**2 * (self.mean - batch_mean)**2)
-            self.std = np.sqrt(std)
-            self.mean = m / (m + n) * self.mean + n / (m + n) * batch_mean
-            self.n += n
-            return self.mean, self.std, self.n
+        batch = np.asarray(batch)
+        batch_mean = np.mean(batch, axis=0)
+        batch_std = np.std(batch, axis=0)
+        batch_len = len(batch)
 
-    def update_with_components(self, df, keys=None):
+        if self.n == 0:
+            self.mean = batch_mean
+            self.std = batch_std
+        else:
+            total_count = self.n + batch_len
+            delta_mean = batch_mean - self.mean
+
+            new_var = (
+                (self.n * (self.std ** 2 + delta_mean ** 2) + batch_len * batch_std ** 2) /
+                total_count
+            )
+
+            self.mean += batch_len / total_count * delta_mean
+            self.std = np.sqrt(new_var)
+
+        self.n += batch_len
+
+        return self.mean, self.std, self.n
+
+    def update_with_components(self, df: pd.DataFrame, keys=None) -> Tuple:
         """Wrapper for dataframe with multiple columns of interest"""
         if keys is None:
             keys = ["fx", "fy", "fz"]
-        batch = []
-        for j, *components in df[keys].itertuples():
-            if any([component is np.nan for component in components]):
-                continue
-            if np.ndim(components) > 1:  # if components are not scalars
-                components = list(np.concatenate(components))
-            batch.extend(components)
-        self.update(batch)
+
+        components = df[keys].dropna().values.flatten()
+        self.update(components)
+
         return self.mean, self.std, self.n
 
 
@@ -387,41 +391,19 @@ class WeightedLinearModel(BasicLinearModel):
         _, n_entries_h5, _, _ = io.analyze_hdf_tables(filename)
         n_entries = int(n_entries_h5[0])
         if not os.path.isfile(filename):
-            raise FileNotFoundError(filename)
-        if npz_file is None:
-            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
-                                                            subset,
-                                                            batch_size=batch_size,
-                                                            sample_weights=sample_weights,
-                                                            energy_key=energy_key,
-                                                            progress=progress,
-                                                            drop_columns=drop_columns)
+            raise FileNotFoundError(f'File not found: {filename}')
 
-        else:
-            if os.path.isfile(npz_file):
-                gram_ordinate = np.load(npz_file)
-                if n_entries_h5 == gram_ordinate["n_entries"]:
-                    gram_e = gram_ordinate["gram_e"]
-                    gram_f = gram_ordinate["gram_f"]
-                    ord_e = gram_ordinate["ord_e"]
-                    ord_f = gram_ordinate["ord_f"]
-                    energy_weight = gram_ordinate["energy_weight"]
-                    force_weight = gram_ordinate["force_weight"]
-                    n_entries = gram_ordinate["n_entries"]
-                else: 
-                    if overwrite == True:
-                        gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
-                                                                        subset,
-                                                                        batch_size=batch_size,
-                                                                        sample_weights=sample_weights,
-                                                                        energy_key=energy_key,
-                                                                        progress=progress,
-                                                                        drop_columns=drop_columns)
-                        self.save_gram_ordinate(npz_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
-                    else:
-                        raise ValueError("Number of entries in HDF5 file and npz file are not the same.")
-            else:
-                gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
+        if ((npz_file is not None) and (os.path.isfile(npz_file))):
+            gram_ordinate = np.load(npz_file)
+            if n_entries == gram_ordinate["n_entries"]:
+                gram_e = gram_ordinate["gram_e"]
+                gram_f = gram_ordinate["gram_f"]
+                ord_e = gram_ordinate["ord_e"]
+                ord_f = gram_ordinate["ord_f"]
+                energy_weight = gram_ordinate["energy_weight"]
+                force_weight = gram_ordinate["force_weight"]
+            elif overwrite == True:
+                gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight = self.generate_gram_ordinate(filename,
                                                                 subset,
                                                                 batch_size=batch_size,
                                                                 sample_weights=sample_weights,
@@ -429,6 +411,27 @@ class WeightedLinearModel(BasicLinearModel):
                                                                 progress=progress,
                                                                 drop_columns=drop_columns)
                 self.save_gram_ordinate(npz_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
+
+            else:
+                raise ValueError("Number of entries in HDF5 file and npz file are not the same.")
+        elif npz_file is not None:
+            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress,
+                                                                drop_columns=drop_columns)
+            self.save_gram_ordinate(npz_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
+        else:
+            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress,
+                                                                drop_columns=drop_columns)
+
         gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
                                                         ord_f, energy_weight,
                                                         force_weight, weight)
@@ -460,7 +463,7 @@ class WeightedLinearModel(BasicLinearModel):
                 features of the intended cutoffs. Use with Caution.
         """
         if not os.path.isfile(filename):
-            raise FileNotFoundError(filename)
+            raise FileNotFoundError(f'File not found: {filename}')
         n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
         gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
         e_variance = VarianceRecorder()
