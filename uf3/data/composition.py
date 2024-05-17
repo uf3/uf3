@@ -24,7 +24,6 @@ reference_X = {
     'Mc': 115, 'Lv': 116, 'Ts': 117, 'Og': 118
 }
 
-
 class ChemicalSystem:
     """
     Handler class for managing quantities related to elements, composition,
@@ -163,6 +162,92 @@ class ChemicalSystem:
             interaction_hashes[n] = hash_list
         return interaction_hashes
 
+class MagChemicalSystem(ChemicalSystem):
+    """
+    Handler class for managing quantities related to elements, composition,
+    and element-element interactions for materials with magnetic elements.
+    """
+    degree: int
+    element_list: Collection[str]
+    magnetic_element_list: Collection[str]
+    def __init__(self,
+                 element_list: Collection[str],
+                 magnetic_element_list: Collection[str],
+                 degree: int = 2) -> None:
+        if len(magnetic_element_list) == 0:
+            raise ValueError("For the MagChemicalSystem there should be atleast\n\
+                                one magnetic element")
+        self.magnetic_element_list = sort_interaction_symbols(magnetic_element_list) # ! list of magnetic atoms
+        super().__init__(element_list = element_list, degree = degree)
+        self.magnetic_interactions = self.get_magnetic_interactions_list()
+        self.magnetic_numbers = [ase_symbols.symbols2numbers(el).pop()
+                                 for el in self.magnetic_element_list]
+        self.interactions_map = self.get_interactions_map()
+        self.interactions = self.get_interactions_list()
+        self.interaction_hashes = self.get_interaction_hashes()
+
+
+    
+    @staticmethod
+    def from_config(config):
+        return MagChemicalSystem.from_dict(config)
+
+    @staticmethod
+    def from_dict(config: Dict[Any, Any]):
+        """Instantiate from configuration dictionary"""
+        keys = ['element_list',
+                'magnetic_element_list',
+                'degree']
+        config = {k: config[k] for k in keys}
+        return MagChemicalSystem(**config)
+
+    def as_dict(self):
+        dump = dict(element_list=self.element_list,
+                    magnetic_element_list=self.magnetic_element_list,
+                    degree=self.degree)
+        return dump
+
+    def __repr__(self):
+        summary = ["MagChemicalSystem:",
+                   f"    Elements: {self.element_list}",
+                   f"    Degree: {self.degree}",
+                   f"    Pairs: {self.interactions_map[2]}"
+                   ]
+        if self.degree > 2:
+            summary.append(f"    Trios: {self.interactions_map[3]}")
+        summary.append(f"    Magnetic Elements: {self.magnetic_element_list}")
+        summary.append(f"    Magnetic_interactions: {self.interactions_map['Magnetic_interaction']}")    #! get "magnetic interaction terms"
+        return "\n".join(summary)
+
+    def __str__(self):
+        return self.__repr__()
+
+    def get_interactions_map(self) -> Dict[int, Collection[Tuple[str]]]:
+        interactions_map = super().get_interactions_map()
+        interactions_map['Magnetic_interaction'] = []
+        for pair in interactions_map[2]:
+            if pair[0] in self.magnetic_element_list and pair[1] in self.magnetic_element_list:
+                interactions_map['Magnetic_interaction'].append(pair)
+        return interactions_map
+
+    def get_magnetic_interactions_list(self) -> List[Tuple[str]]:
+        """
+        Return flattened list of magnetic interactions from interactions map.
+        """
+        magnetic_interactions_list = list()
+        if len(self.magnetic_element_list) > 0:
+            magnetic_interactions_list.extend(list(self.interactions_map['Magnetic_interaction']))
+        return magnetic_interactions_list
+
+    def get_interaction_hashes(self) -> Dict[int, np.ndarray]:
+        interaction_hashes = super().get_interaction_hashes()
+        element_combinations = self.interactions_map['Magnetic_interaction']
+        numbers = np.array([ase_symbols.symbols2numbers(el_tuple)
+                            for el_tuple in element_combinations])
+        numbers[:, 1:] = np.sort(numbers[:, 1:], axis=1)
+        hash_list = get_szudzik_hash(numbers)
+        interaction_hashes['Magnetic_interaction'] = hash_list
+        return interaction_hashes
 
 def interactions_to_numbers(interactions):
     if isinstance(interactions, tuple):
