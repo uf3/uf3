@@ -23,11 +23,11 @@ UF3 needs to be re-installed to enable this feature-
 
 .. code:: bash
 
-   export HDF5_INCLUDE_DIR=/Path/to/HDF5/include/dir
-   export HDF5_LIB_DIR=/Path/to/HDF5/lib/dir
+   export HDF5_INCLUDE_DIR=/Path/to/HDF5/include
+   export HDF5_LIB_DIR=/Path/to/HDF5/lib
    export ULTRA_FAST_FEATURIZER=True
 
-If conda was used to install the HDF5 then the include directory and library directory is located at :code:`MINICONDA_DIR/envs/ENVS_NAME/lib/` and :code:`MINICONDA_DIR/envs/ENVS_NAME/include/`, respectively.
+If conda was used to install the HDF5 then the include directory and library directory is located at :code:`MINICONDA_DIR/envs/ENVS_NAME/include/` and :code:`MINICONDA_DIR/envs/ENVS_NAME/lib/`, respectively.
 
 
 2. git clone the latest version of uf3 and select UltraFastFeaturization branch
