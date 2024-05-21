@@ -10,8 +10,8 @@ Dependencies
 In order to use this feature, the following packages are required-
 
 1. cmake - For compiling and linking all the required libraries
-2. pybind - For exposing python types in C++ (`see here <https://github.com/pybind/pybind11>`_)
-3. Cpp HDF5 libraries - For writing computed features to HDF5 file
+2. pybind - For exposing python types in C++ (`see here <https://github.com/pybind/pybind11>`_) (can be installed using :code:`conda install -c conda-forge pybind11`)
+3. Cpp HDF5 libraries - For writing computed features to HDF5 file (can be installed using :code:`conda install conda-forge::hdf5`)
 
 
 Setup
@@ -26,6 +26,9 @@ UF3 needs to be re-installed to enable this feature-
    export HDF5_INCLUDE_DIR=/Path/to/HDF5/include/dir
    export HDF5_LIB_DIR=/Path/to/HDF5/lib/dir
    export ULTRA_FAST_FEATURIZER=True
+
+If conda was used to install the HDF5 then the include directory and library directory is located at :code:`MINICONDA_DIR/envs/ENVS_NAME/lib/` and :code:`MINICONDA_DIR/envs/ENVS_NAME/include/`, respectively.
+
 
 2. git clone the latest version of uf3 and select UltraFastFeaturization branch
 
