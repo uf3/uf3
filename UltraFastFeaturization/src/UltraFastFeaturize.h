@@ -38,6 +38,49 @@ class UltraFastFeaturize{
     int tot_crystals, tot_atoms, prev_data_len;
     bool incomplete = false;
 
+    struct N3bInterxnData{
+      int bl;
+      int bm;
+      int bn;
+      const std::vector<double>& knots_ij;
+      const std::vector<double>& knots_ik;
+      const std::vector<double>& knots_jk;
+      const std::vector<std::vector<double>>& constants_ij;
+      const std::vector<std::vector<double>>& constants_ik;
+      const std::vector<std::vector<double>>& constants_jk;
+      const std::vector<std::vector<double>>& constants_ij_deri;
+      const std::vector<std::vector<double>>& constants_ik_deri;
+      const std::vector<std::vector<double>>& constants_jk_deri;
+      std::vector<double>& atomic_3b_Reprn_matrix_fx;
+      std::vector<double>& atomic_3b_Reprn_matrix_fy;
+      std::vector<double>& atomic_3b_Reprn_matrix_fz;
+
+      N3bInterxnData(int _bl,
+                     int _bm,
+                     int _bn,
+                     const std::vector<double>& _knots_ij,
+                     const std::vector<double>& _knots_ik,
+                     const std::vector<double>& _knots_jk,
+                     const std::vector<std::vector<double>>& _constants_ij,
+                     const std::vector<std::vector<double>>& _constants_ik,
+                     const std::vector<std::vector<double>>& _constants_jk,
+                     const std::vector<std::vector<double>>& _constants_ij_deri,
+                     const std::vector<std::vector<double>>& _constants_ik_deri,
+                     const std::vector<std::vector<double>>& _constants_jk_deri,
+                     std::vector<double>& _atomic_3b_Reprn_matrix_fx,
+                     std::vector<double>& _atomic_3b_Reprn_matrix_fy,
+                     std::vector<double>& _atomic_3b_Reprn_matrix_fz) :
+          bl(_bl), bm(_bm), bn(_bn),
+          knots_ij(_knots_ij), knots_ik(_knots_ik), knots_jk(_knots_jk),
+          constants_ij(_constants_ij), constants_ik(_constants_ik), constants_jk(_constants_jk),
+          constants_ij_deri(_constants_ij_deri),
+          constants_ik_deri(_constants_ik_deri),
+          constants_jk_deri(_constants_jk_deri),
+          atomic_3b_Reprn_matrix_fx(_atomic_3b_Reprn_matrix_fx),
+          atomic_3b_Reprn_matrix_fy(_atomic_3b_Reprn_matrix_fy),
+          atomic_3b_Reprn_matrix_fz(_atomic_3b_Reprn_matrix_fz){}
+    };
+
   public:
     bspline_config_ff BsplineConfig;
 
@@ -137,6 +180,41 @@ class UltraFastFeaturize{
                                               const double rsq_ij,
                                               const std::vector<std::vector<double>>& constants_ij_deri,
                                               const int knot_posn_ij);
+    std::array<double, 12> get_rij_rik_rjk(double r1, double delx1, double dely1, double delz1,
+                                          double r2, double delx2, double dely2, double delz2,
+                                          int Z1_index_in_3b_interxn);
+
+    void calculate_force_features_for_ij_swap(int atom_of_focus,
+            std::array<double, 12>& Rs,
+            int Interxn,
+            N3bInterxnData& n3b_interxn_data);
+
+    void calculate_force_features_for_ik_swap(int atom_of_focus,
+            std::array<double, 12>& Rs,
+            int Interxn,
+            N3bInterxnData& n3b_interxn_data);
+    
+    void calculate_force_features_for_jk_swap(int atom_of_focus,
+            std::array<double, 12>& Rs,
+            int Interxn,
+            N3bInterxnData& n3b_interxn_data);
+    
+    void calculate_force_features_for_ij_swap(int atom_of_focus,
+        std::array<double, 12>& Rs,
+        int Interxn,
+        int bl, int bm, int bn,
+        const std::vector<double>& knots_ij,
+        const std::vector<double>& knots_ik,
+        const std::vector<double>& knots_jk,
+        const std::vector<std::vector<double>>& constants_ij,
+        const std::vector<std::vector<double>>& constants_ik,
+        const std::vector<std::vector<double>>& constants_jk,
+        const std::vector<std::vector<double>>& constants_ij_deri,
+        const std::vector<std::vector<double>>& constants_ik_deri,
+        const std::vector<std::vector<double>>& constants_jk_deri,
+        std::vector<double>& atomic_3b_Reprn_matrix_fx,
+        std::vector<double>& atomic_3b_Reprn_matrix_fy,
+        std::vector<double>& atomic_3b_Reprn_matrix_fz);
     /*std::vector<double> evaluate_basis3(const double r,
                                         const std::vector<double> &knots,
                                         const int num_knots,

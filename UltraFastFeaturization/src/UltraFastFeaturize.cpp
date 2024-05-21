@@ -651,59 +651,10 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
         int index_for_symm_weights = 0;
         int basis_start_posn = 1 + nelements + tot_2b_features_size;
         for (int interxn=0; interxn<n3b_interactions; interxn++){
-          //get template_mask start and end index for this interxn
-          int template_mask_start = index_for_symm_weights;
-          int template_mask_end = template_mask_start+n3b_feature_sizes_un(interxn);
-          
-          //get 3b symmetry
-          int n3b_symmetry = n3b_symm_array_un(interxn);
-          
-          //get Neigh list indices for this 3b interaction --> index_ij, index_ik
-          std::vector<int> ij_pair {n3b_types[3*interxn], n3b_types[3*interxn+1]};
-          std::vector<int> ik_pair {n3b_types[3*interxn], n3b_types[3*interxn+2]};
-
-          int index_ij = -1;
-          int index_ik = -1;
-
-          //TODO: Find out why we need inv_ij and inv_ik
-          int inv_ij = 0;
-          int inv_ik = 0;
-
-          for (int interxn_2b=0; interxn_2b<n2b_interactions; interxn_2b++){
-              std::vector<int> pair {n2b_types[2*interxn_2b], 
-                                        n2b_types[2*interxn_2b+1]};
-
-            if ((ij_pair[0] == pair[0]) && 
-                    (ij_pair[1] == pair[1])){
-              index_ij = interxn_2b;
-              inv_ij = 1;
-            }
-            else if ((ij_pair[0] == pair[1]) && 
-                    (ij_pair[1] == pair[0])){
-              index_ij = interxn_2b;
-              inv_ij = -1;
-            }
-
-            if ((ik_pair[0] == pair[0]) && 
-                    (ik_pair[1] == pair[1])){
-              index_ik = interxn_2b;
-              inv_ik = 1;
-            }
-            else if ((ik_pair[0] == pair[1]) &&
-                    (ik_pair[1] == pair[0])){
-              index_ik = interxn_2b;
-              inv_ik = -1;
-            }
-          }
-
-          if ((index_ij==-1) || (index_ik==-1)){
-            std::string error_mesg = "Indices for 3b interaction=(" + 
-                std::to_string(n3b_types[3*interxn]) + "," +
-                std::to_string(n3b_types[3*interxn+1]) + "," +
-                std::to_string(n3b_types[3*interxn+2]) +
-                ") not found in the Neighs list";
-            throw std::domain_error(error_mesg);
-          }
+          int Interxn = 6*interxn;
+          /*py::print(atom1, "Z1=",Z1, n3b_types[3*interxn],
+                  n3b_types[3*interxn+1],
+                  n3b_types[3*interxn+2]);*/
 
           //match the current atom type to the atom types in the 3-body pair
           //if no match found skip 3-body interaction
@@ -722,22 +673,97 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
             Z1_index_in_3b_interxn = 2;
           }
 
-          //For traingle permutation- A-B-C, B-A-C and C-B-A
-          bool swappable_ij = false;
-          if (ij_pair[0] == ij_pair[1])
-              swappable_ij = true;
+          //skip interaction if Z1 in not in the 3-body interaction
+          if (Z1_in_3b_interxn) {
 
-          bool swappable_ik = false;
-          if (ik_pair[0] == ik_pair[1])
-              swappable_ik = true;
+          //get template_mask start and end index for this interxn
+          int template_mask_start = index_for_symm_weights;
+          int template_mask_end = template_mask_start+n3b_feature_sizes_un(interxn);
+          
+          //get 3b symmetry
+          int n3b_symmetry = n3b_symm_array_un(interxn);
+          
+          //get Neigh list indices for this 3b interaction --> index_IJ, index_IK
+          std::vector<int> IJ_pair {n3b_types[3*interxn], n3b_types[3*interxn+1]};
+          std::vector<int> IK_pair {n3b_types[3*interxn], n3b_types[3*interxn+2]};
+          std::vector<int> JK_pair {n3b_types[3*interxn+1], n3b_types[3*interxn+2]};
+
+          int index_IJ = -1;
+          int index_IK = -1;
+          int index_JK = -1;
+
+          //TODO: Find out why we need inv_IJ and inv_IK
+          int inv_IJ = 0;
+          int inv_IK = 0;
+          int inv_JK = 0;
+
+          for (int interxn_2b=0; interxn_2b<n2b_interactions; interxn_2b++){
+            std::vector<int> pair {n2b_types[2*interxn_2b], 
+                                      n2b_types[2*interxn_2b+1]};
+
+            if ((IJ_pair[0] == pair[0]) && 
+                    (IJ_pair[1] == pair[1])){
+              index_IJ = interxn_2b;
+              inv_IJ = 1;
+            }
+            else if ((IJ_pair[0] == pair[1]) && 
+                    (IJ_pair[1] == pair[0])){
+              index_IJ = interxn_2b;
+              inv_IJ = -1;
+            }
+
+            if ((IK_pair[0] == pair[0]) && 
+                    (IK_pair[1] == pair[1])){
+              index_IK = interxn_2b;
+              inv_IK = 1;
+            }
+            else if ((IK_pair[0] == pair[1]) &&
+                    (IK_pair[1] == pair[0])){
+              index_IK = interxn_2b;
+              inv_IK = -1;
+            }
+
+            if ((JK_pair[0] == pair[0]) &&
+                    (JK_pair[1] == pair[1])){
+              index_JK = interxn_2b;
+              inv_JK = 1;
+            }
+
+            else if ((JK_pair[0] == pair[1]) &&
+                    (JK_pair[1] == pair[0])){
+              index_JK = interxn_2b;
+              inv_JK = -1;
+            }
+          }
+
+          if ((index_IJ==-1) || (index_IK==-1) || (index_JK==-1)){
+            std::string error_mesg = "Indices for 3b interaction=(" + 
+                std::to_string(n3b_types[3*interxn]) + "," +
+                std::to_string(n3b_types[3*interxn+1]) + "," +
+                std::to_string(n3b_types[3*interxn+2]) +
+                ") not found in the Neighs list";
+            throw std::domain_error(error_mesg);
+          }
+
+          //For traingle permutation- A-B-C, B-A-C and C-B-A
+          bool swappable_IJ = false;
+          if (IJ_pair[0] == IJ_pair[1])
+              swappable_IJ = true;
+
+          bool swappable_IK = false;
+          if (IK_pair[0] == IK_pair[1])
+              swappable_IK = true;
+
+          bool swappable_JK = false;
+          if (IJ_pair[1] == IK_pair[1])
+              swappable_JK = true;
 
           //make local atomic_3b_Reprn_matrix_energy, atomic_3b_Reprn_matrix_fx,
           //atomic_3b_Reprn_matrix_fy, atomic_3b_Reprn_matrix_fz
           
-          const int num_neighs_ij = Tot_num_Neighs[d*rows+index_ij];
-          const int num_neighs_ik = Tot_num_Neighs[d*rows+index_ik];
-          
-          if ((num_neighs_ij>0) && (num_neighs_ik>0) && Z1_in_3b_interxn) {
+          const int num_neighs_IJ = Tot_num_Neighs[d*rows+index_IJ];
+          const int num_neighs_IK = Tot_num_Neighs[d*rows+index_IK];
+          const int num_neighs_JK = Tot_num_Neighs[d*rows+index_JK];
 
           int ij_num_knots = n3b_num_knots_array[interxn][0];
           int ik_num_knots = n3b_num_knots_array[interxn][1];
@@ -747,487 +773,532 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
           const int bm = ik_num_knots-4;
           const int bn = jk_num_knots-4;
 
-
-          //make sub arrays of knots and constants
-          const std::vector<double> &knots_ij = n3b_knots_array[interxn][0];
-          const std::vector<double> &knots_ik = n3b_knots_array[interxn][1];
-          const std::vector<double> &knots_jk = n3b_knots_array[interxn][2];
-
-          const std::vector<std::vector<double>> &constants_ij = constants_3b[interxn][0];
-          const std::vector<std::vector<double>> &constants_ik = constants_3b[interxn][1];
-          const std::vector<std::vector<double>> &constants_jk = constants_3b[interxn][2];
-
-          const std::vector<std::vector<double>> &constants_ij_deri = constants_3b_deri[interxn][0];
-          const std::vector<std::vector<double>> &constants_ik_deri = constants_3b_deri[interxn][1];
-          const std::vector<std::vector<double>> &constants_jk_deri = constants_3b_deri[interxn][2];
-
-          std::vector<double> atomic_3b_Reprn_matrix_energy ((bl*bm*bn), 0);
-          std::vector<double> atomic_3b_Reprn_matrix_fx ((bl*bm*bn), 0);
-          std::vector<double> atomic_3b_Reprn_matrix_fy ((bl*bm*bn), 0);
-          std::vector<double> atomic_3b_Reprn_matrix_fz ((bl*bm*bn), 0);
-
-          //make atomic_3b_Reprn_matrix_flatten_energy,
-          std::vector<double> atomic_3b_Reprn_matrix_flatten_energy 
-              (n3b_feature_sizes_un(interxn), 0);
-
-          //fx, fy, fz
-          std::vector<double> atomic_3b_Reprn_matrix_flatten_fx
-              (n3b_feature_sizes_un(interxn), 0);
-          std::vector<double> atomic_3b_Reprn_matrix_flatten_fy
-              (n3b_feature_sizes_un(interxn), 0);
-          std::vector<double> atomic_3b_Reprn_matrix_flatten_fz
-              (n3b_feature_sizes_un(interxn), 0);
-          
-          //loop over neighbors in Neigh[atom1][index_ij]
-          //loop over neighbors in Neigh[atom1][index_ik]
-          int atom2_upper_limit = num_neighs_ij;
-          int atom3_lower_limit = 0;
-
-          if (index_ij == index_ik){
-            atom2_upper_limit = num_neighs_ij-1;
+          bool Z1_forms_valid_triangle = false;
+          if (Z1_index_in_3b_interxn == 0){
+            if ((num_neighs_IJ >= 1) && (num_neighs_IK >= 1))
+              Z1_forms_valid_triangle = true;
           }
-          for (int atom2=0; atom2<atom2_upper_limit; atom2++){
-            if (index_ij == index_ik)
-              atom3_lower_limit = atom2+1;
-            for (int atom3=atom3_lower_limit; atom3<num_neighs_ik; atom3++){
+          else if (Z1_index_in_3b_interxn == 1){
+            if ((num_neighs_IJ >= 1) && (num_neighs_JK >= 1))
+              Z1_forms_valid_triangle = true;
+          }
+          else if (Z1_index_in_3b_interxn == 2){
+            if ((num_neighs_IK >= 1) && (num_neighs_JK >= 1))
+              Z1_forms_valid_triangle = true;
+          }
+
+          /*py::print("Index in 3b =",Z1_index_in_3b_interxn, "valid triangle =",Z1_forms_valid_triangle,
+                  num_neighs_IJ, num_neighs_IK, num_neighs_JK);*/
+          
+          //if ((num_neighs_IJ>0) && (num_neighs_IK>0) && Z1_in_3b_interxn) {
+          if (Z1_forms_valid_triangle) {
+            //make sub arrays of knots and constants
+            const std::vector<double> &knots_ij = n3b_knots_array[interxn][0];
+            const std::vector<double> &knots_ik = n3b_knots_array[interxn][1];
+            const std::vector<double> &knots_jk = n3b_knots_array[interxn][2];
+
+            const std::vector<std::vector<double>> &constants_ij = constants_3b[interxn][0];
+            const std::vector<std::vector<double>> &constants_ik = constants_3b[interxn][1];
+            const std::vector<std::vector<double>> &constants_jk = constants_3b[interxn][2];
+
+            const std::vector<std::vector<double>> &constants_ij_deri = constants_3b_deri[interxn][0];
+            const std::vector<std::vector<double>> &constants_ik_deri = constants_3b_deri[interxn][1];
+            const std::vector<std::vector<double>> &constants_jk_deri = constants_3b_deri[interxn][2];
+
+            std::vector<double> atomic_3b_Reprn_matrix_energy ((bl*bm*bn), 0);
+            std::vector<double> atomic_3b_Reprn_matrix_fx ((bl*bm*bn), 0);
+            std::vector<double> atomic_3b_Reprn_matrix_fy ((bl*bm*bn), 0);
+            std::vector<double> atomic_3b_Reprn_matrix_fz ((bl*bm*bn), 0);
+
+            //make atomic_3b_Reprn_matrix_flatten_energy,
+            std::vector<double> atomic_3b_Reprn_matrix_flatten_energy 
+                (n3b_feature_sizes_un(interxn), 0);
+
+            //fx, fy, fz
+            std::vector<double> atomic_3b_Reprn_matrix_flatten_fx
+                (n3b_feature_sizes_un(interxn), 0);
+            std::vector<double> atomic_3b_Reprn_matrix_flatten_fy
+                (n3b_feature_sizes_un(interxn), 0);
+            std::vector<double> atomic_3b_Reprn_matrix_flatten_fz
+                (n3b_feature_sizes_un(interxn), 0);
+            
+            N3bInterxnData n3b_interxn_data(bl, bm, bn,
+                    knots_ij, knots_ik, knots_jk,
+                    constants_ij, constants_ik, constants_jk,
+                    constants_ij_deri, constants_ik_deri, constants_jk_deri,
+                    atomic_3b_Reprn_matrix_fx, atomic_3b_Reprn_matrix_fy, atomic_3b_Reprn_matrix_fz);
+            
+            //loop over neighbors in Neigh[atom1][index_IJ]
+            //loop over neighbors in Neigh[atom1][index_IK]
+            int atom2_upper_limit = 0;
+            int atom3_upper_limit = 0;
+            int atom3_lower_limit = 0;
+            int index_Neigh1 = 0;
+            int index_Neigh2 = 0;
+            
+            if (Z1_index_in_3b_interxn == 0) {
+              atom2_upper_limit = num_neighs_IJ;
+              atom3_upper_limit = num_neighs_IK;
+              index_Neigh1 = index_IJ;
+              index_Neigh2 = index_IK;
               
-              const double r_ij = Neighs[(d*rows*cols)+(index_ij*cols)+atom2];
-              const double r_ik = Neighs[(d*rows*cols)+(index_ik*cols)+atom3];
+              if (index_IJ == index_IK)
+                atom2_upper_limit = atom2_upper_limit-1;
+            }
+            else if (Z1_index_in_3b_interxn == 1) {
+              atom2_upper_limit = num_neighs_IJ;
+              atom3_upper_limit = num_neighs_JK;
+              index_Neigh1 = index_IJ;
+              index_Neigh2 = index_JK;
               
-              const int temp_index2 = (d*rows*cols*3)+(index_ij*cols*3)+(atom2*3);
-              const double delx_ij = Neighs_del[temp_index2]; //-->delx_ij/r_ij
-              const double dely_ij = Neighs_del[temp_index2+1];
-              const double delz_ij = Neighs_del[temp_index2+2];
+              if (index_IJ == index_JK)
+                atom2_upper_limit = atom2_upper_limit-1; 
+            }
+            else if (Z1_index_in_3b_interxn == 2) {
+              atom2_upper_limit = num_neighs_IK;
+              atom3_upper_limit = num_neighs_JK;
+              index_Neigh1 = index_IK;
+              index_Neigh2 = index_JK;
 
-              const int temp_index3 = (d*rows*cols*3)+(index_ik*cols*3)+(atom3*3);
-              const double delx_ik = Neighs_del[temp_index3]; //-->delx_ik/r_ik
-              const double dely_ik = Neighs_del[temp_index3+1];
-              const double delz_ik = Neighs_del[temp_index3+2];
-                
-              //distance jk? get from del_ij, rij, rik and del_ik --> r_ij, r_ik, r_jk
-              const double delx_jk_p = (delx_ik*r_ik)-(delx_ij*r_ij);//(delx_ij*r_ij)-(delx_ik*r_ik);
-              const double dely_jk_p = (dely_ik*r_ik)-(dely_ij*r_ij);//(dely_ij*r_ij)-(dely_ik*r_ik);
-              const double delz_jk_p = (delz_ik*r_ik)-(delz_ij*r_ij);//(delz_ij*r_ij)-(delz_ik*r_ik);
+              if (index_IK == index_JK)
+                atom2_upper_limit = atom2_upper_limit-1;
+            }
 
-              const double r_jk = sqrt((delx_jk_p*delx_jk_p) + 
-                                      (dely_jk_p*dely_jk_p) + 
-                                      (delz_jk_p*delz_jk_p));
-
-              const double delx_jk = delx_jk_p/r_jk;
-              const double dely_jk = dely_jk_p/r_jk;
-              const double delz_jk = delz_jk_p/r_jk;
-
-              //py::print(atom1,atom2,atom3,r_ij,r_ik,r_jk, delx_ij, delx_ik, delx_jk);
-
-              //triangle permutation i-j-k ==> A-B-C
-              //py::print("ijk",atom1,r_ij,r_ik,r_jk);
-              if ((rmin_max_3b[6*interxn] <= r_ij) && 
-                  (rmin_max_3b[6*interxn+1] > r_ij) && 
-                  (rmin_max_3b[6*interxn+2] <= r_ik) && 
-                  (rmin_max_3b[6*interxn+3] > r_ik) &&
-                  (rmin_max_3b[6*interxn+4] <= r_jk) &&
-                  (rmin_max_3b[6*interxn+5] > r_jk)) {
-
-                //rsq_ij, rth_ij
-                const double rsq_ij = r_ij*r_ij;
-                const double rth_ij = rsq_ij*r_ij;
-                  
-                //rsq_ik, rth_ik
-                const double rsq_ik = r_ik*r_ik;
-                const double rth_ik = rsq_ik*r_ik;
-                    
-                //rsq_jk, rth_jk
-                const double rsq_jk = r_jk*r_jk;
-                const double rth_jk = rsq_jk*r_jk;
-
-                //knot_posn_ij, knot_posn_ik, knot_posn_jk
-                int knot_posn_ij = bl;
-                int knot_posn_ik = bm;
-                int knot_posn_jk = bn;
-
-                while (r_ij<=knots_ij[knot_posn_ij])
-                  knot_posn_ij--;
-
-                while (r_ik<=knots_ik[knot_posn_ik])
-                  knot_posn_ik--;
-
-                while (r_jk<=knots_jk[knot_posn_jk])
-                  knot_posn_jk--;
- 
-                //compute_3b_energy_feature(r_ij, r_ik, r_jk,
-                //                          rsq_ij, rsq_ik, rsq_jk,
-                //                          rth_ij, rth_ik, rth_jk,
-                //                          knot_posn_ij, knot_posn_ik, knot_posn_jk,
-                //                          bl, bm, bn,
-                //                          knots_ij, knots_ik, knots_jk,
-                //                          constants_ij, constants_ik, constants_jk,
-                //                          atomic_3b_Reprn_matrix_energy);
-
-                std::array<double,4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
-                                                              constants_ij, knot_posn_ij);
-
-                std::array<double,4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
-                                                              constants_ik, knot_posn_ik);
-
-                std::array<double,4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
-                                                              constants_jk, knot_posn_jk);
-
-                //py::print("basis_ij",basis_ij[0],basis_ij[1],basis_ij[2],basis_ij[3]);
-                //py::print("basis_ik",basis_ik[0],basis_ik[1],basis_ik[2],basis_ik[3]);
-                //py::print("basis_jk",basis_jk[0],basis_jk[1],basis_jk[2],basis_jk[3]);
-
-                 
-                //basis_posn same as knot_posn
-                for (int x=0; x<4; x++) {
-                  for (int y=0; y<4; y++) {
-                    for (int z=0; z<4; z++) {
-                      const int temp_index = ((knot_posn_ij-x)*bm*bn) + 
-                                                ((knot_posn_ik-y)*bn) + 
-                                                (knot_posn_jk-z);
-                      atomic_3b_Reprn_matrix_energy[temp_index] += basis_ij[x]*basis_ik[y]*basis_jk[z];
-                    }
-                  }
-                }
-
-                std::array<double,3> basis_ij_deri = 
-                    get_basis_deri_set(r_ij, rsq_ij, constants_ij_deri, knot_posn_ij);
-                
-                double fpair_ij[4];
-                fpair_ij[0] = basis_ij_deri[0];
-                fpair_ij[1] = (basis_ij_deri[1]-basis_ij_deri[0]);
-                fpair_ij[2] = (basis_ij_deri[2]-basis_ij_deri[1]);
-                fpair_ij[3] = -1*basis_ij_deri[2];
-                
-                std::array<double,3> basis_ik_deri = 
-                    get_basis_deri_set(r_ik, rsq_ik, constants_ik_deri, knot_posn_ik);
-
-                double fpair_ik[4];
-                fpair_ik[0] = basis_ik_deri[0];
-                fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
-                fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
-                fpair_ik[3] = -1*basis_ik_deri[2];
-                
-                std::array<double,3> basis_jk_deri = 
-                    get_basis_deri_set(r_jk, rsq_jk, constants_jk_deri, knot_posn_jk);
-
-                double fpair_jk[4];
-                fpair_jk[0] = basis_jk_deri[0];
-                fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
-                fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
-                fpair_jk[3] = -1*basis_jk_deri[2];
-                
-                //py::print("fpair_ij",fpair_ij[0],fpair_ij[1],fpair_ij[2],fpair_ij[3]);
-                //py::print("fpair_ik",fpair_ik[0],fpair_ik[1],fpair_ik[2],fpair_ik[3]);
-                //py::print("fpair_jk",fpair_jk[0],fpair_jk[1],fpair_jk[2],fpair_jk[3]);
-                for (int x=0; x<4; x++) {
-                  for (int y=0; y<4; y++) {
-                    for (int z=0; z<4; z++) {
-                      const int temp_index = ((knot_posn_ij-x)*bm*bn) + 
-                                                ((knot_posn_ik-y)*bn) + 
-                                                (knot_posn_jk-z);
-                      atomic_3b_Reprn_matrix_fx[temp_index] += fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij + 
-                                                               basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik;
-                      //if ((knot_posn_ij-x == 3) && (knot_posn_ik-y == 4) && (knot_posn_jk-z == 7))
-                      //  py::print(r_ij,r_ik,r_jk,basis_ij[x],basis_ik[y],basis_jk[z]);
-                     //if (atom1==batch_start+2){
-                        //py::print("i-j-k",(knot_posn_ij-x),(knot_posn_ik-y),(knot_posn_jk-z),fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij,basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik);
-                        //tempftest[temp_index] += fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij +
-                        //                         basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik;
-
-                        //const int temp_index2 = 1*bl*bm*bn + ((knot_posn_ij-x)*bm*bn) + ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
-
-                        //tempftest[temp_index2] += fpair_ij[x]*basis_ik[y]*basis_jk[z]*(-1*delx_ij) + 
-                                                  basis_ij[x]*basis_ik[y]*fpair_jk[z]*(delx_jk);
-
-                        //const int temp_index3 = 2*bl*bm*bn + ((knot_posn_ij-x)*bm*bn) + ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
-                        //tempftest[temp_index3] += basis_ij[x]*fpair_ik[y]*basis_jk[z]*(-1*delx_ik)+
-                        //                          basis_ij[x]*basis_ik[y]*fpair_jk[z]*(-1*delx_jk);
-                      //}
-
-                      atomic_3b_Reprn_matrix_fy[temp_index] += fpair_ij[x]*basis_ik[y]*basis_jk[z]*dely_ij +
-                                                               basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik;
-
-                      atomic_3b_Reprn_matrix_fz[temp_index] += fpair_ij[x]*basis_ik[y]*basis_jk[z]*delz_ij +
-                                                               basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik;
-                    }
-                  }
-                }
-              }  
-              //triangle permuatation B-A-C --> j-i-k --> 2-1-3
-              if (swappable_ij){
-                  const double r_21 = r_ij;
-                  const double r_23 = r_jk;
-                  const double r_13 = r_ik;
-
-                  //py::print("jik",atom1,r_21,r_23,r_13);
-
-                  if ((rmin_max_3b[6*interxn] <= r_21) &&
-                      (rmin_max_3b[6*interxn+1] > r_21) &&
-                      (rmin_max_3b[6*interxn+2] <= r_23) &&
-                      (rmin_max_3b[6*interxn+3] > r_23) &&
-                      (rmin_max_3b[6*interxn+4] <= r_13) &&
-                      (rmin_max_3b[6*interxn+5] > r_13)){
-
-                  const double rsq_21 = r_21*r_21;
-                  const double rth_21 = rsq_21*r_21;
-
-                  const double rsq_23 = r_23*r_23;
-                  const double rth_23 = rsq_23*r_23;
-
-                  const double rsq_13 = r_13*r_13;
-                  const double rth_13 = rsq_13*r_13;
-
-                  int knot_posn_21 = bl;
-                  int knot_posn_23 = bm;
-                  int knot_posn_13 = bn;
-
-                  while (r_21<=knots_ij[knot_posn_21])
-                      knot_posn_21--;
-
-                  while (r_23<=knots_ik[knot_posn_23])
-                    knot_posn_23--;
-
-                  while (r_13<=knots_jk[knot_posn_13])
-                    knot_posn_13--;
-
-
-                  const double delx_21 = -1*delx_ij;
-                  const double dely_21 = -1*dely_ij;
-                  const double delz_21 = -1*delz_ij;
-
-                  //const double delx_23 = delx_jk;
-                  //const double dely_23 = dely_jk;
-                  //const double delz_23 = delz_jk;
-
-                  const double delx_13 = delx_ik;
-                  const double dely_13 = dely_ik;
-                  const double delz_13 = delz_ik;
-
-                  //-------------------------------new ij
-                  const std::array<double, 4> basis_21 = get_basis_set(r_21, rsq_21, rth_21,
-                                                                        constants_ij, knot_posn_21);
-                  const std::array<double, 3> basis_21_deri = 
-                                                get_basis_deri_set(r_21, rsq_21, constants_ij_deri, knot_posn_21);
-                  double fpair_21[4];
-                  fpair_21[0] = basis_21_deri[0];
-                  fpair_21[1] = (basis_21_deri[1]-basis_21_deri[0]);
-                  fpair_21[2] = (basis_21_deri[2]-basis_21_deri[1]);
-                  fpair_21[3] = -1*basis_21_deri[2];
-
-                  //-------------------------------new ik
-                  const std::array<double, 4> basis_23 = get_basis_set(r_23, rsq_23, rth_23,
-                                                                        constants_ik, knot_posn_23);
-                  
-                  //-------------------------------new jk
-                  const std::array<double, 4> basis_13 = get_basis_set(r_13, rsq_13, rth_13, 
-                                                                        constants_jk, knot_posn_13);
-                  const std::array<double, 3> basis_13_deri = 
-                                                get_basis_deri_set(r_13, rsq_13, constants_jk_deri, knot_posn_13);
-                  double fpair_13[4];
-                  fpair_13[0] = basis_13_deri[0];
-                  fpair_13[1] = (basis_13_deri[1]-basis_13_deri[0]);
-                  fpair_13[2] = (basis_13_deri[2]-basis_13_deri[1]);
-                  fpair_13[3] = -1*basis_13_deri[2];
-
-                  //py::print("swappable_ij");
-                  //py::print("j-i-k",r_21, r_23, r_13, delx_21, delx_23, delx_13, knot_posn_21, knot_posn_23, knot_posn_13);
-                  //py::print(basis_21[0],basis_21[1],basis_21[2],basis_21[3]);
-                  //py::print(basis_23[0],basis_23[1],basis_23[2],basis_23[3]);
-                  //py::print(basis_13[0],basis_13[1],basis_13[2],basis_13[3]);
-
-                  //py::print(fpair_21[0],fpair_21[1],fpair_21[2],fpair_21[3]);
-                  //py::print(fpair_13[0],fpair_13[1],fpair_13[2],fpair_13[3]);
-                  for (int x=0; x<4; x++) {
-                    for (int y=0; y<4; y++) {
-                      for (int z=0; z<4; z++) {
-                        const int temp_index = ((knot_posn_21-x)*bm*bn) +
-                                                    ((knot_posn_23-y)*bn) +
-                                                    (knot_posn_13-z);
-                        //-1 because 2 is central and 1 is neighbor and we want forces on 1
-                        atomic_3b_Reprn_matrix_fx[temp_index] += (-1*fpair_21[x]*basis_23[y]*basis_13[z]*delx_21) +
-                                                                 basis_21[x]*basis_23[y]*fpair_13[z]*(delx_13);
-
-                        //if ((knot_posn_21-x == 3) && (knot_posn_23-y == 4) && (knot_posn_13-z == 7))
-                        //  py::print(r_21, r_23, r_13, basis_21[x],basis_23[y],basis_13[z]);
-                          
-                        atomic_3b_Reprn_matrix_fy[temp_index] += (-1*fpair_21[x]*basis_23[y]*basis_13[z]*dely_21) +
-                                                                 basis_21[x]*basis_23[y]*fpair_13[z]*(dely_13);
-                          
-                        atomic_3b_Reprn_matrix_fz[temp_index] += (-1*fpair_21[x]*basis_23[y]*basis_13[z]*delz_21) +
-                                                                 basis_21[x]*basis_23[y]*fpair_13[z]*(delz_13);
-
-                       //if (atom1==batch_start){
-                       //   tempftest[temp_index] += (-1*fpair_21[x]*basis_23[y]*basis_13[z]*delx_21) +
-                       //                            basis_21[x]*basis_23[y]*fpair_13[z]*(delx_13);
-                       //}
-                      }
-                    }
-                  }
-                  }
+            for (int atom2=0; atom2<atom2_upper_limit; atom2++){
+              
+                if (Z1_index_in_3b_interxn == 0) {
+                if (index_IJ == index_IK)
+                  atom3_lower_limit = atom2+1;
               }
-              //triangle permuatation C-B-A --> k-j-i --> 3-2-1
-              if (swappable_ik){
-                  const double r_32 = r_jk;
-                  const double r_31 = r_ik;
-                  const double r_21 = r_ij;
+              else if (Z1_index_in_3b_interxn == 1) {
+                if (index_IJ == index_JK)
+                  atom3_lower_limit = atom2+1;
+              }
+              else if (Z1_index_in_3b_interxn == 2) {
+                if (index_IK == index_JK)
+                  atom3_lower_limit = atom2+1;
+              }
+
+              for (int atom3=atom3_lower_limit; atom3<atom3_upper_limit; atom3++){
+
+                //Get ordered rij, rik, rjk
+                const double r_Neigh1 = Neighs[(d*rows*cols)+(index_Neigh1*cols)+atom2];
+                const double r_Neigh2 = Neighs[(d*rows*cols)+(index_Neigh2*cols)+atom3];
+                
+                const int temp_index2 = (d*rows*cols*3)+(index_Neigh1*cols*3)+(atom2*3);
+                const double delx_Neigh1 = Neighs_del[temp_index2]; //-->delx_IJ/r_IJ
+                const double dely_Neigh1 = Neighs_del[temp_index2+1];
+                const double delz_Neigh1 = Neighs_del[temp_index2+2];
+
+                const int temp_index3 = (d*rows*cols*3)+(index_Neigh2*cols*3)+(atom3*3);
+                const double delx_Neigh2 = Neighs_del[temp_index3]; //-->delx_IK/r_IK
+                const double dely_Neigh2 = Neighs_del[temp_index3+1];
+                const double delz_Neigh2 = Neighs_del[temp_index3+2];
+              
+                std::array<double, 12> ordered_rij_rik_rjk = 
+                    get_rij_rik_rjk(r_Neigh1, delx_Neigh1, dely_Neigh1, delz_Neigh1,
+                                      r_Neigh2, delx_Neigh2, dely_Neigh2, delz_Neigh2,
+                                      Z1_index_in_3b_interxn);
+
+                /*py::print("Ordered Rs-",ordered_rij_rik_rjk[0],ordered_rij_rik_rjk[1],ordered_rij_rik_rjk[2]);*/
+              
+                const double r_ij = ordered_rij_rik_rjk[0];
+                const double r_ik = ordered_rij_rik_rjk[1];
+                const double r_jk = ordered_rij_rik_rjk[2];
+              
+                const double delx_ij = ordered_rij_rik_rjk[3];
+                const double dely_ij = ordered_rij_rik_rjk[4];
+                const double delz_ij = ordered_rij_rik_rjk[5];
+
+                const double delx_ik = ordered_rij_rik_rjk[6];
+                const double dely_ik = ordered_rij_rik_rjk[7];
+                const double delz_ik = ordered_rij_rik_rjk[8];
+                
+                const double delx_jk = ordered_rij_rik_rjk[9];
+                const double dely_jk = ordered_rij_rik_rjk[10];
+                const double delz_jk = ordered_rij_rik_rjk[11];
+
+                if (Z1_index_in_3b_interxn ==0){
+                  //triangle permutation i-j-k ==> A-B-C
+                  if ((rmin_max_3b[Interxn] <= r_ij) && 
+                      (rmin_max_3b[Interxn+1] > r_ij) && 
+                      (rmin_max_3b[Interxn+2] <= r_ik) && 
+                      (rmin_max_3b[Interxn+3] > r_ik) &&
+                      (rmin_max_3b[Interxn+4] <= r_jk) &&
+                      (rmin_max_3b[Interxn+5] > r_jk)) {
+
+                    //rsq_ij, rth_ij
+                    const double rsq_ij = r_ij*r_ij;
+                    const double rth_ij = rsq_ij*r_ij;
                   
-                  //py::print("kji",atom1,r_32,r_31,r_21);
+                    //rsq_ik, rth_ik
+                    const double rsq_ik = r_ik*r_ik;
+                    const double rth_ik = rsq_ik*r_ik;
+                    
+                    //rsq_jk, rth_jk
+                    const double rsq_jk = r_jk*r_jk;
+                    const double rth_jk = rsq_jk*r_jk;
 
-                  if ((rmin_max_3b[6*interxn] <= r_32) &&
-                      (rmin_max_3b[6*interxn+1] > r_32) &&
-                      (rmin_max_3b[6*interxn+2] <= r_31) &&
-                      (rmin_max_3b[6*interxn+3] > r_31) &&
-                      (rmin_max_3b[6*interxn+4] <= r_21) &&
-                      (rmin_max_3b[6*interxn+5] > r_21)){
+                    //knot_posn_ij, knot_posn_ik, knot_posn_jk
+                    int knot_posn_ij = n3b_interxn_data.bl;
+                    int knot_posn_ik = n3b_interxn_data.bm;
+                    int knot_posn_jk = n3b_interxn_data.bn;
 
-                  //-------------------------------new ij
-                  const double rsq_32 = r_32*r_32;
-                  const double rth_32 = rsq_32*r_32;
+                    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+                      knot_posn_ij--;
 
-                  //-------------------------------new ik
-                  const double rsq_31 = r_31*r_31;
-                  const double rth_31 = rsq_31*r_31;
+                    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+                      knot_posn_ik--;
+  
+                    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+                      knot_posn_jk--;
+ 
+                    std::array<double,4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                                  n3b_interxn_data.constants_ij,
+                                                                  knot_posn_ij);
+ 
+                    std::array<double,4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                                  n3b_interxn_data.constants_ik,
+                                                                  knot_posn_ik);
 
-                  //-------------------------------new jk
-                  const double rsq_21 = r_21*r_21;
-                  const double rth_21 = rsq_21*r_21;
+                    std::array<double,4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                                  n3b_interxn_data.constants_jk,
+                                                                  knot_posn_jk);
 
-                  int knot_posn_32 = bl;
-                  int knot_posn_31 = bm;
-                  int knot_posn_21 = bn;
-                  
-                  while (r_32<=knots_ij[knot_posn_32])
-                    knot_posn_32--;
-                  
-                  while (r_31<=knots_ik[knot_posn_31])
-                    knot_posn_31--;
-                  
-                  while (r_21<=knots_jk[knot_posn_21])
-                    knot_posn_21--;
-                  
-                  //const double delx_32 = -1*delx_jk;
-                  //const double dely_32 = -1*dely_jk;
-                  //const double delz_32 = -1*delz_jk;
-
-                  const double delx_31 = -1*delx_ik;
-                  const double dely_31 = -1*dely_ik;
-                  const double delz_31 = -1*delz_ik;
-
-                  const double delx_21 = -1*delx_ij;
-                  const double dely_21 = -1*dely_ij;
-                  const double delz_21 = -1*delz_ij;
-
-
-                  //-------------------------------new ij
-                  const std::array<double, 4> basis_32 = get_basis_set(r_32, rsq_32, rth_32,
-                                                                        constants_ij, knot_posn_32);
-                  const std::array<double, 3> basis_32_deri = 
-                                                get_basis_deri_set(r_32, rsq_32, constants_ij_deri, knot_posn_32);
-                  double fpair_32[4];
-                  fpair_32[0] = basis_32_deri[0];
-                  fpair_32[1] = (basis_32_deri[1]-basis_32_deri[0]);
-                  fpair_32[2] = (basis_32_deri[2]-basis_32_deri[1]);
-                  fpair_32[3] = -1*basis_32_deri[2];
-
-                  //-------------------------------new ik
-                  const std::array<double, 4> basis_31 = get_basis_set(r_31, rsq_31, rth_31,
-                                                                        constants_ik, knot_posn_31);
-                  const std::array<double, 3> basis_31_deri = 
-                                                get_basis_deri_set(r_31, rsq_31, constants_ik_deri, knot_posn_31);
-                  double fpair_31[4];
-                  fpair_31[0] = basis_31_deri[0];
-                  fpair_31[1] = (basis_31_deri[1]-basis_31_deri[0]);
-                  fpair_31[2] = (basis_31_deri[2]-basis_31_deri[1]);
-                  fpair_31[3] = -1*basis_31_deri[2];
-
-                  //-------------------------------new jk
-                  const std::array<double, 4> basis_21 = get_basis_set(r_21, rsq_21, rth_21,
-                                                                        constants_jk, knot_posn_21);
-                  const std::array<double, 3> basis_21_deri = 
-                                                get_basis_deri_set(r_21, rsq_21, constants_jk_deri, knot_posn_21);
-                  double fpair_21[4];
-                  fpair_21[0] = basis_21_deri[0];
-                  fpair_21[1] = (basis_21_deri[1]-basis_21_deri[0]);
-                  fpair_21[2] = (basis_21_deri[2]-basis_21_deri[1]);
-                  fpair_21[3] = -1*basis_21_deri[2];
-
-                  //py::print("swappable_ik");
-                  //py::print("k-j-i",r_32, r_31, r_21, delx_32, delx_31, delx_21, knot_posn_32, knot_posn_31, knot_posn_21);
-                  //py::print(basis_32[0],basis_32[1],basis_32[2],basis_32[3]);
-                  //py::print(basis_31[0],basis_31[1],basis_31[2],basis_31[3]);
-                  //py::print(basis_21[0],basis_21[1],basis_21[2],basis_21[3]);
-
-                  //py::print(fpair_32[0],fpair_32[1],fpair_32[2],fpair_32[3]);
-                  //py::print(fpair_31[0],fpair_31[1],fpair_31[2],fpair_31[3]);
-                  //py::print(fpair_21[0],fpair_21[1],fpair_21[2],fpair_21[3]);
-                  
-                  for (int x=0; x<4; x++) {
-                    for (int y=0; y<4; y++) {
-                      for (int z=0; z<4; z++) {
-                        const int temp_index = ((knot_posn_32-x)*bm*bn) +
-                                                ((knot_posn_31-y)*bn) +
-                                                (knot_posn_21-z);
-
-                        atomic_3b_Reprn_matrix_fx[temp_index] += (-1*basis_32[x]*fpair_31[y]*basis_21[z]*delx_31)+
-                                                                 (-1*basis_32[x]*basis_31[y]*fpair_21[z]*delx_21);
-
-                        //if ((knot_posn_32-x == 3) && (knot_posn_31-y == 4) && (knot_posn_21-z == 7))
-                        //  py::print(r_32, r_31, r_21, basis_32[x],basis_31[y],basis_21[z]);
-
-                        atomic_3b_Reprn_matrix_fy[temp_index] += (-1*basis_32[x]*fpair_31[y]*basis_21[z]*dely_31)+
-                                                                 (-1*basis_32[x]*basis_31[y]*fpair_21[z]*dely_21);
-
-                        atomic_3b_Reprn_matrix_fz[temp_index] += (-1*basis_32[x]*fpair_31[y]*basis_21[z]*delz_31)+
-                                                                 (-1*basis_32[x]*basis_31[y]*fpair_21[z]*delz_21);
-                       //if (atom1==batch_start){
-                       //   tempftest[temp_index] += (-1*basis_32[x]*fpair_31[y]*basis_21[z]*delx_31)+
-                       //                            (-1*basis_32[x]*basis_31[y]*fpair_21[z]*delx_21);
-                       //}
+                    //basis_posn same as knot_posn
+                    for (int x=0; x<4; x++) {
+                      for (int y=0; y<4; y++) {
+                        for (int z=0; z<4; z++) {
+                          const int temp_index = ((knot_posn_ij-x)*n3b_interxn_data.bm*n3b_interxn_data.bn) +
+                                                    ((knot_posn_ik-y)*n3b_interxn_data.bn) +
+                                                    (knot_posn_jk-z);
+                          atomic_3b_Reprn_matrix_energy[temp_index] += basis_ij[x]*basis_ik[y]*basis_jk[z];
+                        }
                       }
                     }
-                  }
-                  }
-              } //swappable_ik
-              //} //r_ij, r_ik min max if
-            } //close loop atom3
-          } //close loop atom2
+
+                    std::array<double,3> basis_ij_deri = 
+                        get_basis_deri_set(r_ij, rsq_ij,
+                                n3b_interxn_data.constants_ij_deri,
+                                knot_posn_ij);
+                
+                    double fpair_ij[4];
+                    fpair_ij[0] = basis_ij_deri[0];
+                    fpair_ij[1] = (basis_ij_deri[1]-basis_ij_deri[0]);
+                    fpair_ij[2] = (basis_ij_deri[2]-basis_ij_deri[1]);
+                    fpair_ij[3] = -1*basis_ij_deri[2];
+                
+                    std::array<double,3> basis_ik_deri = 
+                        get_basis_deri_set(r_ik, rsq_ik,
+                                n3b_interxn_data.constants_ik_deri,
+                                knot_posn_ik);
+
+                    double fpair_ik[4];
+                    fpair_ik[0] = basis_ik_deri[0];
+                    fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
+                    fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
+                    fpair_ik[3] = -1*basis_ik_deri[2];
+                
+                    /*std::array<double,3> basis_jk_deri = 
+                        get_basis_deri_set(r_jk, rsq_jk,
+                                n3b_interxn_data.constants_jk_deri,
+                                knot_posn_jk);
+
+                    double fpair_jk[4];
+                    fpair_jk[0] = basis_jk_deri[0];
+                    fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+                    fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+                    fpair_jk[3] = -1*basis_jk_deri[2];*/
+                
+                    for (int x=0; x<4; x++) {
+                      for (int y=0; y<4; y++) {
+                        for (int z=0; z<4; z++) {
+                          const int temp_index = ((knot_posn_ij-x)*bm*bn) + 
+                                                    ((knot_posn_ik-y)*bn) + 
+                                                    (knot_posn_jk-z);
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] +=
+                              fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij + 
+                              basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik;
+
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] +=
+                              fpair_ij[x]*basis_ik[y]*basis_jk[z]*dely_ij +
+                              basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik;
+
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] +=
+                              fpair_ij[x]*basis_ik[y]*basis_jk[z]*delz_ij +
+                              basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik;
+                        }
+                      }
+                    }
+                  } //if r checks
+
+                  //triangle permuatation B-A-C --> j-i-k --> 2-1-3
+                  if (swappable_IJ)
+                    calculate_force_features_for_ij_swap(1,
+                                                         ordered_rij_rik_rjk,
+                                                         Interxn,
+                                                         n3b_interxn_data);
+
+                  //triangle permuatation C-B-A --> k-j-i --> 3-2-1
+                  if (swappable_IK)
+                    calculate_force_features_for_ik_swap(2,
+                                                         ordered_rij_rik_rjk,
+                                                         Interxn,
+                                                         n3b_interxn_data);
+                } //if Z1_index_in_3b_interxn == 0
+
+                else if (Z1_index_in_3b_interxn == 1){
+                  if ((rmin_max_3b[Interxn] <= r_ij) && 
+                      (rmin_max_3b[Interxn+1] > r_ij) && 
+                      (rmin_max_3b[Interxn+2] <= r_ik) && 
+                      (rmin_max_3b[Interxn+3] > r_ik) &&
+                      (rmin_max_3b[Interxn+4] <= r_jk) &&
+                      (rmin_max_3b[Interxn+5] > r_jk)) {
+
+                    //force on j
+                    //ie force on 1
+                      
+                    //rsq_ij, rth_ij
+                    const double rsq_ij = r_ij*r_ij;
+                    const double rth_ij = rsq_ij*r_ij;
+                  
+                    //rsq_ik, rth_ik
+                    const double rsq_ik = r_ik*r_ik;
+                    const double rth_ik = rsq_ik*r_ik;
+                    
+                    //rsq_jk, rth_jk
+                    const double rsq_jk = r_jk*r_jk;
+                    const double rth_jk = rsq_jk*r_jk;
+
+                    //knot_posn_ij, knot_posn_ik, knot_posn_jk
+                    int knot_posn_ij = n3b_interxn_data.bl;
+                    int knot_posn_ik = n3b_interxn_data.bm;
+                    int knot_posn_jk = n3b_interxn_data.bn;
+
+                    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+                      knot_posn_ij--;
+
+                    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+                      knot_posn_ik--;
+  
+                    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+                      knot_posn_jk--;
+ 
+                    std::array<double,4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                                  n3b_interxn_data.constants_ij,
+                                                                  knot_posn_ij);
+ 
+                    std::array<double,4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                                  n3b_interxn_data.constants_ik,
+                                                                  knot_posn_ik);
+
+                    std::array<double,4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                                  n3b_interxn_data.constants_jk,
+                                                                  knot_posn_jk);
+
+                    std::array<double,3> basis_ij_deri = 
+                        get_basis_deri_set(r_ij, rsq_ij,
+                                n3b_interxn_data.constants_ij_deri,
+                                knot_posn_ij);
+                
+                    double fpair_ij[4];
+                    fpair_ij[0] = basis_ij_deri[0];
+                    fpair_ij[1] = (basis_ij_deri[1]-basis_ij_deri[0]);
+                    fpair_ij[2] = (basis_ij_deri[2]-basis_ij_deri[1]);
+                    fpair_ij[3] = -1*basis_ij_deri[2];
+                
+                    std::array<double,3> basis_jk_deri = 
+                        get_basis_deri_set(r_jk, rsq_jk,
+                                n3b_interxn_data.constants_jk_deri,
+                                knot_posn_jk);
+
+                    double fpair_jk[4];
+                    fpair_jk[0] = basis_jk_deri[0];
+                    fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+                    fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+                    fpair_jk[3] = -1*basis_jk_deri[2];
+
+                    for (int x=0; x<4; x++) {
+                      for (int y=0; y<4; y++) {
+                        for (int z=0; z<4; z++) {
+                          const int temp_index = ((knot_posn_ij-x)*bm*bn) + 
+                                                    ((knot_posn_ik-y)*bn) + 
+                                                    (knot_posn_jk-z);
+
+                          //-1 because 0 is central and 1 is neighbor and we want forces on 1
+                          //ie calculate force on current j
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] +=
+                              (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij) +
+                                 (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] +=
+                              (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*dely_ij) +
+                                 (basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] +=
+                              (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delz_ij) +
+                                 (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+                        }
+                      }
+                    }
+                  } // if r check
+
+                  //if (swappable_JK) --> calculate force on k ie force on 2
+                  /*if (swappable_JK)
+                    calculate_force_features_for_jk_swap(2,
+                                                         ordered_rij_rik_rjk,
+                                                         Interxn,
+                                                         n3b_interxn_data);*/
+
+                  //if (swappable_IK) --> calculate force on j ie force on 1
+                  if (swappable_IK)
+                    calculate_force_features_for_ik_swap(1,
+                                                         ordered_rij_rik_rjk,
+                                                         Interxn,
+                                                         n3b_interxn_data);
+                } //if Z1_index_in_3b_interxn == 1
+
+                else if (Z1_index_in_3b_interxn == 2){
+                  if ((rmin_max_3b[Interxn] <= r_ij) && 
+                      (rmin_max_3b[Interxn+1] > r_ij) && 
+                      (rmin_max_3b[Interxn+2] <= r_ik) && 
+                      (rmin_max_3b[Interxn+3] > r_ik) &&
+                      (rmin_max_3b[Interxn+4] <= r_jk) &&
+                      (rmin_max_3b[Interxn+5] > r_jk)) {
+
+                    //focre on k
+                    //ie force on 2
+                    
+                    //rsq_ij, rth_ij
+                    const double rsq_ij = r_ij*r_ij;
+                    const double rth_ij = rsq_ij*r_ij;
+                  
+                    //rsq_ik, rth_ik
+                    const double rsq_ik = r_ik*r_ik;
+                    const double rth_ik = rsq_ik*r_ik;
+                    
+                    //rsq_jk, rth_jk
+                    const double rsq_jk = r_jk*r_jk;
+                    const double rth_jk = rsq_jk*r_jk;
+
+                    //knot_posn_ij, knot_posn_ik, knot_posn_jk
+                    int knot_posn_ij = n3b_interxn_data.bl;
+                    int knot_posn_ik = n3b_interxn_data.bm;
+                    int knot_posn_jk = n3b_interxn_data.bn;
+
+                    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+                      knot_posn_ij--;
+
+                    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+                      knot_posn_ik--;
+  
+                    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+                      knot_posn_jk--;
+                    
+                    std::array<double,4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                                  n3b_interxn_data.constants_ij,
+                                                                  knot_posn_ij);
+ 
+                    std::array<double,4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                                  n3b_interxn_data.constants_ik,
+                                                                  knot_posn_ik);
+
+                    std::array<double,4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                                  n3b_interxn_data.constants_jk,
+                                                                  knot_posn_jk);
+
+                    std::array<double,3> basis_ik_deri = 
+                        get_basis_deri_set(r_ik, rsq_ik,
+                                n3b_interxn_data.constants_ik_deri,
+                                knot_posn_ik);
+
+                    double fpair_ik[4];
+                    fpair_ik[0] = basis_ik_deri[0];
+                    fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
+                    fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
+                    fpair_ik[3] = -1*basis_ik_deri[2];
+                    
+                    std::array<double,3> basis_jk_deri = 
+                        get_basis_deri_set(r_jk, rsq_jk,
+                                n3b_interxn_data.constants_jk_deri,
+                                knot_posn_jk);
+
+                    double fpair_jk[4];
+                    fpair_jk[0] = basis_jk_deri[0];
+                    fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+                    fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+                    fpair_jk[3] = -1*basis_jk_deri[2];
+                    
+                    for (int x=0; x<4; x++) {
+                      for (int y=0; y<4; y++) {
+                        for (int z=0; z<4; z++) {
+                          const int temp_index = ((knot_posn_ij-x)*bm*bn) + 
+                                                    ((knot_posn_ik-y)*bn) + 
+                                                    (knot_posn_jk-z);
+                          
+                          //-1 because 0 is central and 2 is neighbor and we want forces on 2
+                          //ie calculate force on current k
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] +=
+                              (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik) +
+                              (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+                          
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] +=
+                              (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik) +
+                              (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+                          
+                          n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] +=
+                              (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik) +
+                              (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+                        }
+                      }
+                    }
+                  } // if r check
+
+                  //if (swappable_IJ) --> calculate force on k ie force on 2
+                  if (swappable_IJ)
+                    calculate_force_features_for_ij_swap(2,
+                                                         ordered_rij_rik_rjk,
+                                                         Interxn,
+                                                         n3b_interxn_data);
+                } //if Z1_index_in_3b_interxn == 2
+              } //close loop atom3
+            } //close loop atom2
           
-          //symmetrize the matrix ie compress
-          n3b_compress(atomic_3b_Reprn_matrix_energy,
-                       atomic_3b_Reprn_matrix_flatten_energy,
-                       n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
+            //symmetrize the matrix ie compress
+            n3b_compress(atomic_3b_Reprn_matrix_energy,
+                         atomic_3b_Reprn_matrix_flatten_energy,
+                         n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
 
-          int d4 = d*4;
-          for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
-            atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_energy[i-basis_start_posn];
-          }
+            int d4 = d*4;
+            for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
+              atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_energy[i-basis_start_posn];
+            }
 
-          n3b_compress(atomic_3b_Reprn_matrix_fx,
-                       atomic_3b_Reprn_matrix_flatten_fx,
-                       n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
-          d4 = d4+1;
-          for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
-            atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fx[i-basis_start_posn];
-          }
+            n3b_compress(atomic_3b_Reprn_matrix_fx,
+                         atomic_3b_Reprn_matrix_flatten_fx,
+                         n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
+            d4 = d4+1;
+            for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
+              atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fx[i-basis_start_posn];
+            }
 
-          n3b_compress(atomic_3b_Reprn_matrix_fy,
-                       atomic_3b_Reprn_matrix_flatten_fy,
-                       n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
-          d4 = d4+1;
-          for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
-            atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fy[i-basis_start_posn];
-          }
+            n3b_compress(atomic_3b_Reprn_matrix_fy,
+                         atomic_3b_Reprn_matrix_flatten_fy,
+                         n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
+            d4 = d4+1;
+            for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
+              atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fy[i-basis_start_posn];
+            }
           
-          n3b_compress(atomic_3b_Reprn_matrix_fz,
-                       atomic_3b_Reprn_matrix_flatten_fz,
-                       n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
-          d4 = d4+1;
-          for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
-            atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fz[i-basis_start_posn];
-          }
-          
-          } // if num_neighs_ij, num_neighs_ik
-
+            n3b_compress(atomic_3b_Reprn_matrix_fz,
+                         atomic_3b_Reprn_matrix_flatten_fz,
+                         n3b_symmetry, template_mask_start, template_mask_end, bl, bm, bn);
+            d4 = d4+1;
+            for (int i=basis_start_posn; i < basis_start_posn+n3b_feature_sizes_un(interxn); i++) {
+              atomic_Reprn[d4*reprn_length+i] += atomic_3b_Reprn_matrix_flatten_fz[i-basis_start_posn];
+            }          
+          } // if (Z1_forms_valid_triangle)
+        }
         basis_start_posn += n3b_feature_sizes_un(interxn);
         index_for_symm_weights += n3b_feature_sizes_un(interxn);
         }//loop over interxn
@@ -1920,6 +1991,556 @@ std::array<double, 3>  UltraFastFeaturize::get_basis_deri_set(const double r_ij,
                                      (rsq_ij*constants_ij_deri[knot_posn_ij-2][8]);
   return basis_ij_deri;
 }
+
+
+std::array<double, 12> UltraFastFeaturize::get_rij_rik_rjk(double r1, double delx1, double dely1, double delz1,
+                                                          double r2, double delx2, double dely2, double delz2,
+                                                          int Z1_index_in_3b_interxn)
+{
+  std::array<double, 12> ret_array;
+  if (Z1_index_in_3b_interxn == 0){
+    ret_array[0] = r1;
+    ret_array[1] = r2;
+
+    //const double delx_ij = delx1//-->delx_ij/r_ij
+    //const double dely_ij = dely1;
+    //const double delz_ij = delz1;
+
+    //const double delx_ik = delx2; //-->delx_ik/r_ik
+    //const double dely_ik = dely2;
+    //const double delz_ik = delz2;
+                
+    //distance jk? get from del_ij, rij, rik and del_ik --> r_ij, r_ik, r_jk
+    //const double delx_jk_p = (delx_ik*r_ik)-(delx_ij*r_ij);//(delx_ij*r_ij)-(delx_ik*r_ik);
+    const double delx_3_p  = (delx2  *r2  )-(delx1  *r1);
+
+    //const double dely_jk_p = (dely_ik*r_ik)-(dely_ij*r_ij);//(dely_ij*r_ij)-(dely_ik*r_ik);
+    const double dely_3_p  = (dely2  *r2  )-(dely1  *r1);
+
+    //const double delz_jk_p = (delz_ik*r_ik)-(delz_ij*r_ij);//(delz_ij*r_ij)-(delz_ik*r_ik);
+    const double delz_3_p  = (delz2  *r2  )-(delz1  *r1);
+
+
+    //const double r_jk = sqrt((delx_jk_p*delx_jk_p) + 
+    //                         (dely_jk_p*dely_jk_p) + 
+    //                         (delz_jk_p*delz_jk_p));
+    const double r3   = sqrt((delx_3_p*delx_3_p) + 
+                             (dely_3_p*dely_3_p) +
+                             (delz_3_p*delz_3_p));
+
+    ret_array[2] = r3;
+
+    ret_array[3] = delx1;
+    ret_array[4] = dely1;
+    ret_array[5] = delz1;
+
+    ret_array[6] = delx2;
+    ret_array[7] = dely2;
+    ret_array[8] = delz2;
+
+    ret_array[9] = delx_3_p/r3;
+    ret_array[10]= dely_3_p/r3;
+    ret_array[11]= delz_3_p/r3;
+    return ret_array;
+
+  }
+  else if (Z1_index_in_3b_interxn == 1){
+    ret_array[0] = r1;
+    ret_array[2] = r2;
+
+    ret_array[3] = -1*delx1; //--> ji to ij
+    ret_array[4] = -1*dely1;
+    ret_array[5] = -1*delz1;
+
+    ret_array[9] = delx2; // --> jk
+    ret_array[10] = dely2;
+    ret_array[11] = delz2;
+
+    const double delx_3_p = (ret_array[3]*r1) + (ret_array[9]*r2) ;
+    const double dely_3_p = (ret_array[4]*r1) + (ret_array[10]*r2);
+    const double delz_3_p = (ret_array[5]*r1) + (ret_array[11]*r2);
+    const double r3 = sqrt((delx_3_p*delx_3_p) +
+                           (dely_3_p*dely_3_p) +
+                           (delz_3_p*delz_3_p));
+    ret_array[1] = r3;
+    ret_array[6] = delx_3_p/r3; // -->ik
+    ret_array[7] = dely_3_p/r3;
+    ret_array[8] = delz_3_p/r3;
+
+  }
+  else if (Z1_index_in_3b_interxn == 2){
+    ret_array[1] = r1;
+    ret_array[2] = r2;
+
+    ret_array[6] = -1*delx1;
+    ret_array[7] = -1*dely1;
+    ret_array[8] = -1*delz1;
+
+    ret_array[9] = -1*delx2;
+    ret_array[10] = -1*dely2;
+    ret_array[11] = -1*delz2;
+
+    const double delx_3_p = (delx2*r2) - (delx1*r1);
+    const double dely_3_p = (dely2*r2) - (dely1*r1);
+    const double delz_3_p = (delz2*r2) - (delz1*r1);
+    const double r3 = sqrt((delx_3_p*delx_3_p) +
+                           (dely_3_p*dely_3_p) +
+                           (delz_3_p*delz_3_p));
+
+    ret_array[0] = r3;
+    ret_array[3] = delx_3_p/r3;
+    ret_array[4] = dely_3_p/r3;
+    ret_array[5] = delz_3_p/r3;
+  }
+  else
+    std::domain_error("Bad value!");
+
+  return ret_array;
+}
+
+void UltraFastFeaturize::calculate_force_features_for_ij_swap(int atom_of_focus,
+        std::array<double, 12>& Rs,
+        int Interxn,
+        N3bInterxnData& n3b_interxn_data)
+{
+  //if atoms are labeled as 0,1,2 then ij swap
+  //makes them as 1,0,2
+  const double r_ij = Rs[0];
+  const double r_ik = Rs[2];
+  const double r_jk = Rs[1];
+
+  if ((rmin_max_3b[Interxn] <= r_ij) &&
+      (rmin_max_3b[Interxn+1] > r_ij) &&
+      (rmin_max_3b[Interxn+2] <= r_ik) &&
+      (rmin_max_3b[Interxn+3] > r_ik) &&
+      (rmin_max_3b[Interxn+4] <= r_jk) &&
+      (rmin_max_3b[Interxn+5] > r_jk)){
+
+    const double rsq_ij = r_ij*r_ij;
+    const double rth_ij = rsq_ij*r_ij;
+
+    const double rsq_ik = r_ik*r_ik;
+    const double rth_ik = rsq_ik*r_ik;
+    
+    const double rsq_jk = r_jk*r_jk;
+    const double rth_jk = rsq_jk*r_jk;
+    
+    const double delx_ij = -1*Rs[3];
+    const double dely_ij = -1*Rs[4];
+    const double delz_ij = -1*Rs[5];
+
+    const double delx_ik = Rs[9];
+    const double dely_ik = Rs[10];
+    const double delz_ik = Rs[11];
+    
+    const double delx_jk = Rs[6];
+    const double dely_jk = Rs[7];
+    const double delz_jk = Rs[8];
+
+    const int bl = n3b_interxn_data.bl;
+    const int bm = n3b_interxn_data.bm;
+    const int bn = n3b_interxn_data.bn;
+    
+    int knot_posn_ij = n3b_interxn_data.bl;
+    int knot_posn_ik = n3b_interxn_data.bm;
+    int knot_posn_jk = n3b_interxn_data.bn;
+
+    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+      knot_posn_ij--;
+
+    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+      knot_posn_ik--;
+
+    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+      knot_posn_jk--;
+
+    if (atom_of_focus == 1) {
+      //-------------------------------new ij
+      const std::array<double, 4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                            n3b_interxn_data.constants_ij,
+                                                            knot_posn_ij);
+      const std::array<double, 3> basis_ij_deri = 
+          get_basis_deri_set(r_ij, rsq_ij, n3b_interxn_data.constants_ij_deri,
+                  knot_posn_ij);
+      double fpair_ij[4];
+      fpair_ij[0] = basis_ij_deri[0];
+      fpair_ij[1] = (basis_ij_deri[1]-basis_ij_deri[0]);
+      fpair_ij[2] = (basis_ij_deri[2]-basis_ij_deri[1]);
+      fpair_ij[3] = -1*basis_ij_deri[2];
+
+      //-------------------------------new ik
+      const std::array<double, 4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                            n3b_interxn_data.constants_ik,
+                                                            knot_posn_ik);
+                  
+      //-------------------------------new jk
+      const std::array<double, 4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                            n3b_interxn_data.constants_jk,
+                                                            knot_posn_jk);
+
+      const std::array<double, 3> basis_jk_deri = 
+          get_basis_deri_set(r_jk, rsq_jk, n3b_interxn_data.constants_jk_deri,
+                  knot_posn_jk);
+      double fpair_jk[4];
+      fpair_jk[0] = basis_jk_deri[0];
+      fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+      fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+      fpair_jk[3] = -1*basis_jk_deri[2];
+      
+      for (int x=0; x<4; x++) {
+        for (int y=0; y<4; y++) {
+          for (int z=0; z<4; z++) {
+            const int temp_index = ((knot_posn_ij-x)*bm*bn) +
+                ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
+
+            //-1 because 1 is central and 0 is neighbor and we want forces on 0
+            //ie calculate force on current j
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij) + 
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*dely_ij) +
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delz_ij) +
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+          }
+        }
+      }
+    } //if atom_of_focus == 1
+
+    else if (atom_of_focus == 2) {
+      //-------------------------------new ij
+      const std::array<double, 4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                            n3b_interxn_data.constants_ij,
+                                                            knot_posn_ij);
+      //-------------------------------new ik
+      const std::array<double, 4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                            n3b_interxn_data.constants_ik,
+                                                            knot_posn_ik);
+      const std::array<double, 3> basis_ik_deri =
+          get_basis_deri_set(r_ik, rsq_ik, n3b_interxn_data.constants_ik_deri,
+                  knot_posn_ik);
+      double fpair_ik[4];
+      fpair_ik[0] = basis_ik_deri[0];
+      fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
+      fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
+      fpair_ik[3] = -1*basis_ik_deri[2];
+
+      //-------------------------------new jk
+      const std::array<double, 4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                            n3b_interxn_data.constants_jk,
+                                                            knot_posn_jk);
+
+      const std::array<double, 3> basis_jk_deri = 
+          get_basis_deri_set(r_jk, rsq_jk, n3b_interxn_data.constants_jk_deri,
+                  knot_posn_jk);
+      double fpair_jk[4];
+      fpair_jk[0] = basis_jk_deri[0];
+      fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+      fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+      fpair_jk[3] = -1*basis_jk_deri[2];
+
+      for (int x=0; x<4; x++) {
+        for (int y=0; y<4; y++) {
+          for (int z=0; z<4; z++) {
+            const int temp_index = ((knot_posn_ij-x)*bm*bn) +
+                ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
+
+            //-1 because 1 is central and 2 is neighbor and we want forces on 2
+            //ie calculate force on current k
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+          }
+        }
+      }
+    } //if atom_of_focus == 2
+  } //if r
+}
+
+void UltraFastFeaturize::calculate_force_features_for_ik_swap(int atom_of_focus,
+        std::array<double, 12>& Rs,
+        int Interxn,
+        N3bInterxnData& n3b_interxn_data)
+{
+  //if atoms are labeled as 0,1,2 then ik swap
+  //makes them as 2,1,0
+  const double r_ij = Rs[2];
+  const double r_ik = Rs[1];
+  const double r_jk = Rs[0];
+
+  if ((rmin_max_3b[Interxn] <= r_ij) &&
+      (rmin_max_3b[Interxn+1] > r_ij) &&
+      (rmin_max_3b[Interxn+2] <= r_ik) &&
+      (rmin_max_3b[Interxn+3] > r_ik) &&
+      (rmin_max_3b[Interxn+4] <= r_jk) &&
+      (rmin_max_3b[Interxn+5] > r_jk)){
+    
+    const double rsq_ij = r_ij*r_ij;
+    const double rth_ij = rsq_ij*r_ij;
+
+    const double rsq_ik = r_ik*r_ik;
+    const double rth_ik = rsq_ik*r_ik;
+    
+    const double rsq_jk = r_jk*r_jk;
+    const double rth_jk = rsq_jk*r_jk;
+    
+    const double delx_ij = -1*Rs[9];
+    const double dely_ij = -1*Rs[10];
+    const double delz_ij = -1*Rs[11];
+
+    const double delx_ik = -1*Rs[6];
+    const double dely_ik = -1*Rs[7];
+    const double delz_ik = -1*Rs[8];
+    
+    const double delx_jk = -1*Rs[3];
+    const double dely_jk = -1*Rs[4];
+    const double delz_jk = -1*Rs[5];
+    
+    const int bl = n3b_interxn_data.bl;
+    const int bm = n3b_interxn_data.bm;
+    const int bn = n3b_interxn_data.bn;
+    
+    int knot_posn_ij = n3b_interxn_data.bl;
+    int knot_posn_ik = n3b_interxn_data.bm;
+    int knot_posn_jk = n3b_interxn_data.bn;
+
+    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+      knot_posn_ij--;
+
+    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+      knot_posn_ik--;
+
+    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+      knot_posn_jk--;
+    
+    if (atom_of_focus == 2) {
+      //-------------------------------new ij
+      const std::array<double, 4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                            n3b_interxn_data.constants_ij,
+                                                            knot_posn_ij);
+
+      //-------------------------------new ik
+      const std::array<double, 4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                            n3b_interxn_data.constants_ik,
+                                                            knot_posn_ik);
+      const std::array<double, 3> basis_ik_deri =
+          get_basis_deri_set(r_ik, rsq_ik, n3b_interxn_data.constants_ik_deri,
+                  knot_posn_ik);
+      double fpair_ik[4];
+      fpair_ik[0] = basis_ik_deri[0];
+      fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
+      fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
+      fpair_ik[3] = -1*basis_ik_deri[2];
+
+      //-------------------------------new jk
+      const std::array<double, 4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                            n3b_interxn_data.constants_jk,
+                                                            knot_posn_jk);
+
+      const std::array<double, 3> basis_jk_deri = 
+          get_basis_deri_set(r_jk, rsq_jk, n3b_interxn_data.constants_jk_deri,
+                  knot_posn_jk);
+      double fpair_jk[4];
+      fpair_jk[0] = basis_jk_deri[0];
+      fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+      fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+      fpair_jk[3] = -1*basis_jk_deri[2];
+      
+      for (int x=0; x<4; x++) {
+        for (int y=0; y<4; y++) {
+          for (int z=0; z<4; z++) {
+            const int temp_index = ((knot_posn_ij-x)*bm*bn) +
+                ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
+            
+            //-1 because 2 is central and 0 is neighbor and we want forces on 0
+            //ie calculate force on current k
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik)+
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik)+
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik)+
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+          }
+        }
+      }
+    } //if atom_of_focus == 2
+
+    else if (atom_of_focus == 1) {
+      //-------------------------------new ij
+      const std::array<double, 4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                            n3b_interxn_data.constants_ij,
+                                                            knot_posn_ij);
+      const std::array<double, 3> basis_ij_deri = 
+          get_basis_deri_set(r_ij, rsq_ij, n3b_interxn_data.constants_ij_deri,
+                  knot_posn_ij);
+      double fpair_ij[4];
+      fpair_ij[0] = basis_ij_deri[0];
+      fpair_ij[1] = (basis_ij_deri[1]-basis_ij_deri[0]);
+      fpair_ij[2] = (basis_ij_deri[2]-basis_ij_deri[1]);
+      fpair_ij[3] = -1*basis_ij_deri[2];
+
+      //-------------------------------new ik
+      const std::array<double, 4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                            n3b_interxn_data.constants_ik,
+                                                            knot_posn_ik);
+                  
+      //-------------------------------new jk
+      const std::array<double, 4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                            n3b_interxn_data.constants_jk,
+                                                            knot_posn_jk);
+
+      const std::array<double, 3> basis_jk_deri = 
+          get_basis_deri_set(r_jk, rsq_jk, n3b_interxn_data.constants_jk_deri,
+                  knot_posn_jk);
+      double fpair_jk[4];
+      fpair_jk[0] = basis_jk_deri[0];
+      fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+      fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+      fpair_jk[3] = -1*basis_jk_deri[2];
+      for (int x=0; x<4; x++) {
+        for (int y=0; y<4; y++) {
+          for (int z=0; z<4; z++) {
+            const int temp_index = ((knot_posn_ij-x)*bm*bn) +
+                ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
+
+            //-1 because 2 is central and 1 is neighbor and we want forces on 1
+            //ie calculate force on current j
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delx_ij)+
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*dely_ij) +
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+            
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] += (-1*fpair_ij[x]*basis_ik[y]*basis_jk[z]*delz_ij) +
+                                                                         (basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+          }
+        }
+      }
+    } //if atom_of_focus == 1
+  } //if r
+}
+
+void UltraFastFeaturize::calculate_force_features_for_jk_swap(int atom_of_focus,
+        std::array<double, 12>& Rs,
+        int Interxn,
+        N3bInterxnData& n3b_interxn_data)
+{
+  //if atoms are labeled as 0,1,2 then jk swap
+  //makes them as 0,2,1
+  const double r_ij = Rs[1];
+  const double r_ik = Rs[0];
+  const double r_jk = Rs[2];
+
+  if ((rmin_max_3b[Interxn] <= r_ij) &&
+      (rmin_max_3b[Interxn+1] > r_ij) &&
+      (rmin_max_3b[Interxn+2] <= r_ik) &&
+      (rmin_max_3b[Interxn+3] > r_ik) &&
+      (rmin_max_3b[Interxn+4] <= r_jk) &&
+      (rmin_max_3b[Interxn+5] > r_jk)){
+
+    const double rsq_ij = r_ij*r_ij;
+    const double rth_ij = rsq_ij*r_ij;
+
+    const double rsq_ik = r_ik*r_ik;
+    const double rth_ik = rsq_ik*r_ik;
+    
+    const double rsq_jk = r_jk*r_jk;
+    const double rth_jk = rsq_jk*r_jk;
+    
+    const double delx_ij = -1*Rs[6];
+    const double dely_ij = -1*Rs[7];
+    const double delz_ij = -1*Rs[8];
+
+    const double delx_ik = Rs[3];
+    const double dely_ik = Rs[4];
+    const double delz_ik = Rs[5];
+    
+    const double delx_jk = -1*Rs[9];
+    const double dely_jk = -1*Rs[10];
+    const double delz_jk = -1*Rs[11];
+
+    const int bl = n3b_interxn_data.bl;
+    const int bm = n3b_interxn_data.bm;
+    const int bn = n3b_interxn_data.bn;
+    
+    int knot_posn_ij = n3b_interxn_data.bl;
+    int knot_posn_ik = n3b_interxn_data.bm;
+    int knot_posn_jk = n3b_interxn_data.bn;
+
+    while (r_ij<=n3b_interxn_data.knots_ij[knot_posn_ij])
+      knot_posn_ij--;
+
+    while (r_ik<=n3b_interxn_data.knots_ik[knot_posn_ik])
+      knot_posn_ik--;
+
+    while (r_jk<=n3b_interxn_data.knots_jk[knot_posn_jk])
+      knot_posn_jk--;
+
+    if (atom_of_focus == 2) {
+      //-------------------------------new ij
+      const std::array<double, 4> basis_ij = get_basis_set(r_ij, rsq_ij, rth_ij,
+                                                            n3b_interxn_data.constants_ij,
+                                                            knot_posn_ij);
+
+      //-------------------------------new ik
+      const std::array<double, 4> basis_ik = get_basis_set(r_ik, rsq_ik, rth_ik,
+                                                            n3b_interxn_data.constants_ik,
+                                                            knot_posn_ik);
+      const std::array<double, 3> basis_ik_deri =
+          get_basis_deri_set(r_ik, rsq_ik, n3b_interxn_data.constants_ik_deri,
+                  knot_posn_ik);
+      double fpair_ik[4];
+      fpair_ik[0] = basis_ik_deri[0];
+      fpair_ik[1] = (basis_ik_deri[1]-basis_ik_deri[0]);
+      fpair_ik[2] = (basis_ik_deri[2]-basis_ik_deri[1]);
+      fpair_ik[3] = -1*basis_ik_deri[2];
+
+      //-------------------------------new jk
+      const std::array<double, 4> basis_jk = get_basis_set(r_jk, rsq_jk, rth_jk,
+                                                            n3b_interxn_data.constants_jk,
+                                                            knot_posn_jk);
+
+      const std::array<double, 3> basis_jk_deri = 
+          get_basis_deri_set(r_jk, rsq_jk, n3b_interxn_data.constants_jk_deri,
+                  knot_posn_jk);
+      double fpair_jk[4];
+      fpair_jk[0] = basis_jk_deri[0];
+      fpair_jk[1] = (basis_jk_deri[1]-basis_jk_deri[0]);
+      fpair_jk[2] = (basis_jk_deri[2]-basis_jk_deri[1]);
+      fpair_jk[3] = -1*basis_jk_deri[2];
+
+      for (int x=0; x<4; x++) {
+        for (int y=0; y<4; y++) {
+          for (int z=0; z<4; z++) {
+            const int temp_index = ((knot_posn_ij-x)*bm*bn) +
+                ((knot_posn_ik-y)*bn) + (knot_posn_jk-z);
+            
+            //-1 because 0 is central and 2 is neighbor and we want forces on 2
+            //ie calculate force on current k
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fx[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delx_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delx_jk);
+
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fy[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*dely_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*dely_jk);
+
+            n3b_interxn_data.atomic_3b_Reprn_matrix_fz[temp_index] += (-1*basis_ij[x]*fpair_ik[y]*basis_jk[z]*delz_ik) +
+                                                                      (-1*basis_ij[x]*basis_ik[y]*fpair_jk[z]*delz_jk);
+
+          }
+        }
+      }
+    } //if atom_of_focus == 2
+  } //if r check
+}
+
 /*void UltraFastFeaturize::write_hdf5(const hsize_t num_rows, const hsize_t num_cols,
                                const int batch_num, const H5::H5File &file_fp,
                                const std::vector<double> &Data,
