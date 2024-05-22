@@ -396,15 +396,18 @@ class WeightedLinearModel(BasicLinearModel):
                                                     style=progress)
         else:
             h5py_fp = h5py.File(filename)
-            table_iterator = list(h5py_fp.keys())
+            #table_iterator = list(h5py_fp.keys())
+            table_names = list(h5py_fp.keys())
+            table_iterator = parallel.progress_iter(np.arange(len(table_names)),
+                                                    style=progress)
             h5py_fp.close()
 
         for j in table_iterator:
+            table_name = table_names[j]
             if not UFF:
-                table_name = table_names[j]
                 df = process.load_feature_db(filename, table_name)
             else:
-                df = open_uff_feature(filename, j)
+                df = open_uff_feature(filename, table_name)
 
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
