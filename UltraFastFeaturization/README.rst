@@ -42,5 +42,4 @@ If conda was used to install the HDF5 then the include directory and library dir
 Usage
 ----
 
-Curently only :code:`trailing_trim = 0` and :code:`leading_trim = 0` is supported.
 See the UltraFastFeaturize_demo.ipynb notebook.
