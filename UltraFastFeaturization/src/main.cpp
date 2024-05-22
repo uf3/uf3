@@ -36,7 +36,8 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
                       py::array_t<double, py::array::c_style>,
                       py::array_t<int, py::array::c_style>,
                       py::array_t<int, py::array::c_style>,
-                      py::array_t<int, py::array::c_style>>(),
+                      py::array_t<int, py::array::c_style>,
+                      int, int>(),
              py::arg("degree"),
              py::arg("nelements"),
              py::arg("interactions_map"),
@@ -45,10 +46,14 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              py::arg("n3b_knots_map"),
              py::arg("n3b_num_knots"),
              py::arg("n3b_symm_array"),
-             py::arg("n3b_feature_sizes"))
+             py::arg("n3b_feature_sizes"),
+             py::arg("leading_trim"),
+             py::arg("trailing_trim"))
         .def_readonly("degree", &bspline_config_ff::degree)
         .def_readonly("nelements", &bspline_config_ff::nelements)
         .def_readonly("interactions_map", &bspline_config_ff::interactions_map)
+        .def_readonly("leading_trim", &bspline_config_ff::leading_trim)
+        .def_readonly("trailing_trim", &bspline_config_ff::trailing_trim)
         .def_readonly("n2b_interactions", &bspline_config_ff::n2b_interactions)
         .def_readonly("n3b_interactions", &bspline_config_ff::n3b_interactions)
         .def_readonly("n2b_knots_map", &bspline_config_ff::n2b_knots_map)
@@ -86,7 +91,8 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
                       py::array_t<double, py::array::c_style>,
                       py::array_t<int, py::array::c_style>,
                       py::array_t<int, py::array::c_style>,
-                      py::array_t<int, py::array::c_style>>(),
+                      py::array_t<int, py::array::c_style>,
+                      int, int>(),
              py::arg("degree"),
              py::arg("nelements"),
              py::arg("interactions_map"),
@@ -95,7 +101,9 @@ PYBIND11_MODULE(ultra_fast_featurize, m) {
              py::arg("n3b_knots_map"),
              py::arg("n3b_num_knots"),
              py::arg("n3b_symm_array"),
-             py::arg("n3b_feature_sizes"))
+             py::arg("n3b_feature_sizes"),
+             py::arg("leading_trim"),
+             py::arg("trailing_trim"))
         .def_readonly("BsplineConfig", &UltraFastFeaturize::BsplineConfig)
         .def_readonly("max_num_neigh", &UltraFastFeaturize::max_num_neigh)
         .def_readonly("num_batches", &UltraFastFeaturize::num_batches)

@@ -24,6 +24,8 @@ class UltraFastFeaturize{
     const py::array_t<int, py::array::c_style> n3b_num_knots;
     const py::array_t<int, py::array::c_style> n3b_symm_array;
     const py::array_t<int, py::array::c_style> n3b_feature_sizes;
+    const int leading_trim;
+    const int trailing_trim;
 
     py::array_t<double, py::array::c_style> atoms_array, supercell_array, cell_array;
     py::array_t<double, py::array::c_style> energy_array, forces_array;
@@ -90,7 +92,9 @@ class UltraFastFeaturize{
                         py::array_t<double, py::array::c_style> _n3b_knots_map,
                         py::array_t<int, py::array::c_style> _n3b_num_knots,
                         py::array_t<int, py::array::c_style> _n3b_symm_array,
-                        py::array_t<int, py::array::c_style> _n3b_feature_sizes);
+                        py::array_t<int, py::array::c_style> _n3b_feature_sizes,
+                        const int _leading_trim,
+                        const int _trailing_trim);
 
     std::vector<int> num_of_interxns, n2b_types, n3b_types, n2b_num_knots_array, elements;
     std::vector<std::vector<double>> n2b_knots_array;

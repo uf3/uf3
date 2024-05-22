@@ -16,6 +16,8 @@ class bspline_config_ff {
     const py::array_t<int, py::array::c_style> n3b_num_knots;
     const py::array_t<int, py::array::c_style> n3b_symm_array;
     const py::array_t<int, py::array::c_style> n3b_feature_sizes;
+    const int leading_trim;
+    const int trailing_trim;
      
     bspline_config_ff();
 
@@ -25,7 +27,8 @@ class bspline_config_ff {
                         py::array_t<double, py::array::c_style> _n3b_knots_map,
                         py::array_t<int, py::array::c_style> _n3b_num_knots,
                         py::array_t<int, py::array::c_style> _n3b_symm_array,
-                        py::array_t<int, py::array::c_style> _n3b_feature_sizes);
+                        py::array_t<int, py::array::c_style> _n3b_feature_sizes,
+                        int _leading_trim, int _trailing_trim);
     ~bspline_config_ff();
 
     int n2b_interactions=0;
@@ -45,9 +48,9 @@ class bspline_config_ff {
                                               std::vector<double> &jk_knots,
                                               int ij_num_knots,
                                               int ik_num_knots,
-                                              int jk_num_knots,
-                                              int n3b_lead,
-                                              int n3b_trail);
+                                              int jk_num_knots);
+                                              /*int n3b_lead,
+                                              int n3b_trail);*/
     std::vector<double> template_array_flatten;
 
 

@@ -26,7 +26,9 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
                              py::array_t<double, py::array::c_style> _n3b_knots_map,
                              py::array_t<int, py::array::c_style> _n3b_num_knots,
                              py::array_t<int, py::array::c_style> _n3b_symm_array,
-                             py::array_t<int, py::array::c_style> _n3b_feature_sizes)
+                             py::array_t<int, py::array::c_style> _n3b_feature_sizes,
+                             int _leading_trim,
+                             int _trailing_trim)
         : degree(_degree), nelements(_nelements), 
           interactions_map(_interactions_map),
           n2b_knots_map(_n2b_knots_map),
@@ -35,11 +37,14 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
           n3b_num_knots(_n3b_num_knots),
           n3b_symm_array(_n3b_symm_array),
           n3b_feature_sizes(_n3b_feature_sizes),
+          leading_trim(_leading_trim),
+          trailing_trim(_trailing_trim),
           // As bspline_config_ff conatins const members, we have to use the
           // copy constructor of 'bspline_config_ff' and initialize the 
           // BsplineConfig here
           BsplineConfig(degree, nelements, interactions_map, n2b_knots_map, n2b_num_knots,
-                        n3b_knots_map, n3b_num_knots, n3b_symm_array, n3b_feature_sizes)
+                        n3b_knots_map, n3b_num_knots, n3b_symm_array, n3b_feature_sizes,
+                        leading_trim, trailing_trim)
 {
   num_of_interxns = {static_cast<int>(this->BsplineConfig.n2b_interactions), 
                      static_cast<int>(this->BsplineConfig.n3b_interactions)};
@@ -230,9 +235,7 @@ UltraFastFeaturize::UltraFastFeaturize(int _degree,
                                                 n3b_knots_array[interxn][2],
                                                 n3b_num_knots_un(interxn,0),
                                                 n3b_num_knots_un(interxn,1),
-                                                n3b_num_knots_un(interxn,2),
-                                                0,
-                                                0);
+                                                n3b_num_knots_un(interxn,2));
       for (int i=0; i<template_array_flatten.size(); i++){
         if (template_array_flatten[i]>0){
           flat_weights[temp_count] = template_array_flatten[i];
@@ -551,92 +554,147 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
           double r = Neighs[(d/4)*(rows*cols)+(interxn*cols)+atom2];
 
           if ((rmin <= r) && (r < rmax)) {
-          double rsq = r*r;
-          double rth = rsq*r;
+            double rsq = r*r;
+            double rth = rsq*r;
         
-          int knot_posn = num_knots-4;
-          while (r<=knots[knot_posn])
-            knot_posn--;
+            int knot_posn = num_knots-4;
+            while (r<=knots[knot_posn])
+              knot_posn--;
 
-          int basis_posn = basis_start_posn+knot_posn;
-          atomic_Reprn[d*reprn_length+basis_posn] += 
-              (constants_2b[interxn][knot_posn][0] +
-              (r*constants_2b[interxn][knot_posn][1]) +
-              (rsq*constants_2b[interxn][knot_posn][2]) +
-              (rth*constants_2b[interxn][knot_posn][3]));
+            int basis_posn = basis_start_posn+knot_posn;
+            atomic_Reprn[d*reprn_length+basis_posn] += 
+                (constants_2b[interxn][knot_posn][0] +
+                (r*constants_2b[interxn][knot_posn][1]) +
+                (rsq*constants_2b[interxn][knot_posn][2]) +
+                (rth*constants_2b[interxn][knot_posn][3]));
 
-          atomic_Reprn[d*reprn_length+basis_posn-1] += 
-              (constants_2b[interxn][knot_posn-1][4] +
-              (r*constants_2b[interxn][knot_posn-1][5]) +
-              (rsq*constants_2b[interxn][knot_posn-1][6]) +
-              (rth*constants_2b[interxn][knot_posn-1][7]));
+            atomic_Reprn[d*reprn_length+basis_posn-1] += 
+                (constants_2b[interxn][knot_posn-1][4] +
+                (r*constants_2b[interxn][knot_posn-1][5]) +
+                (rsq*constants_2b[interxn][knot_posn-1][6]) +
+                (rth*constants_2b[interxn][knot_posn-1][7]));
 
-          atomic_Reprn[d*reprn_length+basis_posn-2] += 
-              (constants_2b[interxn][knot_posn-2][8] +
-              (r*constants_2b[interxn][knot_posn-2][9]) +
-              (rsq*constants_2b[interxn][knot_posn-2][10]) +
-              (rth*constants_2b[interxn][knot_posn-2][11]));
-
-          atomic_Reprn[d*reprn_length+basis_posn-3] +=
-              (constants_2b[interxn][knot_posn-3][12] +
-              (r*constants_2b[interxn][knot_posn-3][13]) +
-              (rsq*constants_2b[interxn][knot_posn-3][14]) +
-              (rth*constants_2b[interxn][knot_posn-3][15]));
+            atomic_Reprn[d*reprn_length+basis_posn-2] += 
+                (constants_2b[interxn][knot_posn-2][8] +
+                (r*constants_2b[interxn][knot_posn-2][9]) +
+                (rsq*constants_2b[interxn][knot_posn-2][10]) +
+                (rth*constants_2b[interxn][knot_posn-2][11]));
           
-          double basis1, basis2, basis3;
-
-          basis1 = (constants_2b_deri1[interxn][knot_posn][0] + 
-                  r*constants_2b_deri1[interxn][knot_posn][1] + 
-                  rsq*constants_2b_deri1[interxn][knot_posn][2]);
-
-          basis2 = (constants_2b_deri1[interxn][knot_posn-1][3] + 
-                  r*constants_2b_deri1[interxn][knot_posn-1][4] + 
-                  rsq*constants_2b_deri1[interxn][knot_posn-1][5]);
-
-          basis3 = (constants_2b_deri1[interxn][knot_posn-2][6] + 
-                  r*constants_2b_deri1[interxn][knot_posn-2][7] + 
-                  rsq*constants_2b_deri1[interxn][knot_posn-2][8]);
-
-          //fpair
-          //Don't know why the factor of 2 but for some reason I get the right answer
-          double *fpair = new double[4];
-          fpair[0] = 2*basis1;
-          fpair[1] = 2*(basis2-basis1);
-          fpair[2] = 2*(basis3-basis2);
-          fpair[3] = -2*basis3;
-
-          int temp_index2 = ((d/4)*(rows*cols*3))+(interxn*cols*3)+(atom2*3);
-          double delx = Neighs_del[temp_index2];
-          double dely = Neighs_del[temp_index2+1];
-          double delz = Neighs_del[temp_index2+2];
-
-          //fx
-          atomic_Reprn[(d+1)*reprn_length+basis_posn] +=(fpair[0]*delx);
-          atomic_Reprn[(d+1)*reprn_length+basis_posn-1] +=(fpair[1]*delx);
-          atomic_Reprn[(d+1)*reprn_length+basis_posn-2] +=(fpair[2]*delx);
-          atomic_Reprn[(d+1)*reprn_length+basis_posn-3] +=(fpair[3]*delx);
+            atomic_Reprn[d*reprn_length+basis_posn-3] +=
+                (constants_2b[interxn][knot_posn-3][12] +
+                (r*constants_2b[interxn][knot_posn-3][13]) +
+                (rsq*constants_2b[interxn][knot_posn-3][14]) +
+                (rth*constants_2b[interxn][knot_posn-3][15]));
           
-          //fy
-          atomic_Reprn[(d+2)*reprn_length+basis_posn] +=(fpair[0]*dely);
-          atomic_Reprn[(d+2)*reprn_length+basis_posn-1] +=(fpair[1]*dely);
-          atomic_Reprn[(d+2)*reprn_length+basis_posn-2] +=(fpair[2]*dely);
-          atomic_Reprn[(d+2)*reprn_length+basis_posn-3] +=(fpair[3]*dely);
+            double basis1, basis2, basis3;
+  
+            basis1 = (constants_2b_deri1[interxn][knot_posn][0] + 
+                    r*constants_2b_deri1[interxn][knot_posn][1] + 
+                    rsq*constants_2b_deri1[interxn][knot_posn][2]);
 
-          //fz
-          atomic_Reprn[(d+3)*reprn_length+basis_posn] +=(fpair[0]*delz);
-          atomic_Reprn[(d+3)*reprn_length+basis_posn-1] +=(fpair[1]*delz);
-          atomic_Reprn[(d+3)*reprn_length+basis_posn-2] +=(fpair[2]*delz);
-          atomic_Reprn[(d+3)*reprn_length+basis_posn-3] +=(fpair[3]*delz);
+            basis2 = (constants_2b_deri1[interxn][knot_posn-1][3] + 
+                    r*constants_2b_deri1[interxn][knot_posn-1][4] + 
+                    rsq*constants_2b_deri1[interxn][knot_posn-1][5]);
 
-          delete[] fpair;
+            basis3 = (constants_2b_deri1[interxn][knot_posn-2][6] + 
+                    r*constants_2b_deri1[interxn][knot_posn-2][7] + 
+                    rsq*constants_2b_deri1[interxn][knot_posn-2][8]);
+
+            //fpair
+            //Don't know why the factor of 2 but for some reason I get the right answer
+            double *fpair = new double[4];
+            fpair[0] = 2*basis1;
+            fpair[1] = 2*(basis2-basis1);
+            fpair[2] = 2*(basis3-basis2);
+            fpair[3] = -2*basis3;
+
+            int temp_index2 = ((d/4)*(rows*cols*3))+(interxn*cols*3)+(atom2*3);
+            double delx = Neighs_del[temp_index2];
+            double dely = Neighs_del[temp_index2+1];
+            double delz = Neighs_del[temp_index2+2];
+
+            //fx
+            atomic_Reprn[(d+1)*reprn_length+basis_posn] +=(fpair[0]*delx);
+            atomic_Reprn[(d+1)*reprn_length+basis_posn-1] +=(fpair[1]*delx);
+            atomic_Reprn[(d+1)*reprn_length+basis_posn-2] +=(fpair[2]*delx);
+            atomic_Reprn[(d+1)*reprn_length+basis_posn-3] +=(fpair[3]*delx);
+          
+            //fy
+            atomic_Reprn[(d+2)*reprn_length+basis_posn] +=(fpair[0]*dely);
+            atomic_Reprn[(d+2)*reprn_length+basis_posn-1] +=(fpair[1]*dely);
+            atomic_Reprn[(d+2)*reprn_length+basis_posn-2] +=(fpair[2]*dely);
+            atomic_Reprn[(d+2)*reprn_length+basis_posn-3] +=(fpair[3]*dely);
+
+            //fz
+            atomic_Reprn[(d+3)*reprn_length+basis_posn] +=(fpair[0]*delz);
+            atomic_Reprn[(d+3)*reprn_length+basis_posn-1] +=(fpair[1]*delz);
+            atomic_Reprn[(d+3)*reprn_length+basis_posn-2] +=(fpair[2]*delz);
+            atomic_Reprn[(d+3)*reprn_length+basis_posn-3] +=(fpair[3]*delz);
+  
+            delete[] fpair;
           } //rmin_sq, rmax_sq
 
         }// End of loop over neighs of atom1 for interxn
+        //fix leading trim
+        //energy
+        for (int bspline_index = basis_start_posn; bspline_index < basis_start_posn + leading_trim;
+                bspline_index++){
+          atomic_Reprn[d*reprn_length+bspline_index] = 0;
+        }
+        
+        //fx
+        for (int bspline_index = basis_start_posn; bspline_index < basis_start_posn + leading_trim;
+                bspline_index++){
+          atomic_Reprn[(d+1)*reprn_length+bspline_index] = 0;
+        }
+        
+        //fy
+        for (int bspline_index = basis_start_posn; bspline_index < basis_start_posn + leading_trim;
+                bspline_index++){
+          atomic_Reprn[(d+2)*reprn_length+bspline_index] = 0;
+        }
+        
+        //fz
+        for (int bspline_index = basis_start_posn; bspline_index < basis_start_posn + leading_trim;
+                bspline_index++){
+          atomic_Reprn[(d+3)*reprn_length+bspline_index] = 0;
+        }
+
+        //fix trailing trim
+        int trailing_trim_posn = num_knots - 4 - trailing_trim;
+        //energy
+        for (int bspline_index = basis_start_posn + trailing_trim_posn;
+                bspline_index < basis_start_posn + num_knots - 4;
+                bspline_index++){
+          atomic_Reprn[d*reprn_length+bspline_index] = 0;
+        }
+        
+        //fx
+        for (int bspline_index = basis_start_posn + trailing_trim_posn;
+                bspline_index < basis_start_posn + num_knots - 4;
+                bspline_index++){
+          atomic_Reprn[(d+1)*reprn_length+bspline_index] = 0;
+        }
+        
+        //fy
+        for (int bspline_index = basis_start_posn + trailing_trim_posn;
+                bspline_index < basis_start_posn + num_knots - 4;
+                bspline_index++){
+          atomic_Reprn[(d+2)*reprn_length+bspline_index] = 0;
+        }
+        
+        //fz
+        for (int bspline_index = basis_start_posn + trailing_trim_posn;
+                bspline_index < basis_start_posn + num_knots - 4;
+                bspline_index++){
+          atomic_Reprn[(d+3)*reprn_length+bspline_index] = 0;
+        }
+
         basis_start_posn += (num_knots-4);
       }// End of interx loop
     } //End of atom1 loop
     
-    if (featurize_3b) { 
+    if (featurize_3b) {
       ////3b loop
       int n2b_interactions = num_of_interxns[0];
       int n3b_interactions = num_of_interxns[1];
@@ -866,7 +924,7 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
 
             for (int atom2=0; atom2<atom2_upper_limit; atom2++){
               
-                if (Z1_index_in_3b_interxn == 0) {
+              if (Z1_index_in_3b_interxn == 0) {
                 if (index_IJ == index_IK)
                   atom3_lower_limit = atom2+1;
               }
@@ -1810,9 +1868,7 @@ py::array UltraFastFeaturize::get_symmetry_weights(int interxn, int lead, int tr
                                                 n3b_knots_array[interxn][2],
                                                 n3b_num_knots_un(interxn,0),
                                                 n3b_num_knots_un(interxn,1),
-                                                n3b_num_knots_un(interxn,2),
-                                                lead,
-                                                trail);
+                                                n3b_num_knots_un(interxn,2));
   py::buffer_info template_array_flatten_buf(
     template_array_flatten_test.data(),
     sizeof(double),

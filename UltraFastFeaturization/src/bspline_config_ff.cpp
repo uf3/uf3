@@ -14,7 +14,9 @@ bspline_config_ff::bspline_config_ff()
           n3b_knots_map(py::array_t<double, py::array::c_style>()),
           n3b_num_knots(py::array_t<int, py::array::c_style>()),
           n3b_symm_array(py::array_t<int, py::array::c_style>()),
-          n3b_feature_sizes(py::array_t<int, py::array::c_style>())
+          n3b_feature_sizes(py::array_t<int, py::array::c_style>()),
+          leading_trim(0),
+          trailing_trim(0)
 {}
 
 /*bspline_config_ff::bspline_config_ff(int _degree,
@@ -83,7 +85,9 @@ bspline_config_ff::bspline_config_ff(int _degree,
         py::array_t<double, py::array::c_style> _n3b_knots_map,
         py::array_t<int, py::array::c_style> _n3b_num_knots,
         py::array_t<int, py::array::c_style> _n3b_symm_array,
-        py::array_t<int, py::array::c_style> _n3b_feature_sizes)
+        py::array_t<int, py::array::c_style> _n3b_feature_sizes,
+        int _leading_trim,
+        int _trailing_trim)
         : degree(_degree), nelements(_nelements), 
           interactions_map(_interactions_map),
           n2b_knots_map(_n2b_knots_map),
@@ -91,7 +95,9 @@ bspline_config_ff::bspline_config_ff(int _degree,
           n3b_knots_map(_n3b_knots_map),
           n3b_num_knots(_n3b_num_knots),
           n3b_symm_array(_n3b_symm_array),
-          n3b_feature_sizes(_n3b_feature_sizes)
+          n3b_feature_sizes(_n3b_feature_sizes),
+          leading_trim(_leading_trim),
+          trailing_trim(_trailing_trim)
 {
   //Compute 2body interactions
   n2b_interactions = nelements*(nelements + 1)/2;
@@ -248,10 +254,10 @@ std::vector<double> bspline_config_ff::get_symmetry_weights(int n3b_symmetry,
                                                             std::vector<double> &jk_knots,
                                                             int ij_num_knots,
                                                             int ik_num_knots,
-                                                            int jk_num_knots,
-                                                            int n3b_lead,
-                                                            int n3b_trail)
+                                                            int jk_num_knots)
 {
+  int n3b_lead = leading_trim;
+  int n3b_trail = trailing_trim;
   int l = ij_num_knots-4;
   int m = ik_num_knots-4;
   int n = jk_num_knots-4;
