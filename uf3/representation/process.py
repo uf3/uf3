@@ -322,7 +322,9 @@ class BasisFeaturizer:
                                 n3b_knots_map = n3b_knots_map_ff,
                                 n3b_num_knots = n3b_num_knots_ff,
                                 n3b_symm_array=symm_array,
-                                n3b_feature_sizes=feature_size_3b)
+                                n3b_feature_sizes=feature_size_3b,
+                                leading_trim = self.bspline_config.leading_trim,
+                                trailing_trim = self.bspline_config.trailing_trim)
 
         UFF.set_geom_data(atoms_array = atoms_array, 
                             energy_array = energy_array,
