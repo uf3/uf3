@@ -57,7 +57,7 @@ class TestCalculator:
         pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         model_file = os.path.join(data_directory, "precalculated_ref",
-                                  "model.json")
+                                  "model_unary.json")
         model = least_squares.WeightedLinearModel.from_json(model_file)
         calc = calculator.UFCalculator(model)
         geom.calc = calc
