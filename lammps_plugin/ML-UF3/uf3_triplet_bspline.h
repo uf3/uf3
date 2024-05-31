@@ -30,11 +30,11 @@ class uf3_triplet_bspline {
   std::vector<std::vector<double>> knot_matrix;
   std::vector<uf3_bspline_basis3> bsplines_ij, bsplines_ik, bsplines_jk;
   std::vector<uf3_bspline_basis2> dnbsplines_ij, dnbsplines_ik, dnbsplines_jk;
-  int knot_spacing_type;
   int get_starting_index_uniform(const std::vector<double>, int, double, double);
   int get_starting_index_nonuniform(const std::vector<double>, int, double, double);
   int (uf3_triplet_bspline::*get_starting_index)(const std::vector<double>, int, double, double);
-  double knot_spacing_ij=0,knot_spacing_ik=0,knot_spacing_jk=0; 
+  //double knot_spacing_ij=0,knot_spacing_ik=0,knot_spacing_jk=0; 
+  //double _alignvar(, 8) ret_val[4]; // Force memory alignment on 8 byte boundaries
   double ret_val[4];
 
   int starting_knot(const std::vector<double>, int, double);
@@ -46,6 +46,8 @@ class uf3_triplet_bspline {
                       const std::vector<std::vector<std::vector<double>>> &ucoeff_matrix,
                       const int &uknot_spacing_type);
   ~uf3_triplet_bspline();
+  int knot_spacing_type;
+  double knot_spacing_ij=0,knot_spacing_ik=0,knot_spacing_jk=0;
   double *eval(double value_rij, double value_rik, double value_rjk);
 
   double memory_usage();

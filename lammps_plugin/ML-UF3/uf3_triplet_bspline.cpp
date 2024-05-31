@@ -181,11 +181,17 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
   ret_val[3] = 0;
 
   for (int i = 0; i < 4; i++) {
+    const double basis_iji = basis_ij[i]; // prevent repeated access of same memory location
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[0] += coeff_matrix[i + iknot_ij][j + iknot_ik][k + iknot_jk] * basis_ij[i] *
-            basis_ik[j] * basis_jk[k];
-      }
+      const double factor = basis_iji * basis_ik[j]; // prevent repeated access of same memory location
+      const double* slice = &coeff_matrix[i + iknot_ij][j + iknot_ik][iknot_jk]; // declare a contigues 1D slice of memory
+      double tmp[4]; // declare tmp array that holds the 4 tmp values so the can be computed simultaniously in 4 separate registeres.
+      tmp[0] = slice[0] * basis_jk[0];
+      tmp[1] = slice[1] * basis_jk[1];
+      tmp[2] = slice[2] * basis_jk[2];
+      tmp[3] = slice[3] * basis_jk[3];
+      double sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];
+      ret_val[0] += factor * sum; // use 1 fused multiply-add (FMA)
     }
   }
 
@@ -210,29 +216,46 @@ double *uf3_triplet_bspline::eval(double value_rij, double value_rik, double val
   dnbasis_jk[3] = 0;
 
   for (int i = 0; i < 3; i++) {
+    const double dnbasis_iji = dnbasis_ij[i];
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[1] += dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk + k] * dnbasis_ij[i] *
-            basis_ik[j] * basis_jk[k];
-      }
+      const double factor = dnbasis_iji * basis_ik[j];
+      const double* slice = &dncoeff_matrix_ij[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[4];
+      tmp[0] = slice[0] * basis_jk[0];
+      tmp[1] = slice[1] * basis_jk[1];
+      tmp[2] = slice[2] * basis_jk[2];
+      tmp[3] = slice[3] * basis_jk[3];
+      double sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];
+      ret_val[1] += factor * sum;
     }
   }
 
   for (int i = 0; i < 4; i++) {
+    const double basis_iji = basis_ij[i];
     for (int j = 0; j < 3; j++) {
-      for (int k = 0; k < 4; k++) {
-        ret_val[2] += dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk + k] * basis_ij[i] *
-            dnbasis_ik[j] * basis_jk[k];
-      }
+      const double factor = basis_iji * dnbasis_ik[j];
+      const double* slice = &dncoeff_matrix_ik[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[4];
+      tmp[0] = slice[0] * basis_jk[0];
+      tmp[1] = slice[1] * basis_jk[1];
+      tmp[2] = slice[2] * basis_jk[2];
+      tmp[3] = slice[3] * basis_jk[3];
+      double sum = tmp[0] + tmp[1] + tmp[2] + tmp[3];
+      ret_val[2] += factor * sum;
     }
   }
 
   for (int i = 0; i < 4; i++) {
+    const double basis_iji = basis_ij[i];
     for (int j = 0; j < 4; j++) {
-      for (int k = 0; k < 3; k++) {
-        ret_val[3] += dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk + k] * basis_ij[i] *
-            basis_ik[j] * dnbasis_jk[k];
-      }
+      const double factor = basis_iji * basis_ik[j];
+      const double* slice = &dncoeff_matrix_jk[iknot_ij + i][iknot_ik + j][iknot_jk];
+      double tmp[3];
+      tmp[0] = slice[0] * dnbasis_jk[0];
+      tmp[1] = slice[1] * dnbasis_jk[1];
+      tmp[2] = slice[2] * dnbasis_jk[2];
+      double sum = tmp[0] + tmp[1] + tmp[2];
+      ret_val[3] += factor * sum;
     }
   }
 

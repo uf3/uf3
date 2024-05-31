@@ -33,10 +33,9 @@ class uf3_pair_bspline {
   std::vector<double> coeff_vect, dncoeff_vect;
   std::vector<uf3_bspline_basis3> bspline_bases;
   std::vector<uf3_bspline_basis2> dnbspline_bases;
-  int knot_spacing_type;
   int get_starting_index_uniform(double), get_starting_index_nonuniform(double);
   int (uf3_pair_bspline::*get_starting_index)(double);
-  double knot_spacing=0; 
+  //double knot_spacing=0; 
   LAMMPS *lmp;
 
  public:
@@ -46,6 +45,8 @@ class uf3_pair_bspline {
                    const std::vector<double> &ucoeff_vect,
                    const int &uknot_spacing_type);
   ~uf3_pair_bspline();
+  int knot_spacing_type;
+  double knot_spacing=0;
   double ret_val[2];
   double *eval(double value_rij);
   double memory_usage();

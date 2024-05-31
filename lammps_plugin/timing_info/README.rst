@@ -1,3 +1,5 @@
+*This documented is outdated and should not be referred to*
+
 This document describes the timing performance of lammps implementation of UF3.
 
 The tests were performed using a not yet published UF3 potential for the Nb-Sn system. The simulation cell consists of an Nb3Sn structure downloaded from the `Materials Project <materialsproject.org/>`_. The lammps simulations were carried out on the `Hipegator machine <https://help.rc.ufl.edu/doc/Available_Node_Features>`_ using a single AMD EPYC 7702 64-Core processor.
