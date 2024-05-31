@@ -144,7 +144,7 @@ class UFCalculator(ase_calc.Calculator):
 
         ase_calc.Calculator.calculate(self, atoms, properties, system_changes)
 
-        if 'energy' or 'free_energy' in properties:
+        if ('energy' in properties) or ('free_energy' in properties):
             self.results['energy'] = self._get_potential_energy(atoms)
             self.results['free_energy'] = self.results['energy']
         if 'forces' in properties:

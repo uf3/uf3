@@ -80,7 +80,7 @@ class TestCalculator:
         pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         model_file = os.path.join(data_directory, "precalculated_ref",
-                                  "model.json")
+                                  "model_unary.json")
         model = least_squares.WeightedLinearModel.from_json(model_file)
         calc = calculator.UFCalculator(model)
         geom.calc = calc
@@ -96,3 +96,20 @@ class TestCalculator:
                                     [ 0.25436762,  0.2491558 , -7.48063062],
                                     [ 0.46523214, -0.59072835,  0.14906119]]
                            )
+
+    def test_binary(self):
+        geom = ase.Atoms("NeXe", positions=[[0, 0, 0], [3.1, 0, 0]], pbc=False)
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
+        model_file = os.path.join(data_directory, "precalculated_ref",
+                                  "model_binary.json")
+        model = least_squares.WeightedLinearModel.from_json(model_file)
+        calc = calculator.UFCalculator(model)
+        geom.calc = calc
+        energy = geom.get_potential_energy()
+        assert np.isclose(energy, 0.3464031387757268)
+        forces = geom.get_forces()
+        assert np.allclose(forces, [[-0.28138023,  0.        ,  0.        ],
+                                    [ 0.28138023,  0.        ,  0.        ]]
+                           )
+    
