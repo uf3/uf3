@@ -569,3 +569,12 @@ def test_force_bspline():
     assert np.any(np.ptp(x, axis=0) > 0)  # but should not be entirely zero
     assert np.ptp(np.sum(x, axis=2)) < 1e-10  # values cancel across b-splines
     assert np.any(np.ptp(x, axis=2) > 0)  # but should not be entirely zero
+
+def test_bsplinebasis_r_cut():
+    element_list = ['Au']
+    chemistry = composition.ChemicalSystem(element_list, degree=3)
+    r_max_map = {('Au', 'Au'): 5.0,
+                 ('Au', 'Au', 'Au'): [5.1, 5.2, 10.3]}
+    bspline_handler = BSplineBasis(chemistry,
+                                   r_max_map=r_max_map)
+    assert bspline_handler.r_cut == 5.2
