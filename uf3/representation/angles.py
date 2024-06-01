@@ -52,15 +52,16 @@ def featurize_energy_3b(geom: ase.Atoms,
     if len(i_where) == 0:
         return grids
 
-    triplet_generator = generate_triplets(
-        i_where, j_where, sup_comp, hashes, dist_matrix, knot_sets)
+    i_values, i_groups = group_idx_by_center(i_where, j_where)
 
-    for triplet_batch in triplet_generator:
+    for i_group, i_value in zip(i_groups, i_values):
+        triplet_batch = generate_triplets(i_value, i_group, sup_comp, hashes,
+                                          dist_matrix, knot_sets)
         for interaction_idx in range(n_interactions):
             interaction_data = triplet_batch[interaction_idx]
             if interaction_data is None:
                 continue
-            i, r_l, r_m, r_n, ituples = interaction_data
+            r_l, r_m, r_n, ituples = interaction_data
             tuples_3b, idx_lmn = evaluate_triplet_distances(
                 r_l,
                 r_m,
@@ -181,16 +182,17 @@ def featurize_force_3b(geom: ase.Atoms,
                    for i in range(n_interactions)]
     if len(x_where) == 0:
         return force_grids
-    # process each atom's neighbors to limit memory requirement
-    triplet_generator = generate_triplets(
-        x_where, y_where, sup_comp, trio_hashes, matrix, knot_sets)
 
-    for triplet_batch in triplet_generator:
+    i_values, i_groups = group_idx_by_center(x_where, y_where)
+
+    for i_group, i_value in zip(i_groups, i_values):
+        triplet_batch = generate_triplets(i_value, i_group, sup_comp, trio_hashes,
+                                            matrix, knot_sets)
         for interaction_idx in range(n_interactions):
             interaction_data = triplet_batch[interaction_idx]
             if interaction_data is None:
                 continue
-            i, r_l, r_m, r_n, ituples = interaction_data
+            r_l, r_m, r_n, ituples = interaction_data
 
             tuples_3b, idx_lmn = evaluate_triplet_derivatives(
                 r_l,
@@ -384,23 +386,46 @@ def legacy_generate_triplets(i_where:np.ndarray,
         yield i, r_l, r_m, r_n, tuples
 
 
-def generate_triplets(i_where: np.ndarray,
-                      j_where: np.ndarray,
+def group_idx_by_center(i_where: np.ndarray,
+                        j_where: np.ndarray,
+                        ) -> Tuple[np.ndarray[np.int_], List[np.ndarray]]:
+    """
+    Group neighbor atom indices by center atom, effectively creating a neighbor
+    list in a list format.
+
+    Args:
+        i_where (np.ndarray): sorted "i" indices (return value from 
+            `identify_ij`)
+        j_where (np.ndarray): sorted "j" indices (return value from 
+            `identify_ij`)
+
+    Returns:
+        i_values (np.ndarray[np.int_]): unique center atom indices
+        i_groups (List[np.ndarray]): list of neighbor indices grouped by center
+            atom
+    """
+    # find unique values of i
+    i_values, group_sizes = np.unique(i_where, return_counts=True)
+    # group j by values of i
+    i_groups = np.array_split(j_where, np.cumsum(group_sizes)[:-1])
+    return i_values, i_groups
+
+
+def generate_triplets(i_value: int,
+                      i_group: np.ndarray,
                       sup_composition: np.ndarray,
                       hashes: np.ndarray,
                       distance_matrix: np.ndarray,
                       knot_sets: List[List[np.ndarray]]
                       ) -> List[Tuple]:
     """
-    Identify unique "i-j-k" tuples by combining provided i-j pairs, then
-    compute i-j, i-k, and j-k pair distances from i-j-k tuples,
-        distance matrix, and knot sequence for cutoffs.
-
-    TODO: refactor to break up into smaller, reusable functions
+    For a given center atom and its neighbors, identify unique "i-j-k" tuples
+    by combining provided i-j pairs, then compute i-j, i-k, and j-k pair
+    distances from i-j-k tuples, distance matrix, and knot sequence for cutoffs.
 
     Args:
-        i_where (np.ndarray): sorted "i" indices
-        j_where (np.ndarray): sorted "j" indices
+        i_value (int): center atom index
+        j_where (np.ndarray): array of neighbor indices of `i_value`
         sup_composition (np.ndarray): composition given by atomic numbers.
         hashes (np.ndarray): array of unique integer hashes for interactions.
         distance_matrix (np.ndarray): pair distance matrix.
@@ -409,69 +434,63 @@ def generate_triplets(i_where: np.ndarray,
     Returns:
         tuples_idx (np.ndarray): array of shape (n_triangles, 3)
     """
-    n_hashes = len(hashes)
-    # find unique values of i (sorted such that i < j)
-    i_values, group_sizes = np.unique(i_where, return_counts=True)
-    # group j by values of i
-    i_groups = np.array_split(j_where, np.cumsum(group_sizes)[:-1])
     # generate j-k combinations
-    for i in range(len(i_groups)):
-        j_arr, k_arr = np.meshgrid(i_groups[i], i_groups[i])
+    j_arr, k_arr = np.meshgrid(i_group, i_group)
 
-        # Pick out unique neighbor pairs of central atom i
-        # ex: With center atom 0 and its neighbors [2, 1, 3],
-        # j_arr = [[2, 1, 3],
-        #          [2, 1, 3],
-        #          [2, 1, 3]]
-        # k_arr = [[2, 2, 2],
-        #          [1, 1, 1],
-        #          [3, 3, 3]]
-        # j_indices = [1, 2, 1]
-        # k_indices = [2, 3, 3]
-        # => unique pairs: (1, 2), (2, 3), (1, 3)
-        # The unique_pair_mask has filtered out pairs like (1, 1), (2, 1), (3, 2), etc.
-        unique_pair_mask = (j_arr < k_arr)
-        j_indices = j_arr[unique_pair_mask]
-        k_indices = k_arr[unique_pair_mask]
-        tuples = np.vstack((i_values[i] * np.ones(len(j_indices), dtype=int),
-                            j_indices, k_indices)).T  # array of unique triplets
+    # Pick out unique neighbor pairs of central atom i
+    # ex: With center atom 0 and its neighbors [2, 1, 3],
+    # j_arr = [[2, 1, 3],
+    #          [2, 1, 3],
+    #          [2, 1, 3]]
+    # k_arr = [[2, 2, 2],
+    #          [1, 1, 1],
+    #          [3, 3, 3]]
+    # j_indices = [1, 2, 1]
+    # k_indices = [2, 3, 3]
+    # => unique pairs: (1, 2), (2, 3), (1, 3)
+    # The unique_pair_mask has filtered out pairs like (1, 1), (2, 1), (3, 2), etc.
+    unique_pair_mask = (j_arr < k_arr)
+    j_indices = j_arr[unique_pair_mask]
+    k_indices = k_arr[unique_pair_mask]
+    tuples = np.vstack((i_value * np.ones(len(j_indices), dtype=int),
+                        j_indices, k_indices)).T  # array of unique triplets
 
-        comp_tuples = sup_composition[tuples]
+    comp_tuples = sup_composition[tuples]
 
-        sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)  # to sort by atomic number
-        comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
-        tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
+    sort_indices = np.argsort(comp_tuples[:, 1:],axis=1)  # to sort by atomic number
+    comp_tuples_slice = np.take_along_axis(comp_tuples[:, 1:],sort_indices,axis=1)
+    tuples_slice = np.take_along_axis(tuples[:, 1:],sort_indices,axis=1)
 
-        # sort comp_tuples and tuples the same way
-        comp_tuples = np.hstack((comp_tuples[:, [0]], comp_tuples_slice))
-        tuples = np.hstack((tuples[:, [0]], tuples_slice))
+    # sort comp_tuples and tuples the same way
+    comp_tuples = np.hstack((comp_tuples[:, [0]], comp_tuples_slice))
+    tuples = np.hstack((tuples[:, [0]], tuples_slice))
 
-        ijk_hash = composition.get_szudzik_hash(comp_tuples)
+    ijk_hash = composition.get_szudzik_hash(comp_tuples)
 
-        grouped_triplets = [None] * n_hashes
-        for j, hash_ in enumerate(hashes):
-            ituples = tuples[ijk_hash == hash_]
-            if len(ituples) == 0:
-                grouped_triplets[j] = None
-                continue
-            # extract distance tuples
-            r_l = distance_matrix[ituples[:, 0], ituples[:, 1]]
-            r_m = distance_matrix[ituples[:, 0], ituples[:, 2]]
-            r_n = distance_matrix[ituples[:, 1], ituples[:, 2]]
-            # mask by longest distance
-            l_mask = ((r_l >= knot_sets[j][0][0])
-                      & (r_l <= knot_sets[j][0][-1]))
-            m_mask = ((r_m >= knot_sets[j][1][0])
-                      & (r_m <= knot_sets[j][1][-1]))
-            n_mask = ((r_n >= knot_sets[j][2][0])
-                      & (r_n <= knot_sets[j][2][-1]))
-            dist_mask = np.logical_and.reduce([l_mask, m_mask, n_mask])
-            r_l = r_l[dist_mask]
-            r_m = r_m[dist_mask]
-            r_n = r_n[dist_mask]
-            ituples = ituples[dist_mask]
-            grouped_triplets[j] = i, r_l, r_m, r_n, ituples
-        yield grouped_triplets
+    grouped_triplets = [None] * len(hashes)
+    for j, hash_ in enumerate(hashes):
+        ituples = tuples[ijk_hash == hash_]
+        if len(ituples) == 0:
+            grouped_triplets[j] = None
+            continue
+        # extract distance tuples
+        r_l = distance_matrix[ituples[:, 0], ituples[:, 1]]
+        r_m = distance_matrix[ituples[:, 0], ituples[:, 2]]
+        r_n = distance_matrix[ituples[:, 1], ituples[:, 2]]
+        # mask by longest distance
+        l_mask = ((r_l >= knot_sets[j][0][0])
+                    & (r_l <= knot_sets[j][0][-1]))
+        m_mask = ((r_m >= knot_sets[j][1][0])
+                    & (r_m <= knot_sets[j][1][-1]))
+        n_mask = ((r_n >= knot_sets[j][2][0])
+                    & (r_n <= knot_sets[j][2][-1]))
+        dist_mask = np.logical_and.reduce([l_mask, m_mask, n_mask])
+        r_l = r_l[dist_mask]
+        r_m = r_m[dist_mask]
+        r_n = r_n[dist_mask]
+        ituples = ituples[dist_mask]
+        grouped_triplets[j] = r_l, r_m, r_n, ituples
+    return grouped_triplets
 
 
 def evaluate_triplet_distances(r_l: np.ndarray,
