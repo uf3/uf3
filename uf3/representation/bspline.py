@@ -176,7 +176,8 @@ class BSplineBasis:
             if isinstance(r_max, (float, np.floating, int, np.int64)):
                 values.append(r_max)
             else:
-                values.append(r_max[0])
+                # higher body interactions: get max r involving central atom
+                values.append( max(r_max[:len(interaction)-1]) )
         return max(values)
 
     def update_knots(self,
