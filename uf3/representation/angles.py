@@ -310,6 +310,16 @@ def identify_ij(geom: ase.Atoms,
     knots_flat = np.concatenate([sequence for set_ in knot_sets
                                  for sequence in set_])
     r_min = max(np.min(knots_flat), 0)
+                
+    # For r_max, we need to consider the largest cutoff distance of all
+    # interactions involving the center atom.
+    # Given an n-body interaction, the number of distances in an n-tuplet is
+    # n(n-1)/2, which is the length of set_. Working backwards,
+    # n = (1+sqrt(1+8*len(set_)))/2. The distances involving the center atom
+    # is one less than this.
+    knots_flat = np.concatenate([sequence for set_ in knot_sets
+                                 for sequence in
+                                 set_[:int((1+np.sqrt(1+8*len(set_)))/2-1)]])
     r_max = np.max(knots_flat)
     sup_positions = supercell.get_positions()
     geo_positions = geom.get_positions()
