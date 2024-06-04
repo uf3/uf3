@@ -400,7 +400,7 @@ def legacy_generate_triplets(i_where:np.ndarray,
 
 def group_idx_by_center(i_where: np.ndarray,
                         j_where: np.ndarray,
-                        ) -> Tuple[np.ndarray[np.int_], List[np.ndarray]]:
+                        ) -> Tuple[np.ndarray, List]:
     """
     Group neighbor atom indices by center atom, effectively creating a neighbor
     list in a list format.
