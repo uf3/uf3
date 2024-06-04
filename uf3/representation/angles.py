@@ -186,6 +186,8 @@ def featurize_force_3b(geom: ase.Atoms,
     i_values, i_groups = group_idx_by_center(x_where, y_where)
 
     for i_group, i_value in zip(i_groups, i_values):
+        if (i_value >= n_atoms) and np.all(i_group >= n_atoms):
+            continue
         triplet_batch = generate_triplets(i_value, i_group, sup_comp, trio_hashes,
                                             matrix, knot_sets)
         for interaction_idx in range(n_interactions):
