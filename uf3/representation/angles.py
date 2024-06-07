@@ -449,7 +449,9 @@ def generate_triplets(i_value: int,
 
     # generate j-k combinations
     if i_value >= n_atoms:
-        # if center atom is a ghost, guarantee that at least one neighbor is a real atom
+        # If center atom is a ghost, guarantee that at least one neighbor is a real atom
+        # In the current UF3 code, the supercell is generated such that the ghost atoms
+        # have indices greater than or equal to n_atoms.
         i_group_filtered = i_group[i_group < n_atoms]
         if i_group_filtered.size == 0:
             return grouped_triplets
