@@ -56,7 +56,7 @@ def featurize_energy_3b(geom: ase.Atoms,
 
     for i_group, i_value in zip(i_groups, i_values):
         triplet_batch = generate_triplets(i_value, i_group, sup_comp, hashes,
-                                          dist_matrix, knot_sets)
+                                          dist_matrix, knot_sets, len(geom))
         for interaction_idx in range(n_interactions):
             interaction_data = triplet_batch[interaction_idx]
             if interaction_data is None:
@@ -186,10 +186,8 @@ def featurize_force_3b(geom: ase.Atoms,
     i_values, i_groups = group_idx_by_center(x_where, y_where)
 
     for i_group, i_value in zip(i_groups, i_values):
-        if (i_value >= n_atoms) and np.all(i_group >= n_atoms):
-            continue
         triplet_batch = generate_triplets(i_value, i_group, sup_comp, trio_hashes,
-                                            matrix, knot_sets)
+                                            matrix, knot_sets, n_atoms)
         for interaction_idx in range(n_interactions):
             interaction_data = triplet_batch[interaction_idx]
             if interaction_data is None:
@@ -428,7 +426,8 @@ def generate_triplets(i_value: int,
                       sup_composition: np.ndarray,
                       hashes: np.ndarray,
                       distance_matrix: np.ndarray,
-                      knot_sets: List[List[np.ndarray]]
+                      knot_sets: List[List[np.ndarray]],
+                      n_atoms: int,
                       ) -> List[Tuple]:
     """
     For a given center atom and its neighbors, identify unique "i-j-k" tuples
@@ -446,8 +445,17 @@ def generate_triplets(i_value: int,
     Returns:
         tuples_idx (np.ndarray): array of shape (n_triangles, 3)
     """
+    grouped_triplets = [None] * len(hashes)  # initialize return value
+
     # generate j-k combinations
-    j_arr, k_arr = np.meshgrid(i_group, i_group)
+    if i_value >= n_atoms:
+        # if center atom is a ghost, guarantee that at least one neighbor is a real atom
+        i_group_filtered = i_group[i_group < n_atoms]
+        if i_group_filtered.size == 0:
+            return grouped_triplets
+    else:
+        i_group_filtered = i_group
+    j_arr, k_arr = np.meshgrid(i_group_filtered, i_group)
 
     # Pick out unique neighbor pairs of central atom i
     # ex: With center atom 0 and its neighbors [2, 1, 3],
@@ -479,7 +487,6 @@ def generate_triplets(i_value: int,
 
     ijk_hash = composition.get_szudzik_hash(comp_tuples)
 
-    grouped_triplets = [None] * len(hashes)
     for j, hash_ in enumerate(hashes):
         ituples = tuples[ijk_hash == hash_]
         if len(ituples) == 0:

@@ -231,7 +231,8 @@ class UFCalculator(ase_calc.Calculator):
             triplet_batch = angles.generate_triplets(i_value, i_group,
                                                      sup_comp, hashes,
                                                      dist_matrix,
-                                                     knot_sets)
+                                                     knot_sets,
+                                                     len(atoms))
             for interaction_idx in range(n_interactions):
                 interaction_data = triplet_batch[interaction_idx]
                 if interaction_data is None:
@@ -307,11 +308,10 @@ class UFCalculator(ase_calc.Calculator):
         i_values, i_groups = angles.group_idx_by_center(x_where, y_where)
 
         for i_value, i_group in zip(i_values, i_groups):
-            if (i_value >= n_atoms) and np.all(i_group >= n_atoms):
-                    continue
             triplet_batch = angles.generate_triplets(i_value, i_group,
                                                     sup_comp, hashes,
-                                                    matrix, knot_sets)
+                                                    matrix, knot_sets,
+                                                    n_atoms)
             for interaction_idx in range(n_interactions):
                 interaction_data = triplet_batch[interaction_idx]
                 if interaction_data is None:
