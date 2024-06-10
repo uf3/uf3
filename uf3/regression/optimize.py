@@ -17,8 +17,8 @@ def get_bspline_config(
     rmax_3b: float,
     knot_spacing_2b: float,
     knot_spacing_3b: float,
-    leading_trim: float,
-    trailing_trim: float,
+    leading_trim: int,
+    trailing_trim: int,
 ):
     """
     Function for getting bspline_config object. We recommend using this function
@@ -40,9 +40,9 @@ def get_bspline_config(
             the HDF5 file
         knot_spacing_3b (float): knot_spacing for 3-body interaction to create
             the HDF5 file
-        leading_trim (float): number of basis functions at leading edge
+        leading_trim (int): number of basis functions at leading edge
             to suppress. Useful for ensuring smooth cutoffs.
-        trailing_trim (float): number of basis functions at trailing edge
+        trailing_trim (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
 
     Returns:
@@ -178,10 +178,10 @@ def get_columns_to_drop_2b(
         columns_to_drop_2b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
-    if original_bspline_config.leading_trim != 0:
+    if original_bspline_config.leading_trim[2] != 0:
         raise ValueError("Currrent version is only tested for leading_trim=0")
 
-    if original_bspline_config.trailing_trim != 3:
+    if original_bspline_config.trailing_trim[2] != 3:
         raise ValueError("Currrent version is only tested for trailing_trim=3")
 
     column_names = original_bspline_config.get_column_names()
@@ -229,10 +229,10 @@ def get_columns_to_drop_3b(
         columns_to_drop_3b (list): Should be passed to drop_columns argument of
             fit_from_file
     """
-    if original_bspline_config.leading_trim != 0:
+    if original_bspline_config.leading_trim[3] != 0:
         raise ValueError("Currrent version is only tested for leading_trim=0")
 
-    if original_bspline_config.trailing_trim != 3:
+    if original_bspline_config.trailing_trim[3] != 3:
         raise ValueError("Currrent version is only tested for trailing_trim=3")
     column_names = original_bspline_config.get_column_names()
     interaction_partitions_num = original_bspline_config.get_interaction_partitions()[0]
