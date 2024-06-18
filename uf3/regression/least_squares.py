@@ -973,15 +973,17 @@ def subset_prediction(df: pd.DataFrame,
         p_f (np.ndarray): prediction values for forces.
     """
     if subset_keys is not None:
-        idx = df.index.unique(level=0).intersection(subset_keys)
+        df_index = df.index.unique(level=0)
+        idx = [i for i in subset_keys if i in df_index]
+        #idx = df.index.unique(level=0).intersection(subset_keys)
         if len(idx) == 0:
-            return list(), list(), list(), list()
+            return [list(), list(), list(), list()], list()
         df = df.loc[idx]
     x_e, y_e, x_f, y_f = dataframe_to_tuples(df,
                                              **kwargs)
     p_e = model.predict(x_e)
     p_f = model.predict(x_f)
-    return y_e, p_e, y_f, p_f
+    return [y_e, p_e, y_f, p_f], idx
 
 
 def batched_prediction(model: WeightedLinearModel,
@@ -1020,24 +1022,29 @@ def batched_prediction(model: WeightedLinearModel,
         h5py_fp.close()
 
     df_batches = io.dataframe_batch_loader(filename, table_names, UFF)
-    y_e = []
-    p_e = []
+    y_e = np.zeros(len(subset_keys))
+    p_e = np.zeros(len(subset_keys))
     y_f = []
     p_f = []
     for df in df_batches:
         if drop_columns != None:
             df.drop(columns=drop_columns,inplace=True)
 
-        predictions = subset_prediction(df,
-                                        model,
-                                        subset_keys=subset_keys,
-                                        **kwargs)
-        y_e.append(predictions[0])
-        p_e.append(predictions[1])
-        y_f.append(predictions[2])
-        p_f.append(predictions[3])
-    y_e = np.concatenate(y_e)
-    p_e = np.concatenate(p_e)
+        predictions, idx = subset_prediction(df,
+                                            model,
+                                            subset_keys=subset_keys,
+                                            **kwargs)
+        if len(idx) != 0:
+            indices = [i for i, x in enumerate(subset_keys) if x in idx]
+
+            y_e[indices] = predictions[0]
+            p_e[indices] = predictions[1]
+            #y_e.append(predictions[0])
+            #p_e.append(predictions[1])
+            y_f.append(predictions[2])
+            p_f.append(predictions[3])
+    #y_e = np.concatenate(y_e)
+    #p_e = np.concatenate(p_e)
     y_f = np.concatenate(y_f)
     p_f = np.concatenate(p_f)
     return y_e, p_e, y_f, p_f
