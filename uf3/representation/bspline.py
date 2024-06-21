@@ -123,6 +123,16 @@ class BSplineBasis:
                 "trailing_trim",
                 "knots_map"]
         basis_settings.update({k: v for k, v in config.items() if k in keys})
+
+        # The keys of leading/trailing trims are stored as strings in JSON
+        # but must be converted back to integers
+        if isinstance(basis_settings["leading_trim"], dict):  # allow int
+            basis_settings["leading_trim"] = \
+                {int(k): v for k, v in basis_settings["leading_trim"].items()}
+        if isinstance(basis_settings["trailing_trim"], dict):  # allow int
+            basis_settings["trailing_trim"] = \
+                {int(k): v for k, v in basis_settings["trailing_trim"].items()}
+        
         bspline_config = BSplineBasis(chemical_system, **basis_settings)
         if "knots_path" in config and config["dump_knots"]:
             knots_map = bspline_config.knots_map
@@ -134,8 +144,9 @@ class BSplineBasis:
     def as_dict(self):
         dump = dict(knot_strategy=self.knot_strategy,
                     offset_1b=self.offset_1b,
-                    leading_trim=self.leading_trim,
-                    trailing_trim=self.trailing_trim,
+                    # convert trim keys to string keys for JSON compatibility
+                    leading_trim={str(k): v for k, v in self.leading_trim.items()},
+                    trailing_trim={str(k): v for k, v in self.trailing_trim.items()},
                     knots_map=self.knots_map,
                     **self.chemical_system.as_dict())
         return dump
