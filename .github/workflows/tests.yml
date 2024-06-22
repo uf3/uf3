@@ -39,7 +39,7 @@ jobs:
         python --version
         pip install -U pip pytest
         pip install setuptools_scm
-        pip install numpy==1.26.4
+        pip install numpy==1.24.4
         pip install .
     - name: Test with pytest
       run: |
