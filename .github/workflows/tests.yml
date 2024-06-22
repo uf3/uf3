@@ -39,7 +39,12 @@ jobs:
         python --version
         pip install -U pip pytest
         pip install setuptools_scm
-        pip install numpy==1.24.4
+        # numpy 1.24.4 for python3.8 and 1.26.4 for python3.9 and higher
+        if [[ "${{ matrix.python-version }}" == "3.8" ]]; then
+          pip install numpy==1.24.4
+        else
+          pip install numpy==1.26.4
+        fi
         pip install .
     - name: Test with pytest
       run: |
