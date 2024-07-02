@@ -409,6 +409,9 @@ class WeightedLinearModel(BasicLinearModel):
             else:
                 df = open_uff_feature(filename, table_name)
 
+                if UFF and type(subset[0]) != str:
+                    subset = [str(i) for i in subset]
+
             keys = df.index.unique(level=0).intersection(subset)
             if len(keys) == 0:
                 continue
@@ -530,6 +533,8 @@ class WeightedLinearModel(BasicLinearModel):
             UFF (bool): Whether the HDF5 file was created using 
                         Ultra Fast Featurization
         """
+        if UFF and type(keys[0])!=str:
+            keys = [str(i) for i in keys]
         n_elements = len(self.bspline_config.element_list)
         y_e, p_e, y_f, p_f = batched_prediction(self,
                                                 filename,
@@ -955,6 +960,7 @@ def validate_regularizer(regularizer: np.ndarray, n_feats: int):
 def subset_prediction(df: pd.DataFrame,
                       model: WeightedLinearModel,
                       subset_keys: Collection = None,
+                      UFF = False,
                       **kwargs
                       ) -> Tuple:
     """
@@ -972,6 +978,9 @@ def subset_prediction(df: pd.DataFrame,
         y_f (np.ndarray): target values for forces.
         p_f (np.ndarray): prediction values for forces.
     """
+    if UFF and type(subset_keys[0]) != str:
+        subset_keys = [str(i) for i in subset_keys]
+
     if subset_keys is not None:
         df_index = df.index.unique(level=0)
         idx = [i for i in subset_keys if i in df_index]
@@ -1033,6 +1042,7 @@ def batched_prediction(model: WeightedLinearModel,
         predictions, idx = subset_prediction(df,
                                             model,
                                             subset_keys=subset_keys,
+                                            UFF = UFF,
                                             **kwargs)
         if len(idx) != 0:
             indices = [i for i, x in enumerate(subset_keys) if x in idx]
