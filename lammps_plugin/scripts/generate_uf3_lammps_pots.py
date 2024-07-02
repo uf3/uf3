@@ -26,23 +26,22 @@ def create_element_map_for_lammps(uf3_chem_sys):
     to be used while creating UF3 lammps file. Takes UF3 composition object as
     the input
     """
-    lemap = {}
-    species_count = 1
-    for i in uf3_chem_sys.interactions_map[2]:
-        if i[0]==i[1]:
-            if i[0] not in lemap:
-                lemap[i[0]] = species_count
-                species_count += 1
-            else:
-                pass
-        else:
-            for j in i:
-                if j not in lemap:
-                    lemap[j] = species_count
-                    species_count += 1
-                else:
-                    pass
-    return lemap
+    elements = []
+    result = {}
+
+    for element_pair in uf3_chem_sys.interactions_map[2]:
+        i, j = element_pair
+        if i not in elements: 
+            elements.append(i)
+        if j not in elements: 
+            elements.append(j)
+
+    elements = list(elements)
+    elements = sorted(elements)
+    for i, e in enumerate(elements):
+        result[i+1] = e
+
+    return result
 
 def write_uf3_lammps_pot_file(chemical_sys, model, pot_file, units='metal') -> None:
     """Returns list
@@ -153,18 +152,15 @@ write_uf3_lammps_pot_file(chemical_sys=chemical_sys, model=model, pot_file=pot_f
 # pot_files = list(pot_files)
 lines = "pair_style uf3 %i \n" % model.bspline_config.degree
 
-# TODO: add the pair_coeff line with the correct ordering of atom types
-# lines += "pair_coeff * * %s" % pot_file
+# pair_coeff line may have any ordering of the species depending on input structure
+# alphabetical is the ASE default I think
+lines += "pair_coeff * * %s" % pot_file
 
-# element_map = create_element_map_for_lammps(chemical_sys)
-# keys = []
-# values = []
-# for k, v in element_map.items():
-#     keys.append(k)
-#     values.append(v)
-# idx = np.argsort(values)
-# keys = [keys[i] for i in idx]
-# lines += " " + ' '.join(keys) + '\n'
+element_map = create_element_map_for_lammps(chemical_sys)
+elements_in_order = []
+for i in range(1, len(element_map)+1):
+    elements_in_order.append(element_map[i])
+lines += " " + ' '.join(elements_in_order) + '\n'
 
 """
 for interaction in chemical_sys.interactions_map[2]:
@@ -177,4 +173,6 @@ if 3 in model.bspline_config.interactions_map:
 
 print("\n\n***Add the following line to the lammps input script followed by the 'pair_coeff' line/s***\n\n")
 print(lines)
-print("\n\n")
+print("\n")
+
+print('Please double check the order of the elements for pair_coeff for your use case.')
