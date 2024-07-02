@@ -41,10 +41,19 @@ class UFCalculator(ase_calc.Calculator):
     """
     ASE Calculator for energies, forces, and stresses using a fit UF potential.
     Optionally compute elastic constants and phonon spectra.
+
+    Args:
+        model (uf3.regression.WeightedLinearModel): fit model to use.
     """
+
+    implemented_properties = ['energy', 'forces']
+    implemented_properties += ['stress']  # so far numerical stress only
+    
+
     def __init__(self,
-                 model: least_squares.WeightedLinearModel):
-        # super().__init__()  # TODO: improve compatibility with ASE protocol
+                 model: least_squares.WeightedLinearModel,
+                 **kwargs):
+        super().__init__(**kwargs)
         self.bspline_config = model.bspline_config
         self.model = model
         self.solutions = coefficients_by_interaction(self.element_list,
@@ -111,10 +120,43 @@ class UFCalculator(ase_calc.Calculator):
     def chemical_system(self):
         return self.bspline_config.chemical_system
 
-    def get_potential_energy(self,
-                             atoms: ase.Atoms = None,
-                             force_consistent: bool = None
-                             ) -> float:
+    
+    def calculate(self,
+                  atoms=None,
+                  properties=None,
+                  system_changes=tuple(ase_calc.all_changes),
+                  ):
+        """
+        Method called by `self.get_property` if it deems a new calculation
+        is required. After the calculation, the results are cached in
+        `self.results` so that these values can be fetched later if none of
+        the atoms object's attributes (i.e. positions, cell, etc.) have
+        changed since the last calculation.
+
+        Args:
+            atoms (ase.Atoms): configuration of interest.
+            properties (list): list of properties to calculate.
+                Must be a subset of `self.implemented_properties`.
+            system_changes (tuple): changes to system.
+        """
+        if properties is None:
+            properties = self.implemented_properties
+
+        ase_calc.Calculator.calculate(self, atoms, properties, system_changes)
+
+        if ('energy' in properties) or ('free_energy' in properties):
+            self.results['energy'] = self._get_potential_energy(atoms)
+            self.results['free_energy'] = self.results['energy']
+        if 'forces' in properties:
+            self.results['forces'] = self._get_forces(atoms)
+        if 'stress' in properties:
+            self.results['stress'] = self._get_stress(atoms)
+
+
+    def _get_potential_energy(self,
+                              atoms: ase.Atoms = None,
+                              force_consistent: bool = None
+                              ) -> float:
         """Evaluate the total energy of a configuration."""""
         if any(atoms.pbc):
             supercell = geometry.get_supercell(atoms, r_cut=self.r_cut)
@@ -122,23 +164,23 @@ class UFCalculator(ase_calc.Calculator):
             supercell = atoms
 
         if force_consistent is not True:
-            e_1b = self.energy_1b(atoms)
+            e_1b = self._energy_1b(atoms)
         else:
             e_1b = 0.0
 
         if self.degree >= 2:
-            e_2b = self.energy_2b(atoms, supercell)
+            e_2b = self._energy_2b(atoms, supercell)
         else:
             e_2b = 0.0
 
         if self.degree >= 3:
-            e_3b = self.energy_3b(atoms, supercell)
+            e_3b = self._energy_3b(atoms, supercell)
         else:
             e_3b = 0.0
         energy = e_1b + e_2b + e_3b
         return energy
 
-    def energy_1b(self, atoms):
+    def _energy_1b(self, atoms):
         energy = 0.0
         el_set, el_counts = np.unique(atoms.get_chemical_symbols(),
                                       return_counts=True)
@@ -146,9 +188,9 @@ class UFCalculator(ase_calc.Calculator):
             energy += float(self.solutions[el] * count)
         return energy
 
-    def energy_2b(self,
-                  atoms,
-                  supercell):
+    def _energy_2b(self,
+                   atoms,
+                   supercell):
         pair_tuples = self.interactions_map[2]
         distances_map = distances.distances_by_interaction(atoms,
                                                            pair_tuples,
@@ -168,9 +210,9 @@ class UFCalculator(ase_calc.Calculator):
             energy += energy_contribution
         return energy
 
-    def energy_3b(self,
-                  atoms,
-                  supercell):
+    def _energy_3b(self,
+                   atoms,
+                   supercell):
         energy = 0.0
 
         trio_list = self.bspline_config.interactions_map[3]
@@ -197,7 +239,7 @@ class UFCalculator(ase_calc.Calculator):
                 energy += np.sum(component)
         return energy
 
-    def get_forces(self, atoms: ase.Atoms = None) -> np.ndarray:
+    def _get_forces(self, atoms: ase.Atoms = None) -> np.ndarray:
         """Return the forces in a configuration."""
         n_atoms = len(atoms)
         if any(atoms.pbc):
@@ -207,18 +249,18 @@ class UFCalculator(ase_calc.Calculator):
 
         f_shape = np.zeros((n_atoms, 3))
         if self.degree >= 2:
-            f_2b = self.forces_2b(atoms, supercell)
+            f_2b = self._forces_2b(atoms, supercell)
         else:
             f_2b = np.zeros_like(f_shape)
 
         if self.degree >= 3:
-            f_3b = self.forces_3b(atoms, supercell)
+            f_3b = self._forces_3b(atoms, supercell)
         else:
             f_3b = np.zeros_like(f_shape)
         forces = f_2b + f_3b
         return forces
 
-    def forces_2b(self, atoms, supercell):
+    def _forces_2b(self, atoms, supercell):
         pair_tuples = self.interactions_map[2]
         deriv_results = distances.derivatives_by_interaction(atoms,
                                                              pair_tuples,
@@ -244,7 +286,7 @@ class UFCalculator(ase_calc.Calculator):
             forces -= component
         return forces
 
-    def forces_3b(self, atoms, supercell):
+    def _forces_3b(self, atoms, supercell):
         n_atoms = len(atoms)
         forces = np.zeros((n_atoms, 3))
 
@@ -347,10 +389,10 @@ class UFCalculator(ase_calc.Calculator):
     #         f_accumulate += np.dot(drjk_dr, val_n)
     #     return f_accumulate
 
-    def get_stress(self,
-                   atoms: ase.Atoms = None,
-                   **kwargs
-                   ) -> np.ndarray:
+    def _get_stress(self,
+                    atoms: ase.Atoms = None,
+                    **kwargs
+                    ) -> np.ndarray:
         """Return the (numerical) stress."""
         return self.calculate_numerical_stress(atoms, **kwargs)
 
@@ -388,6 +430,7 @@ class UFCalculator(ase_calc.Calculator):
 
     def calculation_required(self, atoms: ase.Atoms, quantities: List) -> bool:
         """Check if a calculation is required."""
+        warnings.warn("`calculation_required` may be deprecated.")
         if any([q in quantities for q in ['magmom', 'stress', 'charges']]):
             return True
         if 'energy' in quantities and 'energy' not in atoms.info:
