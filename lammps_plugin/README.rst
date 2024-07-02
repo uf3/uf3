@@ -1,3 +1,11 @@
+UF3 LAMMPS has been integrated with the official LAMMPS package available at- https://github.com/lammps/lammps/
+
+Development version of UF3 LAMMPS is available at- https://github.com/uf3/lammps
+
+Use the :code:`generate_uf3_lammps_pots.py` from this branch- https://github.com/uf3/uf3/tree/lammps_script_fix_document_update
+
+-------------------------------
+
 This document describes how to use UF3 potentials in `lammps <https://www.lammps.org/>`_ MD code. See the `tungsten_example <https://github.com/uf3/uf3/tree/lammps_implementation/lammps_plugin/tungsten_example>`_ directory for an example of lammps input file and UF3 lammps potential files.
 
 .. contents:: Contents
