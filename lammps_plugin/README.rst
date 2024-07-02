@@ -72,7 +72,7 @@ Refer to `lammps documentation <https://docs.lammps.org/Speed_kokkos.html>`_ for
 Running lammps with UF3 potential
 =================================
 
-Refer to the :pair_style uf3: LAMMPS page for details on this topic at `here <https://docs.lammps.org/pair_uf3.html>`_.
+Refer to the :code:`pair_style uf3` LAMMPS page for details on this topic at `here <https://docs.lammps.org/pair_uf3.html>`_.
 
 **The old style of listing all UF3 LAMMPS potential files after pair_coeff * * in single line is deprecated**
 
