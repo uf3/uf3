@@ -1,4 +1,4 @@
-This document describes how to use UF3 potentials in `LAMMPS <https://www.lammps.org/>`_ MD code.
+This document describes how to use UF3 potentials in `LAMMPS <https://www.lammps.org/>`_ MD code. The documentation for :code:`pair_style uf3` is available `here <https://docs.lammps.org/pair_uf3.html>`_.
 
 UF3 LAMMPS has been integrated with the official LAMMPS package available at- https://github.com/lammps/lammps/. It is the stable version of UF3 LAMMPS.
 
@@ -52,7 +52,7 @@ If you want to compile with MPI support enabled, you additionally have to set th
 
 Kokkos
 ======
-To compile lammps with support for the kokkos accelerator variants of uf3 do-
+To compile lammps with support for the kokkos accelerator variants of uf3:
 
 .. code:: bash
 
