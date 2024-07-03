@@ -3,123 +3,100 @@ from pymatgen.core.structure import Structure
 from pymatgen.core import Element
 from uf3.data import composition
 import numpy as np
-import os, sys
+import os, sys, argparse
+from datetime import datetime
 
-if len(sys.argv) != 3:
-    #raise ValueError("Invalid number of arguments. Enter name of the structure\n\
-    #        file readable by pymatgen, UF3 model file, and name \n\
-    #        directory to write the UF3 potential files")
-    raise ValueError("Invalid number of arguments. Enter UF3 model file and name\n\
-            of directory to write the UF3 potential files")
+def main():
+    parser = argparse.ArgumentParser(description="Generate UF3 LAMMPS potential file")
 
-#struct = Structure.from_file(sys.argv[1])
-model = least_squares.WeightedLinearModel.from_json(sys.argv[1])
+    parser.add_argument('-a', '--author', required=True, help="Author Name Seperated by '_'")
+    parser.add_argument('-u', '--units', required=True, help="LAMMPS Units")
+    parser.add_argument('-m', '--model', required=True, help="UF3 Model JSON file")
+    default_directory = "."
+    parser.add_argument('-d', '--directory', default=default_directory,
+                        help="Directory path (default: current directory)")
+    default_knots_spacing_type = "nk"
+    parser.add_argument('-k', '--knots_spacing_type', default=default_knots_spacing_type,
+                        help="Knot spacing type, uk (uniform spacing) or \
+                                nk (non-uniform spacing)\n\
+                                (default: nk (non-uniform))")
 
-#struct_elements = set(struct.symbol_set)
-model_elements = set(model.bspline_config.chemical_system.element_list)
-pot_dir = sys.argv[2]
+    args = parser.parse_args()
+    
+    model = least_squares.WeightedLinearModel.from_json(args.model)
 
-def create_element_map_for_lammps(uf3_chem_sys):
-    """Returns dict
+    knots_spacing_type = args.knots_spacing_type
 
-    Creates a mapping between element symbol and lammps element species,
-    to be used while creating UF3 lammps file. Takes UF3 composition object as
-    the input
-    """
-    lemap = {}
-    species_count = 1
-    for i in uf3_chem_sys.interactions_map[2]:
-        if i[0]==i[1]:
-            if i[0] not in lemap:
-                lemap[i[0]] = species_count
-                species_count += 1
-            else:
-                pass
-        else:
-            for j in i:
-                if j not in lemap:
-                    lemap[j] = species_count
-                    species_count += 1
-                else:
-                    pass
-    return lemap
-"""
-def write_lammps_ip_struct(struct_obj,element_map):
-    """#Returns str
+    if (knots_spacing_type != "uk") and (knots_spacing_type != "nk"):
+        raise ValueError(f"Supplied knot spacing type {knots_spacing_type} is not\n\
+                 a valid choice. Only uk or nk are valid types")
+    
+    model_elements = set(model.bspline_config.chemical_system.element_list)
+    pot_dir = args.directory
 
-    #Converts a POSCAR to lammps structure format and writes 'lammps.struct' file
-    #Takes pymatgen structure object as the input
-"""
-    struct_dict = struct_obj.as_dict()
+    chemical_sys = model.bspline_config.chemical_system
 
-    w_filename = 'lammps.struct'
+    uf3_lammps_pot_name = "".join(chemical_sys.element_list)+".uf3"
 
-    lx = struct_obj.lattice.a
-    xy = struct_obj.lattice.b * np.cos(struct_obj.lattice.angles[2]*np.pi/180)
-    xz = struct_obj.lattice.c * np.cos(struct_obj.lattice.angles[1]*np.pi/180)
+    write_uf3_lammps_pot_files(chemical_sys=chemical_sys, model=model,
+                                knots_spacing_type = knots_spacing_type,
+                                pot_dir=pot_dir,
+                                uf3_lammps_pot_name = uf3_lammps_pot_name,
+                                author = args.author,
+                                lammps_units = args.units)
+    
+    lines = "pair_style\tuf3 %i %i"%(model.bspline_config.degree,len(chemical_sys.element_list))
+    lines += "\n"
+    lines += "pair_coeff\t* * "+pot_dir+"/"+uf3_lammps_pot_name+ " "
+    lines += " ".join(chemical_sys.element_list)
 
-    ly = np.sqrt(np.square(struct_obj.lattice.b) - np.square(xy))
+    print("\n\n***Add the following line to the lammps input script***\n\n")
+    print(lines)
+    print("\n\nCitation meta-data has been left blank. Please enter appropriate"\
+            "i citation for the generated UF3 LAMMPS potential\n\n")
 
-    yz = ((struct_obj.lattice.b*struct_obj.lattice.c*
-           np.cos(struct_obj.lattice.angles[0]*np.pi/180))-(xy*xz))/(ly)
-
-    lz = np.sqrt(np.square(struct_obj.lattice.c)-np.square(xz)-np.square(yz))
-
-    new_H = np.array([[lx,0,0],
-         [xy,ly,0],
-          [xz,yz,lz]])
-
-    fp = open(w_filename,'w')
-    fp.write("# Converted by ACH the great\n\n")
-    fp.write("%i atoms\n"%struct.num_sites)
-    fp.write("%i atom types\n\n"%len(struct.symbol_set))
-
-    fp.write("0.000000%.6f   xlo xhi\n"%lx)
-    fp.write("0.000000%.6f   ylo yhi\n"%ly)
-    fp.write("0.000000%.6f   zlo zhi\n\n"%lz)
-    fp.write("  %.6f%.6f%.6f   xy xz yz\n\n"%(xy,xz,yz))
-
-    fp.write("Masses\n\n")
-
-    for key in element_map:
-        at_mass = Element(key)
-        fp.write("  %i %.5f\n"%(element_map[key],at_mass.atomic_mass))
-        fp.write("\n")
-
-        fp.write("Atoms\n\n")
-    for i in range(0,struct.num_sites):
-        key = struct_dict['sites'][i]['species'][0]['element']
-        temp_cord = np.matmul(struct_dict['sites'][i]['abc'],new_H)
-        fp.write("   %i  %i %.6f %.6f %.6f\n"%(i+1,element_map[key],temp_cord[0],temp_cord[1],temp_cord[2]))
-    fp.close()
-    return w_filename
-"""
-def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
+def write_uf3_lammps_pot_files(chemical_sys,
+                                model,
+                                knots_spacing_type,
+                                pot_dir,
+                                uf3_lammps_pot_name,
+                                author,
+                                lammps_units):
     """Returns list
 
     Creates and writes UF3 lammps potential files. Takes UF3 composition object,
-    UF3 model and name of potential directory as input. Will overwrite the files
-    if files with the same exists
+    UF3 model, knots_spacing_type, name of potential directory, name of uf3
+    lammps pot file to be generateas, author and lammps units input. Will
+    overwrite the files if files with the same exists
     """
-    overwrite = True
+    
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     if not os.path.exists(pot_dir):
         os.mkdir(pot_dir)
     files = {}
 
     for interaction in chemical_sys.interactions_map[2]:
         key = '_'.join(interaction)
-        files[key] = "#UF3 POT\n"
-        if model.bspline_config.knot_strategy == 'linear':
-            files[key] += "2B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+        files[key] = f"#UF3 POT UNITS: {lammps_units} DATE: {current_datetime} "
+        files[key] += f"AUTHOR: {author} CITATION:\n"
+
+        files[key] += f"2B {interaction[0]} {interaction[1]}"
+        files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+        if knots_spacing_type == "uk":
+            files[key] += " uk\n"
+        elif knots_spacing_type == "nk":
+            files[key] += " nk\n"
         else:
-            files[key] += "2B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            raise ValueError(f"Supplied knot spacing type {knots_spacing_type}\n\
+                                is not a valid choice. Only uk or nk are valid types")
 
         files[key] += str(model.bspline_config.r_max_map[interaction]) + " " + \
                 str(len(model.bspline_config.knots_map[interaction]))+"\n"
 
         files[key] += " ".join(['{:.17g}'.format(v) for v in \
                 model.bspline_config.knots_map[interaction]]) + "\n"
-
+ 
         files[key] += str(model.bspline_config.get_interaction_partitions()[0][interaction]) \
                 + "\n"
 
@@ -128,23 +105,34 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
         files[key] += " ".join(['{:.17g}'.format(v) for v in \
                 model.coefficients[start_index:start_index + length]]) + "\n"
 
-        files[key] += "#"
+        files[key] += "#\n"
 
     if 3 in model.bspline_config.interactions_map:
         for interaction in model.bspline_config.interactions_map[3]:
             key = '_'.join(interaction)
-            files[key] = "#UF3 POT\n"
-            if model.bspline_config.knot_strategy == 'linear':
-                files[key] += "3B %i %i uk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+            files[key] = f"#UF3 POT UNITS: {lammps_units} DATE: {current_datetime} "
+            files[key] += f"AUTHOR: {author} CITATION:\n"
+
+            files[key] += f"3B {interaction[0]} {interaction[1]} {interaction[2]}"
+            files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+            if knots_spacing_type == "uk":
+                files[key] += " uk\n"
+            elif knots_spacing_type == "nk":
+                files[key] += " nk\n"
             else:
-                files[key] += "3B %i %i nk\n"%(model.bspline_config.leading_trim,model.bspline_config.trailing_trim)
+                raise ValueError(f"Supplied knot spacing type {knots_spacing_type}\n\
+                                    is not a valid choice. Only uk or nk are valid types")
 
             files[key] += str(model.bspline_config.r_max_map[interaction][2]) \
                     + " " + str(model.bspline_config.r_max_map[interaction][1]) \
-                    + " " + str(model.bspline_config.r_max_map[interaction][0]) + " "
+                    + " " + str(model.bspline_config.r_max_map[interaction][0]) \
+                    + " "
 
             files[key] += str(len(model.bspline_config.knots_map[interaction][2])) \
-                    + " " + str(len(model.bspline_config.knots_map[interaction][1])) + " " + str(len(model.bspline_config.knots_map[interaction][0])) + "\n"
+                    + " " + str(len(model.bspline_config.knots_map[interaction][1])) \
+                    + " " + str(len(model.bspline_config.knots_map[interaction][0])) \
+                    + "\n"
+
             files[key] += " ".join(['{:.17g}'.format(v) for v in \
                     model.bspline_config.knots_map[interaction][2]]) + "\n"
 
@@ -170,56 +158,12 @@ def write_uf3_lammps_pot_files(chemical_sys,model,pot_dir):
                     files[key] += ' '.join(map(str, decompressed[i,j]))
                     files[key] += "\n"
                     
-            files[key] += "#"
+            files[key] += "#\n"
 
-    for k, v in files.items():
-        if not overwrite and os.path.exists(pot_dir + k):
-            continue
-        with open(pot_dir +"/"+ k, "w") as f:
-            f.write(v)
-    return files.keys()
+    with open(pot_dir +"/"+ uf3_lammps_pot_name, "w") as fp:
+        for k, v in files.items():
+            fp.write(v)
 
-"""
-if len(model_elements.intersection(struct_elements))==len(struct_elements):
-    chemical_sys = composition.ChemicalSystem(element_list=list(struct_elements),\
-            degree=model.bspline_config.degree)
-    element_map = create_element_map_for_lammps(chemical_sys)
-    print(element_map)
-    write_lammps_ip_struct(struct_obj=struct,element_map=element_map)
-    pot_files = write_uf3_lammps_pot_files(chemical_sys=chemical_sys,model=model,pot_dir=pot_dir)
-    pot_files = list(pot_files)
-    lines = "pair_style uf3 %i %i\n"%(model.bspline_config.degree,len(struct_elements))
+if __name__ == "__main__":
+    main()
 
-    for interaction in chemical_sys.interactions_map[2]:
-        lines += "pair_coeff %i %i %s/%s\n"%(element_map[interaction[0]],
-                element_map[interaction[1]],pot_dir,'_'.join(interaction))
-
-    if 3 in model.bspline_config.interactions_map:
-        for interaction in model.bspline_config.interactions_map[3]:
-            lines += "pair_coeff %i %i %i %s/%s\n"%(element_map[interaction[0]],
-                    element_map[interaction[1]],element_map[interaction[2]],
-                    pot_dir,'_'.join(interaction))
-
-    print("***Add the following lines to the lammps input script***")
-    print(lines)
-else:
-    raise RuntimeError("Elements in the provided structure file does not match the elements in ")
-"""
-
-chemical_sys = model.bspline_config.chemical_system
-
-pot_files = write_uf3_lammps_pot_files(chemical_sys=chemical_sys,model=model,pot_dir=pot_dir)
-pot_files = list(pot_files)
-lines = "pair_style uf3 %i %i"%(model.bspline_config.degree,len(chemical_sys.element_list))
-
-"""
-for interaction in chemical_sys.interactions_map[2]:
-    lines += " %s/%s"%(pot_dir,'_'.join(interaction))
-
-if 3 in model.bspline_config.interactions_map:
-    for interaction in model.bspline_config.interactions_map[3]:
-        lines += " %s/%s"%(pot_dir,'_'.join(interaction))
-"""
-print("\n\n***Add the following line to the lammps input script followed by the 'pair_coeff' line/s***\n\n")
-print(lines)
-print("\n\n")
