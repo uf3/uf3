@@ -3,7 +3,7 @@ This module provides the BSplineBasis class for defining BSpline basis sets
 from knots and/or pair distance constraints.
 """
 
-from typing import List, Dict, Tuple, Any, Collection
+from typing import List, Dict, Tuple, Any, Collection, Union
 import os
 import re
 import warnings
@@ -1159,7 +1159,7 @@ def tuple_consistency_check(map_, interaction_map):
             warnings.warn(f"{entry} specification unused.")
 
 
-def process_trim_values(user_input: None | int | Dict,
+def process_trim_values(user_input: Union[None, int, Dict],
                         default_trim: Dict[int, int]):
     """
     Process user input for trimming values.
