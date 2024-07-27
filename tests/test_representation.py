@@ -110,6 +110,37 @@ def methane_chem_config():
 
 @pytest.fixture()
 def strained_H2O_molecule_feature():
+    # For leading_trim={2: 0, 3: 3} and trailing_trim={2: 3, 3: 3}
+    two_body = {('H', 'H'): np.array([0.0, 0.40032798833819255, 1.1900510204081631, 
+                    0.40949951409135077, 0.00012147716229348758, 0.0, 0.0, 0.0, 
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                ('H', 'O'): np.array([0.0, 0.0, 0.20991253644314867, 1.4571185617103986, 
+                    1.745019436345967, 0.5846695821185617, 0.0032798833819242057, 
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                ('O', 'O'): np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])}
+    # Selected a subset of three_body from strained_H2O_molecule_feature_old to
+    # test the new default leading trim of {2: 0, 3: 3}. See PR #118 for a schematic
+    # of what/how these were selected. The numerical values of the selected features
+    # are the same as the old.
+    three_body = {('H', 'H', 'H'):{"position":np.array([]),"value":np.array([])}, 
+                ('H', 'H', 'O'):{"position":np.array([0, 1, 2, 7, 8, 9]),
+                    "value":np.array([0.11179061530876638, 0.02854780141611156,
+                        5.380932829072594e-05, 0.046232917007898805, 0.00356407243123478,
+                        4.6287594228581435e-06])},
+                ('H', 'O', 'O'):{"position":np.array([]),"value":np.array([])},
+                ('O', 'H', 'H'):{"position":np.array([0, 7, 14]),
+                    "value":np.array([0.033415592868540726, 0.03629005247013563,
+                                      0.0028744596015948995])},
+                    ('O', 'H', 'O'):{"position":np.array([]),"value":np.array([])},
+                    ('O', 'O', 'O'):{"position":np.array([]),"value":np.array([])}
+                }
+    features = {2:two_body,3:three_body}
+    yield features
+
+@pytest.fixture()
+def strained_H2O_molecule_feature_old():
+    # For leading_trim={2: 0, 3: 0} and trailing_trim={2: 3, 3: 3}
     two_body = {('H', 'H'): np.array([0.0, 0.40032798833819255, 1.1900510204081631, 
                     0.40949951409135077, 0.00012147716229348758, 0.0, 0.0, 0.0, 
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
@@ -178,6 +209,36 @@ def strained_H2O_molecule_feature():
 
 @pytest.fixture()
 def methane_feature():
+    # For leading_trim={2: 0, 3: 3} and trailing_trim={2: 3, 3: 3}
+    two_body = {('H', 'H'):np.array([0.0, 0.10764117873003697, 4.380510760509621,
+                    6.909855011070257, 0.6019930496900838, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                ('H', 'C'):np.array([4.217956715718236, 3.381599561086582, 0.3909862297136271,
+                    0.009457493481554552, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0]),
+                ('C', 'C'):np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])}
+    # Selected a subset of three_body from methane_feature_old to
+    # test the new default leading trim of {2: 0, 3: 3}. See PR #118 for a schematic
+    # of what/how these were selected. The numerical values of the selected features
+    # are the same as the old.
+    three_body = {('H', 'H', 'H'):{"position":np.array([0, 1, 7, 8, 14, 15]),
+        "value":np.array([0.6640224780125649, 0.0007053656017778708, 0.01702949612348602, 
+            1.8089780359648227e-05, 0.00010918445829116121, 1.159824609519897e-07])},
+        ('H', 'H', 'C'):{"position":np.array([0, 14]),
+        "value":np.array([1.624998081281485e-06, 2.083732060447781e-08])},
+        ('H', 'C', 'C'):{"position":np.array([]),"value":np.array([])},
+        ('C', 'H', 'H') :{"position":np.array([0, 1]),
+            "value":np.array([8.505596144699058e-07, 9.035168449480808e-10])},
+        ('C', 'H', 'C'):{"position":np.array([]),"value":np.array([])},
+        ('C', 'C', 'C'):{"position":np.array([]),"value":np.array([])}
+        }
+    features = {2:two_body,3:three_body}
+    yield features
+
+@pytest.fixture()
+def methane_feature_old():
+    # For leading_trim={2: 0, 3: 0} and trailing_trim={2: 3, 3: 3}
     two_body = {('H', 'H'):np.array([0.0, 0.10764117873003697, 4.380510760509621,
                     6.909855011070257, 0.6019930496900838, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
@@ -313,7 +374,6 @@ class TestBasis:
             assert np.allclose(strained_H2O_molecule_feature[2][i],features[i])
 
         for i in bspline_config.interactions_map[3]:
-            print(i)
             feature = features[i]
             feature_position = np.where(feature!=0)[0]
             feature_value = feature[feature_position]
@@ -323,6 +383,41 @@ class TestBasis:
             #so it needs to be divided by two
             assert np.allclose(strained_H2O_molecule_feature[3][i]["value"]/2,feature_value)
 
+    def test_energy_features_strained_H2O_molecule_old(self, strained_H2O_molecule, \
+            strained_H2O_molecule_feature_old):
+        element_list = ['H', 'O']
+        chemistry_config = composition.ChemicalSystem(element_list,degree=3)
+        bspline_config = bspline.BSplineBasis(chemistry_config,
+                                              leading_trim={2: 0, 3: 0},
+                                              trailing_trim={2: 3, 3: 3})
+        bspline_handler = BasisFeaturizer(bspline_config)
+        
+        features_2B = bspline_handler.featurize_energy_2B(strained_H2O_molecule)
+        features_3B = bspline_handler.featurize_energy_3B(strained_H2O_molecule)
+        features_con = np.concatenate((features_2B,features_3B))
+
+        features = {}
+        features = {key:[] for key in bspline_config.interactions_map[2]}
+        features.update({key:[] for key in bspline_config.interactions_map[3]})
+        
+        for i in features.keys():
+            start = bspline_config.get_interaction_partitions()[1][i]-2
+            end = bspline_config.get_interaction_partitions()[1][i]-2 + \
+                    bspline_config.get_interaction_partitions()[0][i]
+            features[i] = features_con[start:end]
+
+        for i in bspline_config.interactions_map[2]:
+            assert np.allclose(strained_H2O_molecule_feature_old[2][i],features[i])
+
+        for i in bspline_config.interactions_map[3]:
+            feature = features[i]
+            feature_position = np.where(feature!=0)[0]
+            feature_value = feature[feature_position]
+
+            assert np.allclose(strained_H2O_molecule_feature_old[3][i]["position"],feature_position)
+            #In my hard-coded features I double counted every interaction,
+            #so it needs to be divided by two
+            assert np.allclose(strained_H2O_molecule_feature_old[3][i]["value"]/2,feature_value)
 
     def test_energy_features_methane(self, methane_chem_config, \
             methane_structure, methane_feature):
@@ -356,6 +451,40 @@ class TestBasis:
             #In my hard-coded features I double counted every interaction,
             #so it needs to be divided by two
             assert np.allclose(methane_feature[3][i]["value"]/2,feature_value)
+
+    def test_energy_features_methane_old(self, methane_chem_config, \
+            methane_structure, methane_feature_old):
+        bspline_config = bspline.BSplineBasis(methane_chem_config,
+                                              leading_trim={2: 0, 3: 0},
+                                              trailing_trim={2: 3, 3: 3})
+        bspline_handler = BasisFeaturizer(bspline_config)
+
+        features_2B = bspline_handler.featurize_energy_2B(methane_structure)
+        features_3B = bspline_handler.featurize_energy_3B(methane_structure)
+        features_con = np.concatenate((features_2B,features_3B))
+
+        features = {}
+        features = {key:[] for key in bspline_config.interactions_map[2]}
+        features.update({key:[] for key in bspline_config.interactions_map[3]})
+        
+        for i in features.keys():
+            start = bspline_config.get_interaction_partitions()[1][i]-2
+            end = bspline_config.get_interaction_partitions()[1][i]-2 + \
+                    bspline_config.get_interaction_partitions()[0][i]
+            features[i] = features_con[start:end]
+
+        for i in bspline_config.interactions_map[2]:
+            assert np.allclose(methane_feature_old[2][i],features[i])
+
+        for i in bspline_config.interactions_map[3]:
+            feature = features[i]
+            feature_position = np.where(feature!=0)[0]
+            feature_value = feature[feature_position]
+
+            assert np.allclose(methane_feature_old[3][i]["position"],feature_position)
+            #In my hard-coded features I double counted every interaction,
+            #so it needs to be divided by two
+            assert np.allclose(methane_feature_old[3][i]["value"]/2,feature_value)
 
 
     def test_force_features(self, unary_chemistry, simple_molecule):
