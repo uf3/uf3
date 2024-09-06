@@ -1,5 +1,7 @@
 import pytest
 import ase
+import json
+import uf3
 from uf3.representation.process import *
 from uf3.representation import bspline
 from uf3.data import composition
@@ -66,6 +68,24 @@ def methane_structure():
             pbc=True,
             cell=[30, 30, 30])
     yield geom
+
+@pytest.fixture()
+def rattled_steel():
+    geom = ase.Atoms('Fe8C3',
+            positions=[[ 1.99342831e-01,  7.23471398e-02,  2.29537708e-01],
+                       [ 3.27460597e+00,  3.16932506e-03, -9.68273914e-02],
+                       [ 3.65842563e-01,  3.07348695e+00, -1.43894877e-01],
+                       [ 3.02851201e+00,  2.85731646e+00,  6.85404929e-03],
+                       [-1.60754569e-03, -3.82656049e-01,  2.57501643e+00],
+                       [ 2.80754249e+00, -3.02566224e-01,  2.88284947e+00],
+                       [-8.16048151e-02,  2.53753926e+00,  3.26312975e+00],
+                       [ 2.92484474e+00,  2.93350564e+00,  2.58505036e+00],
+                       [ 1.32612346e+00,  1.45718452e+00, -1.80198715e-01],
+                       [ 1.51013960e+00, -7.01277380e-02,  1.37666125e+00],
+                       [-7.03413224e-02,  1.80545564e+00,  1.43230056e+00]],
+            pbc=True,
+            cell=[5.74, 5.74, 5.74])
+    yield geom
     
 
 @pytest.fixture()
@@ -101,6 +121,12 @@ def binary_chemistry_equal_electronegativity():
 def binary_chemistry_3B():
     element_list = ['C', 'Pt']
     chemistry_config = composition.ChemicalSystem(element_list,degree=3)
+    yield chemistry_config
+
+@pytest.fixture()
+def rattled_steel_chemistry():
+    element_list = ['Fe', 'C']
+    chemistry_config = composition.ChemicalSystem(element_list, degree=3)
     yield chemistry_config
 
 @pytest.fixture()
@@ -447,6 +473,50 @@ class TestBasis:
         assert x.shape == (2 + 6 * 3, 18 * 3 + 2)
         assert np.allclose(y[:10], [1.5, 4, 3, 0, 0, 1, 2, 2, 1, 0])
 
+    def test_evaluate_binary_pbc(self, rattled_steel_chemistry, rattled_steel):
+        n_atoms = len(rattled_steel)
+        r_min_map = {('Fe', 'Fe'): 0.1, ('Fe', 'C'): 0.1, ('C', 'C'): 0.1,
+                     ('Fe', 'Fe', 'Fe'): [1.5, 1.5, 1.5],
+                     ('Fe', 'Fe', 'C'): [1.5, 1.5, 1.5],
+                     ('Fe', 'C', 'C'): [1.5, 1.5, 1.5],
+                     ('C', 'Fe', 'Fe'): [1.5, 1.5, 1.5],
+                     ('C', 'Fe', 'C'): [1.5, 1.5, 1.5],
+                     ('C', 'C', 'C'): [1.5, 1.5, 1.5]}
+        r_max_map = {('Fe', 'Fe'): 6.0, ('Fe', 'C'): 6.0, ('C', 'C'): 6.0,
+                     ('Fe', 'Fe', 'Fe'): [5.0, 5.0, 10.0],
+                     ('Fe', 'Fe', 'C'): [5.0, 5.0, 10.0],
+                     ('Fe', 'C', 'C'): [5.0, 5.0, 10.0],
+                     ('C', 'Fe', 'Fe'): [5.0, 5.0, 10.0],
+                     ('C', 'Fe', 'C'): [5.0, 5.0, 10.0],
+                     ('C', 'C', 'C'): [5.0, 5.0, 10.0]}
+        resolution_map = {('Fe', 'Fe'): 12, ('Fe', 'C'): 12, ('C', 'C'): 12,
+                          ('Fe', 'Fe', 'Fe'): [4, 4, 8],
+                          ('Fe', 'Fe', 'C'): [4, 4, 8],
+                          ('Fe', 'C', 'C'): [4, 4, 8],
+                          ('C', 'Fe', 'Fe'): [4, 4, 8],
+                          ('C', 'Fe', 'C'): [4, 4, 8],
+                          ('C', 'C', 'C'): [4, 4, 8]}
+        bspline_config = bspline.BSplineBasis(rattled_steel_chemistry,
+                                              r_min_map=r_min_map,
+                                              r_max_map=r_max_map,
+                                              resolution_map=resolution_map,
+                                              knot_strategy='linear',
+                                              offset_1b=True,
+                                              leading_trim=0,
+                                              trailing_trim=3,)
+        bspline_handler = BasisFeaturizer(bspline_config)
+        eval_map = bspline_handler.evaluate_configuration(rattled_steel,
+                                                          energy=0,
+                                                          forces=np.zeros((3, n_atoms)))
+        pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
+        data_directory = os.path.join(pkg_directory, "tests/data")
+        features_file = os.path.join(data_directory, "precalculated_ref",
+                                  "rattled_steel_features.json") 
+        with open(features_file, 'r') as f:
+            ref_features = json.load(f)
+        for key in eval_map:
+            # keys should be 'energy', 'fx0', 'fx1', ..., 'fx10', 'fy0', ..., 'fz10'
+            assert np.allclose(eval_map[key], np.array(ref_features[key]))
 
 def test_flatten_by_interactions():
     vector_map = {('A', 'A'): np.array([1, 1, 1]),
