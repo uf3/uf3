@@ -1,6 +1,6 @@
 import pytest
 import ase
-import pickle
+import json
 import uf3
 from uf3.representation.process import *
 from uf3.representation import bspline
@@ -511,12 +511,12 @@ class TestBasis:
         pkg_directory = os.path.dirname(os.path.dirname(uf3.__file__))
         data_directory = os.path.join(pkg_directory, "tests/data")
         features_file = os.path.join(data_directory, "precalculated_ref",
-                                  "rattled_steel_features.pkl") 
-        with open(features_file, 'rb') as f:
-            ref_features = pickle.load(f)
+                                  "rattled_steel_features.json") 
+        with open(features_file, 'r') as f:
+            ref_features = json.load(f)
         for key in eval_map:
             # keys should be 'energy', 'fx0', 'fx1', ..., 'fx10', 'fy0', ..., 'fz10'
-            assert np.allclose(eval_map[key], ref_features[key])
+            assert np.allclose(eval_map[key], np.array(ref_features[key]))
 
 def test_flatten_by_interactions():
     vector_map = {('A', 'A'): np.array([1, 1, 1]),
