@@ -460,6 +460,7 @@ py::array UltraFastFeaturize::featurize(int _batch_size, bool return_Neigh,
                     ((cell_array_un(i,1,0)*cell_array_un(i,2,1)) - 
                      (cell_array_un(i,1,1)*cell_array_un(i,2,0))));
       neigh_in_sphere = std::max(neigh_in_sphere, max_sphere_vol*num_atoms/vol);
+      neigh_in_sphere = std::max(neigh_in_sphere, static_cast<double>(num_atoms));
     }
     if (neigh_in_sphere<1.0)
       neigh_in_sphere = 100;
