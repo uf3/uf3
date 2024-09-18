@@ -4,7 +4,9 @@ Ultra-Fast Force Fields (UF3)
 |Tests|
 
 
-\S. R. Xie, M. Rupp, and R. G. Hennig, "Ultra-fast interpretable machine-learning potentials", preprint `arXiv:2110.00624 <https://arxiv.org/abs/2110.00624>`_ (2021).
+\Xie, S.R., Rupp, M. & Hennig, R.G., "Ultra-fast interpretable machine-learning potentials", npj Comput Mater 9, 162 (2023). https://doi.org/10.1038/s41524-023-01092-7
+
+.. _https://doi.org/10.1038/s41524-023-01092-7: https://doi.org/10.1038/s41524-023-01092-7
 
 All-atom dynamics simulations have become an indispensable quantitative
 tool in physics, chemistry, and materials science, but large systems and
@@ -31,15 +33,12 @@ Setup
 ..    conda create -n uf3_env python=3.8
 ..    conda activate uf3_env
 
-UF3 can be installed in two different ways:
+UF3 can be obtained by cloning the repository and installing it:
 
-1. Download and install automatically from PyPI (recommended):
-
-.. code:: bash
-
+..
+   1. Download and install automatically from PyPI (recommended):
    pip install uf3
-
-2. Download and install manually from GitHub:
+   Download and install manually from GitHub:
 
 .. code:: bash
 

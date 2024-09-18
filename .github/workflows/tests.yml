@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@v2
@@ -39,6 +39,8 @@ jobs:
         python --version
         pip install -U pip pytest
         pip install setuptools_scm
+        # temporary pinning of Numpy version until packages work with Numpy v2
+        pip install numpy==1.26.4
         pip install .
     - name: Test with pytest
       run: |

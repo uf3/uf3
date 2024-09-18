@@ -49,7 +49,8 @@ class ChemicalSystem:
                 e.g. 2 to fit pair potentials.
         """
         self.degree = degree
-        self.element_list = sort_interaction_symbols(element_list)
+        self.element_list = sort_interaction_symbols(list(set(element_list)),
+                                                     fix_first=False)
         self.numbers = [ase_symbols.symbols2numbers(el).pop()
                         for el in self.element_list]
         self.interactions_map = self.get_interactions_map()
@@ -126,6 +127,7 @@ class ChemicalSystem:
                                      key=lambda c: [reference_X[x] for x in c])
         for d in range(3, self.degree + 1):
             combinations = get_element_combinations(self.element_list, d)
+            combinations.sort(key=lambda c: [reference_X[x] for x in c])
             interactions_map[d] = combinations
         return interactions_map
 
@@ -186,12 +188,12 @@ def sort_interaction_map(imap: Dict[Tuple[str], Any]) -> Dict[Tuple[str], Any]:
     return {sort_interaction_symbols(k): v for k, v in imap.items()}
 
 
-def sort_interaction_symbols(symbols: Collection[str]) -> Tuple:
+def sort_interaction_symbols(symbols: Collection[str], fix_first=True) -> Tuple:
     """
     Sort interaction tuple by electronegativities.
     For consistency, many-body interactions (i.e. >2) are sorted while fixing
     the first (center) element."""
-    if len(symbols) >= 3:
+    if len(symbols) >= 3 and fix_first:
         center = symbols[0]
         symbols = sort_elements(symbols[1:])
         symbols.insert(0, center)
