@@ -134,16 +134,16 @@ def get_data_for_UltraFastFeaturization(bspline_config, df):
         feature_size_3b = np.zeros(1,dtype=np.int32)
 
     df['atoms_array'] = df.apply(get_atoms_array,axis=1)
-    atoms_array = np.concatenate(df['atoms_array'])
+    atoms_array = np.concatenate(df['atoms_array'].values)
 
-    energy_array = np.array(df["energy"])
+    energy_array = np.array(df["energy"].values, dtype=np.float64)
 
     df["force_array"] = df.apply(get_force_array, axis=1)
-    forces_array = np.concatenate(df["force_array"])
+    forces_array = np.concatenate(df["force_array"].values)
 
     df['crystal_index'] = range(0,len(df))
     df['crystal_index'] = df.apply(get_crystal_index,axis=1)
-    crystal_index = np.concatenate(df['crystal_index'],axis=0).astype(np.int32)
+    crystal_index = np.concatenate(df['crystal_index'].values,axis=0).astype(np.int32)
 
 
     df['cell_array'] = df.apply(get_cells,axis=1)
