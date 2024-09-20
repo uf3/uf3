@@ -99,20 +99,23 @@ def get_bspline_config(
     )
 
     r_max_map = {i: rmax_2b for i in chemical_system.interactions_map[2]}
-    r_max_map.update(
-        {
-            i: [rmax_3b, rmax_3b, rmax_3b_double]
-            for i in chemical_system.interactions_map[3]
-        }
-    )
+
+    if chemical_system.degree == 3:
+        r_max_map.update(
+            {
+                i: [rmax_3b, rmax_3b, rmax_3b_double]
+                for i in chemical_system.interactions_map[3]
+            }
+        )
 
     resolution_map = {i: reso_2b for i in chemical_system.interactions_map[2]}
-    resolution_map.update(
-        {
-            i: [reso_3b, reso_3b, reso_3b_double]
-            for i in chemical_system.interactions_map[3]
-        }
-    )
+    if chemical_system.degree == 3:
+        resolution_map.update(
+            {
+                i: [reso_3b, reso_3b, reso_3b_double]
+                for i in chemical_system.interactions_map[3]
+            }
+        )
 
     bspline_config = bspline.BSplineBasis(
         chemical_system,
