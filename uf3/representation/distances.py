@@ -112,6 +112,13 @@ def derivatives_by_interaction(geom: ase.Atoms,
     # cutoff distance of atoms in the unit cell.
     supercell = mask_supercell_with_radius(geom, supercell, r_cut)
     distance_matrix = get_distance_matrix(supercell, supercell)
+
+    # the bottom right block where both i and j are ghost atoms are unnecessary
+    n_supercell = len(supercell)
+    real_row_idx = np.arange(n_supercell).reshape(n_supercell, 1)
+    real_col_idx = np.arange(n_supercell).reshape(1, n_supercell)
+    real_mask = (real_row_idx < n_atoms) | (real_col_idx < n_atoms)
+
     sup_positions = supercell.get_positions()
     sup_composition = np.array(supercell.get_atomic_numbers())
     # loop through interactions
@@ -126,7 +133,7 @@ def derivatives_by_interaction(geom: ase.Atoms,
                                                     sup_composition)
         cut_mask = (distance_matrix > r_min) & (distance_matrix < r_max)
         # valid distances across configuration
-        interaction_mask = comp_mask & cut_mask
+        interaction_mask = real_mask & comp_mask & cut_mask
         distance_map[pair] = distance_matrix[interaction_mask]
         # corresponding derivatives, flattened
         x_where, y_where = np.where(interaction_mask)

@@ -225,16 +225,20 @@ class UFCalculator(ase_calc.Calculator):
         dist_matrix, i_where, j_where = angles.identify_ij(atoms,
                                                            knot_sets,
                                                            supercell)
-        triplet_generator = angles.generate_triplets(
-            i_where, j_where, sup_comp, hashes, dist_matrix, knot_sets)
+        i_values, i_groups = angles.group_idx_by_center(i_where, j_where)
 
-        for triplet_batch in triplet_generator:
+        for i_value, i_group in zip(i_values, i_groups):
+            triplet_batch = angles.generate_triplets(i_value, i_group,
+                                                     sup_comp, hashes,
+                                                     dist_matrix,
+                                                     knot_sets,
+                                                     len(atoms))
             for interaction_idx in range(n_interactions):
                 interaction_data = triplet_batch[interaction_idx]
                 if interaction_data is None:
                     continue
                 spline = self.trio_potentials[trio_list[interaction_idx]]
-                i, r_l, r_m, r_n, ituples = interaction_data
+                r_l, r_m, r_n, ituples = interaction_data
                 component = spline(np.vstack([r_l, r_m, r_n]).T)
                 energy += np.sum(component)
         return energy
@@ -301,16 +305,19 @@ class UFCalculator(ase_calc.Calculator):
                                                               knot_sets,
                                                               supercell,
                                                               square=True)
-        triplet_generator = angles.generate_triplets(
-            x_where, y_where, sup_comp, hashes, matrix, knot_sets)
+        i_values, i_groups = angles.group_idx_by_center(x_where, y_where)
 
-        for triplet_batch in triplet_generator:
+        for i_value, i_group in zip(i_values, i_groups):
+            triplet_batch = angles.generate_triplets(i_value, i_group,
+                                                    sup_comp, hashes,
+                                                    matrix, knot_sets,
+                                                    n_atoms)
             for interaction_idx in range(n_interactions):
                 interaction_data = triplet_batch[interaction_idx]
                 if interaction_data is None:
                     continue
                 spline = self.trio_potentials[trio_list[interaction_idx]]
-                i, r_l, r_m, r_n, ituples = interaction_data
+                r_l, r_m, r_n, ituples = interaction_data
                 drij_dr = distances.compute_direction_cosines(coords,
                                                               matrix,
                                                               ituples[:, 0],

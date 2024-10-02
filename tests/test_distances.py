@@ -114,9 +114,9 @@ class TestUnary:
                                                             r_max_map,
                                                             supercell,)
         d_aa = distances[('Au', 'Au')]
-        assert len(d_aa) == 542
+        assert len(d_aa) == 114
         dr_aa = derivatives[('Au', 'Au')]
-        assert dr_aa.shape == (2, 3, 542)
+        assert dr_aa.shape == (2, 3, 114)
 
 
 class TestBinary:
@@ -177,15 +177,15 @@ class TestBinary:
         d_aa = distances[('Ne', 'Ne')]
         d_ab = distances[('Ne', 'Xe')]
         d_bb = distances[('Xe', 'Xe')]
-        assert len(d_aa) == 660
-        assert len(d_ab) == 3102
-        assert len(d_bb) == 2142
+        assert len(d_aa) == 28
+        assert len(d_ab) == 146
+        assert len(d_bb) == 116
         dr_aa = derivatives[('Ne', 'Ne')]
         dr_ab = derivatives[('Ne', 'Xe')]
         dr_bb = derivatives[('Xe', 'Xe')]
-        assert dr_aa.shape == (2, 3, 660)
-        assert dr_ab.shape == (2, 3, 3102)
-        assert dr_bb.shape == (2, 3, 2142)
+        assert dr_aa.shape == (2, 3, 28)
+        assert dr_ab.shape == (2, 3, 146)
+        assert dr_bb.shape == (2, 3, 116)
 
 
 class TestUnaryLegacy:
