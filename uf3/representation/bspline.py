@@ -3,7 +3,7 @@ This module provides the BSplineBasis class for defining BSpline basis sets
 from knots and/or pair distance constraints.
 """
 
-from typing import List, Dict, Tuple, Any, Collection
+from typing import List, Dict, Tuple, Any, Collection, Union
 import os
 import re
 import warnings
@@ -30,8 +30,8 @@ class BSplineBasis:
                  resolution_map=None,
                  knot_strategy='linear',
                  offset_1b=True,
-                 leading_trim=0,
-                 trailing_trim=3,
+                 leading_trim=None,
+                 trailing_trim=None,
                  knots_map=None):
         """
         Args:
@@ -47,18 +47,28 @@ class BSplineBasis:
                 body interactions and 5 for three-body interactions.
             knot_strategy (str): "linear" for uniform spacing
                 or "lammps" for knot spacing by r^2.
-            leading_trim (int): number of basis functions at leading edge
-                to suppress. Useful for ensuring smooth cutoffs.
-            trailing_trim (int): number of basis functions at trailing edge
-                to suppress. Useful for ensuring smooth cutoffs.
+            leading_trim (None | int | dict): number of basis functions at
+                leading edge to suppress. Useful for ensuring smooth cutoffs.
+                If an int, the same value will be applied for all interactions.
+                If a dict: {interaction_order: trim_value}.
+                e.g.: {2:0, 3:3}
+            trailing_trim (None | int | dict): number of basis functions at
+                trailing edge to suppress. Useful for ensuring smooth cutoffs.
+                If an int, the same value will be applied for all interactions.
+                If a dict: {interaction_order: trim_value}.
+                e.g.: {2:3, 3:3}
             knots_map (dict): pre-generated map of knots.
                 Overrides other settings.
         """
         self.chemical_system = chemical_system
         self.knot_strategy = knot_strategy
         self.offset_1b = offset_1b
-        self.leading_trim = leading_trim
-        self.trailing_trim = trailing_trim
+        default_leading_trim = {2: 0, 3: 3} 
+        default_trailing_trim = {2: 3, 3: 3}
+        self.leading_trim = process_trim_values(leading_trim,
+                                                default_leading_trim)
+        self.trailing_trim = process_trim_values(trailing_trim,
+                                                 default_trailing_trim)
         self.r_min_map = {}
         self.r_max_map = {}
         self.resolution_map = {}
@@ -113,6 +123,16 @@ class BSplineBasis:
                 "trailing_trim",
                 "knots_map"]
         basis_settings.update({k: v for k, v in config.items() if k in keys})
+
+        # The keys of leading/trailing trims are stored as strings in JSON
+        # but must be converted back to integers
+        if isinstance(basis_settings["leading_trim"], dict):  # allow int
+            basis_settings["leading_trim"] = \
+                {int(k): v for k, v in basis_settings["leading_trim"].items()}
+        if isinstance(basis_settings["trailing_trim"], dict):  # allow int
+            basis_settings["trailing_trim"] = \
+                {int(k): v for k, v in basis_settings["trailing_trim"].items()}
+        
         bspline_config = BSplineBasis(chemical_system, **basis_settings)
         if "knots_path" in config and config["dump_knots"]:
             knots_map = bspline_config.knots_map
@@ -124,8 +144,9 @@ class BSplineBasis:
     def as_dict(self):
         dump = dict(knot_strategy=self.knot_strategy,
                     offset_1b=self.offset_1b,
-                    leading_trim=self.leading_trim,
-                    trailing_trim=self.trailing_trim,
+                    # convert trim keys to string keys for JSON compatibility
+                    leading_trim={str(k): v for k, v in self.leading_trim.items()},
+                    trailing_trim={str(k): v for k, v in self.trailing_trim.items()},
                     knots_map=self.knots_map,
                     **self.chemical_system.as_dict())
         return dump
@@ -555,8 +576,8 @@ class BSplineBasis:
 
     def generate_frozen_indices(self,
                                 offset_1b: bool = True,
-                                n_lead: int = 0,
-                                n_trail: int = 3,
+                                n_lead: Dict[int, int] = None,
+                                n_trail: Dict[int, int] = None,
                                 value: float = 0.0):
         """
 
@@ -570,6 +591,10 @@ class BSplineBasis:
         Returns:
 
         """
+        if n_lead is None:
+            n_lead = self.leading_trim
+        if n_trail is None:
+            n_trail = self.trailing_trim
         pairs = self.interactions_map.get(2, [])
         trios = self.interactions_map.get(3, [])
         component_sizes, component_offsets = self.get_interaction_partitions()
@@ -578,21 +603,21 @@ class BSplineBasis:
         for pair in pairs:
             offset = component_offsets[pair]
             size = component_sizes[pair]
-            for trim_idx in range(n_lead):
+            for trim_idx in range(n_lead[2]):
                 idx = offset + trim_idx
                 col_idx.append(idx)
                 frozen_c.append(value)
-            for trim_idx in range(1, n_trail + 1):
+            for trim_idx in range(1, n_trail[2] + 1):
                 idx = offset + size - trim_idx
                 col_idx.append(idx)
                 frozen_c.append(value)
         for trio in trios:
             template = np.zeros_like(self.templates[trio])
-            for trim_idx in range(n_lead):
+            for trim_idx in range(n_lead[3]):
                 template[trim_idx, :, :] = 1
                 template[:, trim_idx, :] = 1
                 template[:, :, trim_idx] = 1
-            for trim_idx in range(1, n_trail + 1):
+            for trim_idx in range(1, n_trail[3] + 1):
                 template[-trim_idx, :, :] = 1
                 template[:, -trim_idx, :] = 1
                 template[:, :, -trim_idx] = 1
@@ -628,8 +653,8 @@ class BSplineBasis:
                                                    l_space,
                                                    m_space,
                                                    n_space,
-                                                   self.leading_trim,
-                                                   self.trailing_trim)
+                                                   self.leading_trim[3],
+                                                   self.trailing_trim[3])
             template_flat = template.flatten()
             template_mask, = np.where(template_flat > 0)
             self.template_mask[trio] = template_mask
@@ -1132,3 +1157,30 @@ def tuple_consistency_check(map_, interaction_map):
     for entry in map_:
         if entry not in interactions:
             warnings.warn(f"{entry} specification unused.")
+
+
+def process_trim_values(user_input: Union[None, int, Dict],
+                        default_trim: Dict[int, int]):
+    """
+    Process user input for trimming values.
+
+    Args:
+        user_input (None | int | dict): User input for trimming values.
+        default_trim: Default trimming values. {interaction_order: trim_value}
+
+    """
+    if user_input is None:
+        return default_trim.copy()
+    elif isinstance(user_input, int):  # same trim value for all orders
+        return {key: user_input for key in default_trim}
+    elif isinstance(user_input, dict):
+        if not all(isinstance(key, int) for key in user_input.keys()):
+            raise ValueError("Keys of the trimming values (order of interaction)"
+                             " must be integers.")
+        if not all(isinstance(value, int) for value in user_input.values()):
+            raise ValueError("Values of the trimming values must be integers.")
+        return user_input.copy()
+    else:
+        raise ValueError("Invalid input for trimming values. "
+                         "Must be None, int, or a dict.")
+        

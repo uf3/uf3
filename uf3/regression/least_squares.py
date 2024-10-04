@@ -631,7 +631,7 @@ class WeightedLinearModel(BasicLinearModel):
         min_coverage = np.argmax(coverage == True)
         if min_coverage == 0:
             print(f"Coverage is sufficient; no fix applied to {pair}.")
-        idx_fix = np.arange(self.bspline_config.leading_trim, min_coverage)
+        idx_fix = np.arange(self.bspline_config.leading_trim[2], min_coverage)
 
         knot_sequence = self.bspline_config.knots_map[pair]
         r_centers = knot_sequence[2: n_basis + 2]

@@ -392,8 +392,8 @@ class BasisFeaturizer:
             features = bspline.evaluate_basis_functions(
                 distances_map[pair],
                 basis_function,
-                n_lead=self.leading_trim,
-                n_trail=self.trailing_trim)
+                n_lead=self.leading_trim[2],
+                n_trail=self.trailing_trim[2])
             feature_map[pair] = features
         feature_vector = flatten_by_interactions(feature_map,
                                                  pair_tuples)
@@ -430,8 +430,8 @@ class BasisFeaturizer:
                 distance_map[pair],
                 derivative_map[pair],
                 knot_sequence,
-                n_lead=self.leading_trim,
-                n_trail=self.trailing_trim)
+                n_lead=self.leading_trim[2],
+                n_trail=self.trailing_trim[2])
             feature_map[pair] = features
         feature_array = flatten_by_interactions(feature_map,
                                                 pair_tuples)
@@ -460,8 +460,8 @@ class BasisFeaturizer:
                                            basis_functions,
                                            hashes,
                                            supercell=supercell,
-                                           n_lead=self.leading_trim,
-                                           n_trail=self.trailing_trim)
+                                           n_lead=self.leading_trim[3],
+                                           n_trail=self.trailing_trim[3])
         vectors = []
         for i, trio in enumerate(trio_list):
             value_grid = grids[i]
@@ -494,8 +494,8 @@ class BasisFeaturizer:
                                           basis_functions,
                                           hashes,
                                           supercell=supercell,
-                                          n_lead=self.leading_trim,
-                                          n_trail=self.trailing_trim)
+                                          n_lead=self.leading_trim[3],
+                                          n_trail=self.trailing_trim[3])
         blocks = []
         for i, trio in enumerate(trio_list):
             values = grids[i]
