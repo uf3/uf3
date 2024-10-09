@@ -1,5 +1,4 @@
 from uf3.regression import least_squares
-from pymatgen.core import Element
 from uf3.data import composition
 import numpy as np
 import os, sys, argparse
