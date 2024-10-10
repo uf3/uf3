@@ -19,7 +19,7 @@ def get_bspline_config(
     knot_spacing_3b: float,
     leading_trim: float,
     trailing_trim: float,
-    offset_1b: bool
+    offset_1b: bool = True
 ):
     """
     Function for getting bspline_config object. We recommend using this function
