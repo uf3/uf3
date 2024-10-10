@@ -19,6 +19,7 @@ def get_bspline_config(
     knot_spacing_3b: float,
     leading_trim: float,
     trailing_trim: float,
+    offset_1b: bool
 ):
     """
     Function for getting bspline_config object. We recommend using this function
@@ -44,10 +45,17 @@ def get_bspline_config(
             to suppress. Useful for ensuring smooth cutoffs.
         trailing_trim (float): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
+        offset_1b (bool):
 
     Returns:
         bspline_config: bspline.BSplineBasis
     """
+    if leading_trim != 0:
+        raise ValueError("Currrent version is only tested for leading_trim=0")
+
+    if trailing_trim != 3:
+        raise ValueError("Currrent version is only tested for trailing_trim=3")
+    
     if not (
         np.isclose((rmax_2b - rmin_2b) % knot_spacing_2b, knot_spacing_2b)
         or np.isclose((rmax_2b - rmin_2b) % knot_spacing_2b, 0)
@@ -56,60 +64,54 @@ def get_bspline_config(
         raise ValueError("Provided rmax_2b does not conatin integer number of\n\
                 knots, seperated by knot_spacing_2b")
 
-    if not (
-        np.isclose((rmax_3b - rmin_3b) % knot_spacing_3b, knot_spacing_3b)
-        or np.isclose((rmax_3b - rmin_3b) % knot_spacing_3b, 0)
-    ):
-
-        raise ValueError("Provided rmax_3b does not conatin integer number of\n\
-                knots, seperated by knot_spacing_3b")
-
-    if leading_trim != 0:
-        raise ValueError("Currrent version is only tested for leading_trim=0")
-
-    if trailing_trim != 3:
-        raise ValueError("Currrent version is only tested for trailing_trim=3")
-
-    rmax_3b_double = rmax_3b * 2
-    if not (
-        np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), 0)
-        or np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), knot_spacing_3b)
-    ):
-        raise ValueError(
-            "Provided (rmax_3b-rmin_3b) contains integer number of knots \n\
-                sperated by knot_spacing_3b, but rmax_3b_double does not. \n\
-                Consider changing rmin_3b, rmax_3b, knot_spacing_3b so that \n\
-                the following conditions are satisfied- \n\
-                --(rmax_3b - rmin_3b)/knot_spacing_3b == integer \n\
-                --(rmax_3b_double - rmin_3b)//knot_spacing_3b == integer, \n\
-                    where rmax_3b_double = 2*rmax_3b, calculated internally"
-        )
-
     reso_2b = round((rmax_2b - rmin_2b) / knot_spacing_2b)
-    reso_3b = round((rmax_3b - rmin_3b) / knot_spacing_3b)
-
-    reso_3b_double = round((rmax_3b_double - rmin_3b) / knot_spacing_3b)
 
     r_min_map = {i: rmin_2b for i in chemical_system.interactions_map[2]}
-    r_min_map.update(
-        {
+    r_max_map = {i: rmax_2b for i in chemical_system.interactions_map[2]}
+    
+    resolution_map = {i: reso_2b for i in chemical_system.interactions_map[2]}
+    
+    if chemical_system.degree == 3:
+        if not (
+            np.isclose((rmax_3b - rmin_3b) % knot_spacing_3b, knot_spacing_3b)
+            or np.isclose((rmax_3b - rmin_3b) % knot_spacing_3b, 0)
+            ):
+
+            raise ValueError("Provided rmax_3b does not conatin integer number of\n\
+                    knots, seperated by knot_spacing_3b")
+
+        rmax_3b_double = rmax_3b * 2
+        if not (
+            np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), 0)
+            or np.isclose(((rmax_3b_double - rmin_3b) % knot_spacing_3b), knot_spacing_3b)
+            ):
+            raise ValueError(
+                "Provided (rmax_3b-rmin_3b) contains integer number of knots \n\
+                    sperated by knot_spacing_3b, but rmax_3b_double does not. \n\
+                    Consider changing rmin_3b, rmax_3b, knot_spacing_3b so that \n\
+                    the following conditions are satisfied- \n\
+                    --(rmax_3b - rmin_3b)/knot_spacing_3b == integer \n\
+                    --(rmax_3b_double - rmin_3b)//knot_spacing_3b == integer, \n\
+                        where rmax_3b_double = 2*rmax_3b, calculated internally"
+                        )
+        reso_3b = round((rmax_3b - rmin_3b) / knot_spacing_3b)
+
+        reso_3b_double = round((rmax_3b_double - rmin_3b) / knot_spacing_3b)
+        
+        r_min_map.update(
+            {
             i: [rmin_3b, rmin_3b, rmin_3b]
             for i in chemical_system.interactions_map[3]
-        }
-    )
+            }
+        )
 
-    r_max_map = {i: rmax_2b for i in chemical_system.interactions_map[2]}
-
-    if chemical_system.degree == 3:
         r_max_map.update(
             {
                 i: [rmax_3b, rmax_3b, rmax_3b_double]
                 for i in chemical_system.interactions_map[3]
             }
         )
-
-    resolution_map = {i: reso_2b for i in chemical_system.interactions_map[2]}
-    if chemical_system.degree == 3:
+        
         resolution_map.update(
             {
                 i: [reso_3b, reso_3b, reso_3b_double]
@@ -124,6 +126,7 @@ def get_bspline_config(
         resolution_map=resolution_map,
         trailing_trim=trailing_trim,
         leading_trim=leading_trim,
+        offset_1b = offset_1b
     )
 
     return bspline_config
