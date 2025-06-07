@@ -1,0 +1,11 @@
+ase                       3.23.0                  
+matplotlib                3.9.1.post1             
+numba                     0.60.0                   
+numpy                     1.26.4         
+pandas                    2.0.0                   
+plotly                    5.23.0             
+pyyaml                    6.0.2          
+scikit-learn              1.5.1      
+scipy                     1.14.0         
+seekpath                  2.1.0       
+tqdm                      4.66.5         
