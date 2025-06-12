@@ -1,5 +1,10 @@
 # Ultra-Fast Force Fields (UF<sup>3</sup>): Tungsten Example
 
+## Note
+
+The notebook does not work with the current version of the `pandas` package due to a bug in that package.
+This can be circumvented by fixing the version of this dependency to `pandas==2.0`.
+
 ## Dataset
 
 The Tungsten dataset (```w-14.xyz```) is available at [qmml.org](https://qmml.org/datasets.html), maintained by Dr. Matthias Rupp.
