@@ -1,7 +1,7 @@
 This document describes how to featruize data using the Ultra Fast Featurization module.
 
 
-In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library. Preliminary testes indicate that ~50 times faster than the python version. Currently only 2-body energy, 2b forces for multicomponent is supported. For 3b energy and 3b force support is for single component system.
+In UF3, featurization is the slowest step. A solution to this problem is to perform all the heavy computation using a precompiled C++ library. Preliminary testes indicate that ~50 times faster than the python version.
 
 
 Dependencies
