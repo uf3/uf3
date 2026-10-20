@@ -96,7 +96,7 @@ class BSplineBasis:
         """Instantiate from configuration dictionary"""
         chemical_system = composition.ChemicalSystem.from_dict(config)
         basis_settings = dict()
-        if "knots_path" in config and config["load_knots"]:
+        if "knots_path" in config and config.get("load_knots", False):
             knots_fname = config["knots_path"]
             if os.path.isfile(knots_fname):
                 try:
@@ -124,17 +124,27 @@ class BSplineBasis:
                 "knots_map"]
         basis_settings.update({k: v for k, v in config.items() if k in keys})
 
+        # Plain YAML/JSON represents interaction keys as dash-separated strings.
+        for key in ['r_min_map', 'r_max_map', 'resolution_map', 'knots_map']:
+            mapping = basis_settings.get(key)
+            if isinstance(mapping, dict):
+                basis_settings[key] = {
+                    tuple(interaction.split('-')) if isinstance(interaction, str)
+                    else interaction: value
+                    for interaction, value in mapping.items()
+                }
+
         # The keys of leading/trailing trims are stored as strings in JSON
         # but must be converted back to integers
-        if isinstance(basis_settings["leading_trim"], dict):  # allow int
+        if isinstance(basis_settings.get("leading_trim"), dict):  # allow int
             basis_settings["leading_trim"] = \
                 {int(k): v for k, v in basis_settings["leading_trim"].items()}
-        if isinstance(basis_settings["trailing_trim"], dict):  # allow int
+        if isinstance(basis_settings.get("trailing_trim"), dict):  # allow int
             basis_settings["trailing_trim"] = \
                 {int(k): v for k, v in basis_settings["trailing_trim"].items()}
         
         bspline_config = BSplineBasis(chemical_system, **basis_settings)
-        if "knots_path" in config and config["dump_knots"]:
+        if "knots_path" in config and config.get("dump_knots", False):
             knots_map = bspline_config.knots_map
             json_io.dump_interaction_map(dict(knots=knots_map),
                                          filename=config["knots_path"],
@@ -369,15 +379,15 @@ class BSplineBasis:
         self.frozen_c = cf
 
     def get_regularization_matrix(self,
-                                  ridge_map={},
-                                  curvature_map={},
+                                  ridge_map=None,
+                                  curvature_map=None,
                                   **kwargs):
         """
         Compute the overall regularzation matrix for least squares.
 
         Note that the ridge and curvature regularization strengths are equal
         to the "lambda" coefficients in the loss function.
-            e.g. Ridge only: lambda * ||c||^2
+        For example, ridge regularization contributes ``lambda * ||c||^2``.
 
         Args:
             ridge_map (dict): n-body term ridge regularizer strengths.
@@ -389,6 +399,8 @@ class BSplineBasis:
             combined_matrix (np.ndarray): regularization matrix made up of
                 individual matrices per n-body interaction.
         """
+        ridge_map = dict(ridge_map or {})
+        curvature_map = dict(curvature_map or {})
         for k in kwargs:
             if k.lower()[0] == 'r':
                 ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])
@@ -636,16 +648,11 @@ class BSplineBasis:
 
     def set_flatten_template_3B(self):
         """
-        Compute masks for flattening and unflattening 3B grid. The 3B BSpline
-            set has three planes of symmetry corresponding to permutation
-            of i, j, and k indices. Training is therefore performed with
-            only the subset of basis functions corresponding to i < j < k.
-            Basis functions on planes of symmetry have reduced weight.
+        Construct symmetry masks and weights for compressed three-body features.
 
-        Returns:
-            flat_weights (np.ndarray): vector of subset indices to use.
-            unflatten_mask (np.ndarray): L x L x L boolean array for
-                regenerating full basis function set.
+        Only the independent coefficients are retained. Basis functions on symmetry
+        planes receive weights that account for equivalent permutations. Results are
+        stored in ``template_mask``, ``flat_weights``, and ``templates``.
         """
         for trio in self.interactions_map[3]:
             l_space, m_space, n_space = self.knots_map[trio]
@@ -821,19 +828,14 @@ def evaluate_basis_functions(points,
         points (np.ndarray): vector of points to sample, e.g. pair distances
         basis_functions (list): list of callable basis functions.
         nu (int): compute n-th derivative of basis function. Default 0.
-        trailing_trim (int): number of basis functions at trailing edge
+        n_trail (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
         flatten (bool): whether to flatten values per spline.
 
     Returns:
-        if flatten:
-            value_per_spline (np.ndarray): vector of cubic B-spline value,
-                summed across queried points, for each knot subinterval.
-                Used as a rotation-invariant representation generated
-                using a BSpline basis.
-        else:
-            values_per_spline (list): list of vector of cubic B-spline
-                evaluations for each knot subinterval.
+        np.ndarray or list: Per-spline sums when ``flatten`` is true; otherwise
+            the per-point evaluations for each spline.
+
     """
     n_splines = len(basis_functions)
     values_per_spline = [0] * n_splines
@@ -958,9 +960,8 @@ def find_spline_indices(points: np.ndarray,
         knot_sequence (np.ndarray): list of knot positions.
 
     Returns:
-        points (np.ndarray): array of points repeated four times
-        idx (np.ndarray): corresponding basis function index for each
-            point (four each).
+        tuple: Points repeated four times and the corresponding nonzero spline indices.
+
     """
     # identify basis function "center" per point
     idx = np.searchsorted(knot_sequence, points, side='left') - 1 - 3

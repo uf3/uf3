@@ -1,4 +1,4 @@
-ase
+ase>=3.23
 matplotlib
 ndsplines
 numba
@@ -14,6 +14,6 @@ EXTRAS_REQUIRE
 -ELASTIC_CONSTANTS
 elastic
 -PHONON_SPECTRA
-phonopy>=2.6.0
+phonopy>=2.26,<5
 seekpath
 spglib

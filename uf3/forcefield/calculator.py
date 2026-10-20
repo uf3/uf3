@@ -11,7 +11,14 @@ import numpy as np
 from scipy import interpolate
 import ase
 from ase import optimize as ase_optim
-from ase import constraints as ase_constraints
+try:
+    from ase.filters import FrechetCellFilter as CellFilter
+except ImportError:
+    from ase.filters import ExpCellFilter as CellFilter
+try:
+    from ase.calculators.fd import calculate_numerical_stress
+except ImportError:  # ASE releases before the finite-difference module
+    calculate_numerical_stress = None
 from ase.calculators import calculator as ase_calc
 
 from uf3.data import geometry
@@ -46,7 +53,7 @@ class UFCalculator(ase_calc.Calculator):
         model (uf3.regression.WeightedLinearModel): fit model to use.
     """
 
-    implemented_properties = ['energy', 'forces']
+    implemented_properties = ['energy', 'free_energy', 'forces']
     implemented_properties += ['stress']  # so far numerical stress only
     
 
@@ -185,7 +192,7 @@ class UFCalculator(ase_calc.Calculator):
         el_set, el_counts = np.unique(atoms.get_chemical_symbols(),
                                       return_counts=True)
         for el, count in zip(el_set, el_counts):
-            energy += float(self.solutions[el] * count)
+            energy += np.asarray(self.solutions[el]).item() * count
         return energy
 
     def _energy_2b(self,
@@ -401,6 +408,8 @@ class UFCalculator(ase_calc.Calculator):
                     **kwargs
                     ) -> np.ndarray:
         """Return the (numerical) stress."""
+        if calculate_numerical_stress is not None:
+            return calculate_numerical_stress(atoms, **kwargs)
         return self.calculate_numerical_stress(atoms, **kwargs)
 
     def relax_fmax(self,
@@ -413,10 +422,10 @@ class UFCalculator(ase_calc.Calculator):
                    ) -> ase.Atoms:
         """Minimize maximum force using ASE's QuasiNewton optimizer."""
         geom = geom.copy()
-        geom.set_calculator(self)
+        geom.calc = self
 
         if np.all(geom.pbc) and relax_cell:  # periodic boundary conditions
-            geom_filter = ase_constraints.ExpCellFilter(geom)
+            geom_filter = CellFilter(geom)
         else:
             geom_filter = geom
         if verbose:
@@ -424,12 +433,11 @@ class UFCalculator(ase_calc.Calculator):
         else:
             logfile = os.devnull  # suppress output
         t0 = time.time()
+        steps = kwargs.pop('steps', 1000)
         optimizer = ase_optim.BFGSLineSearch(geom_filter,
                                              logfile=logfile,
-                                             force_consistent=True,
                                              **kwargs)
-        for _ in optimizer.irun(fmax=fmax):
-            optimizer.step()
+        for _ in optimizer.irun(fmax=fmax, steps=steps):
             if (time.time() - t0) > timeout:
                 warnings.warn("Relaxation timed out.", RuntimeWarning)
                 break

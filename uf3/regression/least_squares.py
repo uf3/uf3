@@ -34,6 +34,8 @@ class VarianceRecorder:
         Returns:
             (current mean, current standard deviation, current entry count)
         """
+        if len(batch) == 0:
+            return self.mean, self.std, self.n
         if self.n == 0:
             self.mean = np.mean(batch, axis=0)
             self.std = np.std(batch, axis=0)
@@ -129,11 +131,8 @@ class BasicLinearModel:
         Returns:
             score (float): negative weighted root-mean-square-error.
         """
-        n_features = len(x[0])
         if weights is not None:
-            w_matrix = np.eye(n_features) * np.sqrt(weights)
-            x = np.dot(w_matrix, x)
-            y = np.dot(w_matrix, y)
+            x, y = apply_weights(x, y, np.asarray(weights))
         predictions = self.predict(x)
         score = -rmse_metric(y, predictions)
         if normalize:
@@ -254,6 +253,8 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x)
             ordinate (np.ndarray: ordinate (x^T y)
         """
+        if not np.all(np.isfinite(gram)) or not np.all(np.isfinite(ordinate)):
+            raise ValueError('Training matrices must contain only finite values.')
         data_coverage = (np.sum(gram, axis=0) != 0)
         data_coverage = revert_frozen_coefficients(data_coverage,
                                                    self.n_feats,
@@ -269,6 +270,8 @@ class WeightedLinearModel(BasicLinearModel):
                                                   self.mask,
                                                   self.frozen_c,
                                                   self.col_idx)
+        if not np.all(np.isfinite(coefficients)):
+            raise ValueError('Fitting did not produce finite coefficients.')
         self.coefficients = coefficients
 
     def fit(self,
@@ -346,6 +349,20 @@ class WeightedLinearModel(BasicLinearModel):
             gram (np.ndarray): gram matrix (x^T x) for fitting.
             ordinate (np.ndarray): ordinate (x^T y) for fitting.
         """
+        if not np.isfinite(weight) or not 0 <= weight <= 1:
+            raise ValueError('Energy/force weight must be between 0 and 1.')
+        if energy_weight == 0:
+            if weight == 1:
+                raise ValueError('No energy samples for an energy-only fit.')
+            return force_weight**2 * gram_f, force_weight**2 * ord_f
+        if force_weight == 0:
+            if weight == 0:
+                raise ValueError('No force samples for a force-only fit.')
+            return energy_weight**2 * gram_e, energy_weight**2 * ord_e
+        if weight == 1:
+            return energy_weight**2 * gram_e, energy_weight**2 * ord_e
+        if weight == 0:
+            return force_weight**2 * gram_f, force_weight**2 * ord_f
         gram = ((weight * energy_weight**2 * gram_e)
                 + ((1 - weight) * force_weight**2 * gram_f))
         ordinate = ((weight * energy_weight**2 * ord_e)
@@ -489,25 +506,19 @@ class WeightedLinearModel(BasicLinearModel):
                         score: bool = True,
                         drop_columns: List[str] = None):
         """
-        Extract inputs and outputs from HDF5 file and predict energies/forces.
+        Predict energy and force values from an HDF5 feature file.
 
         Args:
-            filename: path to HDF5 file.
-            keys (list): keys to query from df (e.g. training subset).
-            table_names (list): list of table names in HDF5 to read.
-            score (bool): whether to return root mean square error metrics.
+            filename (str): Path to the feature file.
+            keys (list): Configuration keys to query, or all configurations.
+            table_names (list): HDF5 tables to read, or all tables.
+            score (bool): Also return root-mean-square errors.
+            drop_columns (list): Feature columns to remove for cutoff modification.
+                The caller must verify that these columns match the intended cutoff.
 
         Returns:
-            y_e (np.ndarray): target values for energies.
-            p_e (np.ndarray): prediction values for energies.
-            y_f (np.ndarray): target values for forces.
-            p_f (np.ndarray): prediction values for forces.
-            rmse_e (np.ndarray): RMSE across energy predictions.
-            rmse_e (np.ndarray): RMSE across force predictions.
-            drop_columns (list): list of columns to drop. Used when modifying
-                the cutoffs of the feature vectors from HDF5 file. No internal
-                checks are performed to see if dropping provided columns produce
-                features of the intended cutoffs. Use with Caution.
+            tuple: Energy targets and predictions, then force targets and predictions.
+                When ``score`` is true, energy and force RMSE values follow.
         """
         n_elements = len(self.bspline_config.element_list)
         y_e, p_e, y_f, p_f = batched_prediction(self,
@@ -560,11 +571,10 @@ class WeightedLinearModel(BasicLinearModel):
             # TODO: proper deprecation
             warnings.warn("'solution' should be renamed to 'coefficients'")
             solution = solution["solution"]
-        for key in solution:
-            if isinstance(key, tuple):
-                sorted_key = composition.sort_interaction_symbols(key)
-                if sorted_key != key:
-                    solution[sorted_key] = solution[key]
+        solution = {
+            composition.sort_interaction_symbols(key) if isinstance(key, tuple) else key: value
+            for key, value in solution.items()
+        }
         # consistency check with bspline_config
         component_len = self.bspline_config.get_interaction_partitions()[0]
         for pair in self.bspline_config.interactions_map[2]:
@@ -581,6 +591,7 @@ class WeightedLinearModel(BasicLinearModel):
             n_target = component_len[trio]
             if trio not in solution:
                 warnings.warn(f"{trio} not provided.")
+                solution[trio] = np.zeros(n_target)
             if trio in solution:
                 # decompress if necessary
                 component = np.array(solution[trio])
@@ -1160,10 +1171,18 @@ def calc_E_F_weights(n_e, n_f, std_e, std_f):
         energy_weight (float): weight applied to energy components.
         force_weight (float): weight applied to force components.
     """
-    if std_e == 0:  # single point or really bad dataset
+    if n_e == 0 and n_f == 0:
+        raise ValueError('No training samples were selected.')
+    if n_e == 0:
+        return 0., 1.
+    if n_f == 0:
+        return 1., 0.
+    if not np.isfinite(std_e) or not np.isfinite(std_f):
+        raise ValueError('Target standard deviations must be finite.')
+    if std_e == 0:  # single point or constant energy dataset
         energy_weight = 1.0
         force_weight = 1 / np.sqrt(n_f)
     else:
         energy_weight = 1 / np.sqrt(n_e) / std_e
-        force_weight = 1 / np.sqrt(n_f) / std_f
+        force_weight = 1 / np.sqrt(n_f) / (std_f if std_f > 0 else 1.)
     return energy_weight, force_weight

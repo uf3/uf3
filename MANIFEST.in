@@ -1,2 +1,3 @@
+include uf3/default_options.yaml
 include requirements.txt
 include readme.rst

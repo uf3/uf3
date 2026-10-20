@@ -34,7 +34,7 @@ def get_supercell(geometry: ase.Atoms,
 
     cell = geometry.get_cell()
     pbc = geometry.get_pbc()
-    periodic_indices = generate_periodic_image_indices(cell, r_cut)
+    periodic_indices = generate_periodic_image_indices(cell, r_cut, pbc=pbc)
     # low-dimensional support
     for dim in range(len(periodic_indices)):
         if not pbc[dim]:
@@ -52,7 +52,8 @@ def get_supercell(geometry: ase.Atoms,
 
 
 def get_supercell_factors(cell: Union[ase_cell.Cell, np.ndarray],
-                          r_cut: float = 10
+                          r_cut: float = 10,
+                          pbc=None
                           ) -> np.ndarray:
     """
     Identify minimum number of replicas along each lattice vector direction
@@ -66,21 +67,18 @@ def get_supercell_factors(cell: Union[ase_cell.Cell, np.ndarray],
     Returns:
         supercell_factors: minimum number of images per direction (radius).
     """
-    a, b, c = cell
-    if np.all(cell == 0):
-        return [1, 1, 1]
-    elif np.any(np.linalg.norm(cell, 2, axis=1) == 0):
-        warnings.warn("Unit cell has 0-length lattice vector(s).")
-        return [1, 1, 1]
-    normal_vectors = [np.cross(b, c),
-                      np.cross(a, c),
-                      np.cross(a, b)]
-    projected_vectors = [n * np.dot(v, n) / np.dot(n, n)
-                         for v, n in zip([a, b, c],
-                                         normal_vectors)]
-    supercell_factors = [r_cut / linalg.norm(p) for p in projected_vectors]
-    supercell_factors = np.ceil(supercell_factors)
-    return supercell_factors
+    cell = np.asarray(cell, dtype=float)
+    if pbc is None:
+        pbc = np.linalg.norm(cell, axis=1) > 0
+    pbc = np.broadcast_to(np.asarray(pbc, dtype=bool), (3,))
+    factors = np.zeros(3)
+    periodic_cell = cell[pbc]
+    if len(periodic_cell):
+        if np.linalg.matrix_rank(periodic_cell) != len(periodic_cell):
+            raise ValueError("Periodic cell vectors must be nonzero and independent.")
+        reciprocal = np.linalg.pinv(periodic_cell).T
+        factors[pbc] = np.ceil(r_cut * np.linalg.norm(reciprocal, axis=1))
+    return factors
 
 
 def sort_image_indices(a_indices: np.ndarray,
@@ -128,8 +126,8 @@ def sort_image_indices(a_indices: np.ndarray,
     return a_grid, b_grid, c_grid
 
 
-def generate_periodic_image_indices(cell, r_cut):
-    supercell_factors = get_supercell_factors(cell, r_cut)
+def generate_periodic_image_indices(cell, r_cut, pbc=None):
+    supercell_factors = get_supercell_factors(cell, r_cut, pbc=pbc)
     radius_indices = [np.arange(n + 1) for n in supercell_factors]
     diameter_indices = [np.repeat(v, 2)[1:] for v in radius_indices]
     for i in range(3):
@@ -161,6 +159,7 @@ def generate_displacements_from_forces(geom: ase.Atoms,
     https://doi.org/10.1038/s41524-020-0323-8
     """
     n_atoms = len(geom)
+    forces = np.asarray(forces)
     positions = geom.get_positions()
     if random:  # n random displacements
         n = n or 25  # default
@@ -170,10 +169,10 @@ def generate_displacements_from_forces(geom: ase.Atoms,
         n = n_atoms
         displacements = []
         for direction in [0, 1, 2]:  # cartesian directions
-            d = np.ones(n) * d * np.sign(forces[:, direction])
+            offsets = d * np.sign(forces[:, direction])
             for atom_idx, position in enumerate(positions):  # atoms
                 displacement = np.zeros_like(positions)
-                displacement[atom_idx, direction] += d[atom_idx]
+                displacement[atom_idx, direction] += offsets[atom_idx]
                 displacements.append(displacement)
     snapshots = []
     energies = []

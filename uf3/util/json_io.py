@@ -40,7 +40,7 @@ def encode_interaction_map(interaction_map):
     encoded_map = {}
     for key, value in interaction_map.items():
         if isinstance(value, list):  # array to list
-            if isinstance(value[0], np.ndarray):
+            if value and isinstance(value[0], np.ndarray):
                 value = [entry.tolist() for entry in value]
         if isinstance(value, np.ndarray):  # array to list
             value = value.tolist()
@@ -66,7 +66,7 @@ def decode_interaction_map(formatted_map):
     decoded_map = {}
     for key, value in formatted_map.items():
         if isinstance(value, list):  # list to array
-            if isinstance(value[0], list):
+            if value and isinstance(value[0], list):
                 value = [np.array(row) for row in value]
             else:
                 value = np.array(value)
@@ -138,9 +138,8 @@ class CompactJSONEncoder(json.JSONEncoder):
         elif isinstance(o, float):
             # Use scientific notation for floats, where appropiate
             return format(o, ".17g")
-        elif isinstance(o, str):  # escape newlines
-            o = o.replace("\n", "\\n")
-            return f'"{o}"'
+        elif isinstance(o, str):
+            return json.dumps(o, ensure_ascii=self.ensure_ascii)
         else:
             return json.dumps(o)
 

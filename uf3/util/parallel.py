@@ -135,6 +135,9 @@ def split_zip(n_batches, *args):
     batches = []
     for arg in args:
         idxs = np.arange(len(arg))
+        if not len(idxs):
+            batches.append([])
+            continue
         n_batches_ = min(n_batches, len(idxs))
         split_idxs = np.array_split(idxs, n_batches_)
         batches.append([[arg[idx] for idx in batch_idxs]
@@ -156,6 +159,8 @@ def split_dataframe(df, n_batches):
     """
     batches = []
     idxs = np.arange(len(df.index))
+    if not len(idxs):
+        return []
     n_batches = min(n_batches, len(idxs))
 
     split_idxs = np.array_split(idxs, n_batches)
@@ -199,6 +204,8 @@ def gather_and_merge(future_list,
         result: merged result, if datatype is supported, or list of results.
     """
 
+    if not future_list:
+        return []
     if asynchronous:
         item_list = []
         pbar = progress_iter(total=len(future_list), style=progress)

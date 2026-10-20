@@ -354,7 +354,7 @@ def legacy_generate_triplets(i_where:np.ndarray,
     """
     Identify unique "i-j-j'" tuples by combining provided i-j pairs, then
     compute i-j, i-k, and j-k pair distances from i-j-k tuples,
-        distance matrix, and knot sequence for cutoffs.
+    distance matrix, and knot sequence for cutoffs.
 
     Args:
         i_where (np.ndarray): sorted "i" indices
@@ -410,9 +410,8 @@ def group_idx_by_center(i_where: np.ndarray,
             `identify_ij`)
 
     Returns:
-        i_values (np.ndarray[np.int_]): unique center atom indices
-        i_groups (List[np.ndarray]): list of neighbor indices grouped by center
-            atom
+        tuple: Unique center indices and arrays of neighbor indices grouped by center.
+
     """
     # find unique values of i
     i_values, group_sizes = np.unique(i_where, return_counts=True)

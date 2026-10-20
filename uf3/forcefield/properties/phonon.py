@@ -55,15 +55,13 @@ def compute_phonon_data(geom: ase.Atoms,
                                                [0, n_super, 0],
                                                [0, 0, n_super]])
     phonon.generate_displacements(distance=disp)
-    supercells = phonon.get_supercells_with_displacements()
+    supercells = phonon.supercells_with_displacements
     # get force constants
     force_set = []
     for snapshot in supercells:
-        positions = snapshot.get_scaled_positions()
-        cell = snapshot.get_cell()
-        symbols = snapshot.get_chemical_symbols()
-        offset = np.sum(cell, axis=0) / 2
-        positions = positions + offset
+        positions = snapshot.scaled_positions
+        cell = snapshot.cell
+        symbols = snapshot.symbols
         snapshot = ase.Atoms(symbols=symbols,
                              cell=cell,
                              scaled_positions=positions,
@@ -71,15 +69,14 @@ def compute_phonon_data(geom: ase.Atoms,
         snapshot.calc = calc
         forces = snapshot.get_forces()
         force_set.append(forces)
-    phonon.set_forces(force_set)
+    phonon.forces = np.asarray(force_set)
     phonon.produce_force_constants()
-    force_constants = phonon.get_force_constants()
+    force_constants = phonon.force_constants
     # get path data with seekpath
-    supercell = phonon.get_supercell()
-    cell = supercell.get_cell()
-    positions = supercell.get_scaled_positions()
-    numbers = np.unique(supercell.get_chemical_symbols(),
-                        return_inverse=True)[1]
+    unitcell = phonon.primitive
+    cell = unitcell.cell
+    positions = unitcell.scaled_positions
+    numbers = unitcell.numbers
     path_data = seekpath.get_path((cell, positions, numbers))
     # identify bands
     labels = path_data['point_coords']
@@ -99,7 +96,12 @@ def compute_phonon_data(geom: ase.Atoms,
     phonon.run_band_structure(bands,
                               is_band_connection=False,
                               with_eigenvectors=True)
-    bands_dict = phonon.get_band_structure_dict()
+    band_structure = phonon.band_structure
+    bands_dict = dict(qpoints=band_structure.qpoints,
+                      distances=band_structure.distances,
+                      frequencies=band_structure.frequencies,
+                      eigenvectors=band_structure.eigenvectors,
+                      group_velocities=band_structure.group_velocities)
     return force_constants, path_data, bands_dict
 
 
@@ -127,10 +129,10 @@ def plot_phonon_spectrum(path_data: Dict[str, np.ndarray],
     labels = path_data['path']
     # set colors
     n_colors = len(distances)
-    cmap = cm.get_cmap('rainbow')
+    cmap = plt.get_cmap('rainbow')
     colors = cmap(np.linspace(0, 1, n_colors))
     if 'cmap' in kwargs:
-        cmap = cm.get_cmap(kwargs['cmap'])
+        cmap = plt.get_cmap(kwargs['cmap'])
         colors = cmap(np.linspace(0, 1, n_colors))
         del kwargs['cmap']
     if 'color' in kwargs:

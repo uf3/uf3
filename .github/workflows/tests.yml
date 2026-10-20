@@ -2,46 +2,50 @@ name: Tests
 
 on:
   push:
-    paths:
-      - '**.py'
-      - '**.yml'
-      - 'requirements.txt'
-      - '!docs/**'
   pull_request:
-    paths:
-      - '**.py'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
-
     steps:
-    - uses: actions/checkout@v2
-    - name: local-fix
-      run: |
-        # Hack to get setup-python to work on act
-        # (see https://github.com/nektos/act/issues/251)
-        if [ ! -f "/etc/lsb-release" ] ; then
-          echo "DISTRIB_RELEASE=18.04" > /etc/lsb-release
-        fi
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        apt update && apt-get install gcc -y
-        gcc -v
-        python --version
-        pip install -U pip pytest
-        pip install setuptools_scm
-        # temporary pinning of Numpy version until packages work with Numpy v2
-        pip install numpy==1.26.4
-        pip install .
-    - name: Test with pytest
-      run: |
-        pytest
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pytest build
+      - name: Test with pytest
+        run: python -m pytest -q
+      - name: Build distributions
+        run: python -m build
+      - name: Check installed package resources
+        run: |
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          cd "$RUNNER_TEMP"
+          python -c "from pathlib import Path; import uf3; from uf3.util.user_config import read_config; p = Path(uf3.__file__).with_name('default_options.yaml'); assert read_config(p)['degree'] == 2"
+
+  optional-and-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install optional and documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install '.[phonon_spectra]' pytest -r docs/requirements.txt
+      - name: Test optional integration
+        run: python -m pytest tests/test_audit_regressions.py -q
+      - name: Build documentation without warnings
+        run: sphinx-build -W --keep-going -b html docs docs/_build/html

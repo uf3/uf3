@@ -115,28 +115,28 @@ Basis
 angstroms, to consider for featurization. 
 
 - Note: this value should be
-low enough to account for the smallest pair distances expected to appear
-in simulations. Otherwise, LAMMPS will fail as soon as two atoms get too
-close together. 
+  low enough to account for the smallest pair distances expected to appear
+  in simulations. Otherwise, LAMMPS will fail as soon as two atoms get too
+  close together.
 
 - Default: *1.0* for 2B interactions, *[1.0, 1.0, 1.0]*
-for 3B interactions
+  for 3B interactions
 
 ``r_max`` (dictionary): maximum pair distance per interaction, in
 angstroms, to consider for featurization. 
 
 - Note: increasing this value
-necessarily increases the number of neighbors to consider during
-featurization, which increases the computational cost of featurization.
+  necessarily increases the number of neighbors to consider during
+  featurization, which increases the computational cost of featurization.
 
 - Default: *6.0* for 2B interactions, *[6.0, 6.0, 6.0]* for 3B
-interactions
+  interactions
 
 ``resolution`` (dictionary): number of knot intervals per interaction. 
 
 - Note: Due to local support, featurization time does not scale with this
-value. However, memory requirements do. In the case of 3B interactions,
-the scaling is cubic. 
+  value. However, memory requirements do. In the case of 3B interactions,
+  the scaling is cubic.
 
 - Default: *25* for 2B interactions, *[10, 10, 20]* for 3B interactions
 
@@ -152,11 +152,11 @@ slightly increase error.
 
 - Default: *3* 
 
-    * ``= 0``: hard cutoff at r_max`` 
+    * ``= 0``: hard cutoff at r_max``
 
-    * ``= 1``: function goes to zero at ``r_max`` 
+    * ``= 1``: function goes to zero at ``r_max``
 
-    * ``= 2``: first derivative goes to zero at ``r_max`` 
+    * ``= 2``: first derivative goes to zero at ``r_max``
 
     * ``= 3``: second derivative goes to zero at ``r_max``
 
@@ -174,7 +174,7 @@ provided, this setting is ignored.
 
     * ``= linear``: uniform spacing of knots.
 
-    * ``= lammps``: LAMMPS-style r^2 spacing, resulting in higher resolution at longer distances and lower resolution and smaller distances. 
+    * ``= lammps``: LAMMPS-style r^2 spacing, resulting in higher resolution at longer distances and lower resolution and smaller distances.
 
     * ``= geometric``: log(r) spacing, yielding higher resolution at smaller distances.
 
@@ -186,8 +186,8 @@ provided, this setting is ignored.
 writing and reading of knot sequences.
 
 - Note: if specified and ```load_knots``` is on, any
-settings (per interaction) specified in ``r_min``, ``r_max``, and
-``resolution`` are ignored. 
+  settings (per interaction) specified in ``r_min``, ``r_max``, and
+  ``resolution`` are ignored.
 
 - Default: *“knots.json”*
 
@@ -220,7 +220,7 @@ featurization.
 ``parallel`` (string): backend for parallel execution. 
 
 - Options:
-*{“python”, “dask”}* 
+  *{“python”, “dask”}*
 
 - Default: *“python”*
 
@@ -270,12 +270,12 @@ strengths for 1-body, 2-body, and 3-body interactions.
 
 ::
 
-    - ridge_1b: 1e-8     
-    
-    - ridge_2b: 0     
-    
-    - ridge_3b: 0     
-    
-    - curvature_2b: 1e-8    
-    
+    - ridge_1b: 1e-8
+
+    - ridge_2b: 0
+
+    - ridge_3b: 0
+
+    - curvature_2b: 1e-8
+
     - curvature_3b: 1e-8
