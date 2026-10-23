@@ -174,15 +174,7 @@ def mask_matrix_by_pair_interaction(pair: Union[List, Tuple],
                                     sup_composition: np.ndarray = None
                                     ) -> np.ndarray:
     """
-    Generates boolean mask for the distance matrix based on composition
-        vectors i.e. from ase.Atoms.get_atomic_numbers()
-
-        e.g. identifying A-B interactions:
-                              supercell
-                        A   B   A   A   B   B
-                        ---------------------
-        geometry    A | -   X   -   -   X   X
-                    B | X   -   X   X   -   -
+    Generate a distance-matrix mask from the atomic species of both structures.
 
     Args:
         pair (tuple): pair interaction of interest e.g. (A-B)
@@ -390,10 +382,9 @@ def summarize_distances(geometries: List[ase.Atoms],
         progress: style of progress bar.
 
     Returns:
-        histogram_map (dict): for each interaction key (A-A, A-B, ...),
-            vector of histogram frequencies of length n_bins. Frequency
-            values are divided by r^2, evaluated at the middle of each bin.
-        bin_edges (np.ndarray): bin edges of histogram.
+        tuple: A histogram map by interaction and the bin edges. Histogram values
+            are normalized by squared distance at each bin center.
+
     """
     pair_tuples = chemical_system.interactions_map[2]
     bin_edges = np.linspace(0, r_cut, n_bins + 1)

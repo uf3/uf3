@@ -8,7 +8,7 @@ module_dir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(module_dir, 'readme.rst'), "r") as f:
     long_description = f.read()
 
-with open("requirements.txt", "r") as f:
+with open(os.path.join(module_dir, "requirements.txt"), "r") as f:
     requires = f.readlines()
     install_requires = requires[:requires.index("EXTRAS_REQUIRE\n")]
     extras_require = {}
@@ -22,8 +22,6 @@ with open("requirements.txt", "r") as f:
         else:
             extras_require[extra] = [extra_require]
 
-test_requires = ['pytest']
-
 if __name__ == "__main__":
     setuptools.setup(
         name='uf3',
@@ -35,6 +33,7 @@ if __name__ == "__main__":
         author_email='sxiexie@ufl.edu',
         license='Apache 2.0',
         packages=setuptools.find_packages(exclude=["tests"]),
+        package_data={"uf3": ["default_options.yaml"]},
         install_requires=install_requires,
         extras_require=extras_require,
         classifiers=[
@@ -48,5 +47,4 @@ if __name__ == "__main__":
             'Topic :: Scientific/Engineering'
         ],
         python_requires='>=3.9, <3.13',
-        tests_require=test_requires,
     )

@@ -21,12 +21,9 @@ def get_bspline_config(
     trailing_trim: int,
 ):
     """
-    Function for getting bspline_config object. We recommend using this function
-    to get bspling_config object for-
-        1. creating the HDF5 file with larger cutoffs
-        2. fitting model with lower cutoffs
-    The rmax_2b and rmax_3b values in the returned bspline_config object can be
-    slightly different depending on the knot_spacing
+    Construct a uniformly spaced basis for feature generation or cutoff fitting.
+
+    The effective cutoffs can differ slightly because of the requested knot spacing.
 
     Args:
         chemical_system: data.composition.ChemicalSystem

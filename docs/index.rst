@@ -6,4 +6,4 @@
    
    Home <self>
    Configuration YAML/CLI Options <options>
-   API reference <_autosummary/uf3>
+   API reference <api>

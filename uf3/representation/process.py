@@ -402,6 +402,7 @@ class BasisFeaturizer:
     def featurize_force_2B(self, geom, supercell=None):
         """
         Generate 2B feature vectors for learning forces of one configuration.
+
         Args:
             geom (ase.Atoms): unit cell or configuration of interest.
             supercell (ase.Atoms): optional ase.Atoms output of get_supercell
@@ -603,13 +604,13 @@ def dataframe_to_training_tuples(df_features,
     energy_values = y[energy_mask]
     force_values = y[force_mask]
     # compute metrics for weighting
-    energy_std = np.std(energy_values)
-    force_std = np.std(force_values)
+    energy_std = np.std(energy_values) if len(energy_values) else 0.
+    force_std = np.std(force_values) if len(force_values) else 0.
     n_energy = len(energy_values)
     n_forces = len(force_values)
     # generate weights based on sample standard deviation and frequency.
-    energy_weights = np.ones(n_energy) / energy_std / n_energy * kappa
-    force_weights = np.ones(n_forces) / force_std / n_forces * (1 - kappa)
+    energy_weights = np.ones(n_energy) / (energy_std or 1.) / (n_energy or 1) * kappa
+    force_weights = np.ones(n_forces) / (force_std or 1.) / (n_forces or 1) * (1 - kappa)
     w = np.zeros(n_energy + n_forces)
     w[energy_mask] = energy_weights
     w[force_mask] = force_weights

@@ -24,7 +24,7 @@ def get_elastic_constants(geom: ase.Atoms,
 
     Returns:
         elastic_constants (list): list of elastic constants.
-            i.e. [**Cij, bulk_modulus]
+            individual Cij values followed by the bulk modulus
     """
     if not USE_ELASTIC:
         warnings.warn("elastic could not be imported.", RuntimeWarning)

@@ -10,26 +10,17 @@ from uf3.util import cubehelix
 
 def round_lims(values, round_factor=0.5):
     """
-    Identify rounded minimum and maximum based on appropriate power of 10
-        and round_factor.
+    Find rounded plot limits using a power of ten and a rounding factor.
 
-        round_place = 10 ** ceil( log10((max-min))-1 )
-        Minimum = (floor(min / round_place / round_factor)
-                   * round_place * round_factor)
-        Maximum = (ceil(max / round_place / round_factor)
-                   * round_place * round_factor)
+    For example, values ``[10, 39, 43]`` give limits ``(10, 50)`` with factor 1,
+    ``(0, 100)`` with factor 10, and ``(0, 45)`` with factor 0.5.
 
-        E.g. [10, 39, 43] yields (10, 50) with round_factor = 1 (nearest 10)
-             [10, 39, 43] yields (0, 100) with round_factor = 10 (nearest 100)
-             [10, 39, 43] yields (0, 45) with round_factor = 0.5 (nearest 5)
     Args:
-        values (np.ndarray, list): vector of values of interest.
-        round_factor (float): multiplicative factor for rounding power
-            (Default = 0.5).
+        values (np.ndarray or list): Values that the plot must contain.
+        round_factor (float): Multiplicative rounding factor, default 0.5.
 
     Returns:
-        lims: tuple of (rounded minimum, rounded maximum)
-
+        tuple: The rounded minimum and maximum, followed by the tick factor.
     """
     min_val = np.min(values)
     max_val = np.max(values)
@@ -165,13 +156,12 @@ def density_estimation(x_subset, y_subset, x, y):
 
 def get_subsets(subset_threshold, *args):
     """
-
     Args:
         subset_threshold: minimum threshold of points to sample.
         *args: lists or vectors or arrays of the same size to slice.
 
     Returns:
-        *new_args: subsets of input vectors.
+        tuple: Subsets of the input vectors.
     """
     x = args[0]
     n_points = len(x)

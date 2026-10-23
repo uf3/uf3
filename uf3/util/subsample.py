@@ -17,19 +17,22 @@ def farthest_point_sampling(data, max_samples=None, min_diff=0):
     Returns:
         indices (list): vector of subsample indices.
     """
+    data = np.asarray(data)
+    if len(data) == 0:
+        return np.array([], dtype=int)
     if data.ndim < 2:
         data = data[:, np.newaxis]
-    dist_matrix = distance.cdist(data, data)
 
     if max_samples is None and min_diff == 0:
         return np.arange(len(data))
     elif max_samples is None or max_samples >= len(data) or max_samples < 1:
         max_samples = len(data)
 
-    subsamples = np.array([np.argmin(data)])  # begin with lowest value
+    dist_matrix = distance.cdist(data, data)
+    subsamples = np.array([np.argmin(data[:, 0])])  # lowest first coordinate
     while len(subsamples) < max_samples:
-        dist_matrix[subsamples, :] = 0
         scores = np.min(dist_matrix[:, subsamples], axis=1)
+        scores[subsamples] = -np.inf
         idx = np.argmax(scores)
         if np.max(scores) < min_diff:
             break

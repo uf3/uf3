@@ -1,6 +1,4 @@
 from uf3.regression import least_squares
-from pymatgen.core.structure import Structure
-from pymatgen.core import Element
 from uf3.data import composition
 import numpy as np
 import os, sys, argparse
@@ -45,7 +43,7 @@ def main():
                                 author = args.author,
                                 lammps_units = args.units)
     
-    lines = "pair_style\tuf3 %i %i"%(model.bspline_config.degree,len(chemical_sys.element_list))
+    lines = "pair_style\tuf3 %i" % model.bspline_config.degree
     lines += "\n"
     lines += "pair_coeff\t* * "+pot_dir+"/"+uf3_lammps_pot_name+ " "
     lines += " ".join(chemical_sys.element_list)
@@ -82,7 +80,7 @@ def write_uf3_lammps_pot_files(chemical_sys,
         files[key] += f"AUTHOR: {author} CITATION:\n"
 
         files[key] += f"2B {interaction[0]} {interaction[1]}"
-        files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+        files[key] += f" {model.bspline_config.leading_trim[len(interaction)]} {model.bspline_config.trailing_trim[len(interaction)]}"
         if knots_spacing_type == "uk":
             files[key] += " uk\n"
         elif knots_spacing_type == "nk":
@@ -114,7 +112,7 @@ def write_uf3_lammps_pot_files(chemical_sys,
             files[key] += f"AUTHOR: {author} CITATION:\n"
 
             files[key] += f"3B {interaction[0]} {interaction[1]} {interaction[2]}"
-            files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+            files[key] += f" {model.bspline_config.leading_trim[len(interaction)]} {model.bspline_config.trailing_trim[len(interaction)]}"
             if knots_spacing_type == "uk":
                 files[key] += " uk\n"
             elif knots_spacing_type == "nk":

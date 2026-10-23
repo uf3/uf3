@@ -60,17 +60,8 @@ def get_curvature_penalty_matrix_1D(n_features: int,
 
 def combine_regularizer_matrices(matrices: List) -> np.ndarray:
     """
-    Combine square penalty matrices.
-        Example:
-            [X---      [Y-      [Z--        [X--------
-             -X--       -Y]      -Z-         -X-------
-             --X-                --Z]        --X------
-             ---X]                           ---X-----
-            (4x4)      (2x2)    (3x3)   ->   ----Y----  (9x9)
-                                             -----Y---
-                                             ------Z--
-                                             -------Z-
-                                             --------Z]
+    Combine penalty matrices into one block-diagonal matrix.
+
     Args:
         matrices (list): list of matrices, e.g. for separate optimization
             objectives like A-A, A-B, B-B interactions.

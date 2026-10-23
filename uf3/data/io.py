@@ -6,6 +6,7 @@ import os
 import re
 import io as pio
 import fnmatch
+import itertools
 from typing import List, Dict, Tuple, Union
 import numpy as np
 import pandas as pd
@@ -257,10 +258,16 @@ def prepare_dataframe_from_lists(geometries: List[ase.Atoms],
            [atoms_key, energy_key, fx, fy, fz]
     """
     if copy:
-        geometries = [geom.copy() for geom in geometries]
+        originals = list(geometries)
+        geometries = [geom.copy() for geom in originals]
+        for original, copied in zip(originals, geometries):
+            copied.calc = original.calc
     geometries = update_geometries_from_calc(geometries,
                                              energy_key=energy_key,
                                              force_key=force_key)
+    if copy:
+        for geom in geometries:
+            geom.calc = None
     # generate dataframe
     default_columns = [atoms_key, energy_key, 'fx', 'fy', 'fz']
     df = pd.DataFrame(columns=default_columns)
@@ -271,7 +278,7 @@ def prepare_dataframe_from_lists(geometries: List[ase.Atoms],
         if copy:
             energies = np.array(energies)
         df[energy_key] = energies
-        scalar_keys = ('energy',)  # add energies to ase.Atoms objects
+        scalar_keys = (energy_key,)  # add energies to ase.Atoms objects
     if forces is not None:
         if copy:
             forces = [array.copy() for array in forces]
@@ -281,13 +288,14 @@ def prepare_dataframe_from_lists(geometries: List[ase.Atoms],
         array_keys = ('fx', 'fy', 'fz')  # add forces to ase.Atoms objects
     # If values are provided, overwrite attributes for consistency.
     update_geometries_from_dataframe(df,
+                                     atoms_key=atoms_key,
                                      scalar_keys=scalar_keys,
                                      array_keys=array_keys)
     # Otherwise, pull energies and forces from objects.
     scalar_keys = ()
     array_keys = ()
     if energies is None:
-        scalar_keys = ('energy',)  # get energies from ase.Atoms objects
+        scalar_keys = (energy_key,)  # get energies from ase.Atoms objects
     if forces is None:
         array_keys = ('fx', 'fy', 'fz')  # get forces from ase.Atoms objects
     df = update_dataframe_from_geometries(df,
@@ -395,11 +403,16 @@ def read_database(filename: str, index: bool = None, **kwargs):
         index = slice(None, None)
     db = ase.db.connect(filename, serial=True, **kwargs)
 
-    start, stop, _ = index.indices(db.count())
-    if start == stop:
-        return
+    start, stop, step = index.indices(db.count())
+    if not range(start, stop, step):
+        return []
+    if step > 0:
+        rows = itertools.islice(db.select(offset=start, limit=stop - start),
+                                0, None, step)
+    else:
+        rows = list(db.select(offset=stop + 1, limit=start - stop))[::-1][:: -step]
     geometries = []
-    for row in db.select(offset=start, limit=stop - start):
+    for row in rows:
         geom = row.toatoms(add_additional_information=True)
         key_value_pairs = dict(geom.info['key_value_pairs'])
         del geom.info['key_value_pairs']
@@ -531,12 +544,12 @@ def update_geometries_from_calc(geometries: List[ase.Atoms],
     """Query attached calculators for energy and forces."""
     for idx, geom in enumerate(geometries):
         try:
-            geom.info[energy_key] = geom.calc.get_potential_energy()
+            geom.info[energy_key] = geom.calc.get_potential_energy(geom)
         except (ase_calc.PropertyNotImplementedError,
                 AttributeError):
             pass  # no energy
         try:
-            forces = geom.calc.get_forces()
+            forces = geom.calc.get_forces(geom)
         except (ase_calc.PropertyNotImplementedError,
                 AttributeError):
             if force_key in geom.arrays:
@@ -544,9 +557,9 @@ def update_geometries_from_calc(geometries: List[ase.Atoms],
             else:
                 continue  # no forces
         try:
-            geom.new_array('fx', forces[:, 0])
-            geom.new_array('fy', forces[:, 1])
-            geom.new_array('fz', forces[:, 2])
+            geom.set_array('fx', forces[:, 0])
+            geom.set_array('fy', forces[:, 1])
+            geom.set_array('fz', forces[:, 2])
         except ValueError:  # shape mismatch
             continue
         except RuntimeError:  # array already exists
@@ -571,7 +584,7 @@ def update_geometries_from_dataframe(df: pd.DataFrame,
             geom.info[scalar] = df.iat[idx, scalar_idx]
         for array, array_idx in zip(array_keys, array_idxs):
             try:
-                geom.new_array(array, df.iat[idx, array_idx])
+                geom.set_array(array, df.iat[idx, array_idx])
             except ValueError:  # shape mismatch
                 continue
             except RuntimeError:  # array already exists
@@ -585,7 +598,7 @@ def df_from_tsv_text(text: str) -> pd.DataFrame:
     into DataFrame.
     """
     buffer = pio.StringIO(text)  # pandas expects file buffer
-    df = pd.read_csv(buffer, delim_whitespace=True)
+    df = pd.read_csv(buffer, sep=r'\s+')
     df = df.set_index("id").sort_index()
     return df
 
@@ -645,7 +658,7 @@ def parse_lammps_log(fname: str, log_regex: str = None) -> pd.DataFrame:
         text = f.read()
         for text_block in re.compile(log_regex).findall(text):
             buffer = pio.StringIO(text_block)
-            df = pd.read_csv(buffer, delim_whitespace=True)
+            df = pd.read_csv(buffer, sep=r'\s+')
             log_blocks.append(df)
     df_log = pd.concat(log_blocks, ignore_index=True)
     df_log = df_log[~df_log.duplicated()]
@@ -793,7 +806,7 @@ def identify_paths(experiment_path: str = ".",
         experiment_path (str): directory in which to search, recursively.
             Default: "."
         filename (str): single filename.
-        filename_pattern (str): glob pattern e.g. "*.xyz" to search.
+        filename_pattern (str): glob pattern such as ``*.xyz`` to search.
 
     Returns:
         data_paths (list)
@@ -803,7 +816,7 @@ def identify_paths(experiment_path: str = ".",
         if os.path.isfile(filename):
             data_paths.append(filename)
         elif os.path.isfile(os.path.join(experiment_path, filename)):
-            data_paths.append(filename)
+            data_paths.append(os.path.join(experiment_path, filename))
     if filename_pattern is not None:
         for directory, folders, files in os.walk(experiment_path):
             for filename in files:
@@ -920,7 +933,7 @@ def cache_data(df_data: pd.DataFrame,
     geometries = df_data['geometry']
 
     with ase_db.connect(filename, append=append, serial=serial) as database:
-        for name, geom in geometries.iteritems():
+        for name, geom in geometries.items():
             energy = geom.info[energy_key]
             forces = np.vstack([geom.arrays['fx'],
                                 geom.arrays['fy'],
@@ -972,8 +985,8 @@ def dataframe_batch_loader(filename: str, table_names: List) -> pd.DataFrame:
 
 def resolve_name_conflict(path: str) -> int:
     """Simple renaming by incrementing an integer preceding file extension."""
+    i = 0
     if os.path.isfile(path):
-        i = 0
         while True:
             stem, ext = os.path.splitext(path)
             backup_path = stem + "." + str(i) + ext

@@ -57,6 +57,13 @@ uf3/util/__pycache__/subsample.cpython-37.pyc
 
 lammps_plugin/ML-UF3/.vscode/
 
+# Generated package, test, and documentation files.
+/build/
+/dist/
+/docs/_autosummary/
+/docs/_build/
+.pytest_cache/
+
 .vscode/
 
 */__pycache__

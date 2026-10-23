@@ -1,4 +1,5 @@
 from typing import Dict, Tuple
+from copy import deepcopy
 import os
 import re
 import warnings
@@ -29,9 +30,17 @@ def get_element_tuple(string):
 
 
 def type_check(value, reference):
+    if reference is None:
+        return deepcopy(value)
     type_target = type(reference)
     type_user = type(value)
     if type_target == bool:  # boolean
+        if isinstance(value, str):
+            choices = {'true': True, 'yes': True, 'on': True, '1': True,
+                       'false': False, 'no': False, 'off': False, '0': False}
+            if value.lower() not in choices:
+                raise ValueError(f'Invalid boolean: {value}')
+            return choices[value.lower()]
         return bool(value)
     if type_target in [int, float, np.floating]:  # number
         if type_user in [int, float, np.floating, str]:
@@ -50,13 +59,15 @@ def type_check(value, reference):
 
 
 def consistency_check(settings, reference):
+    if not isinstance(settings, dict):
+        raise ValueError('Configuration sections must be a mapping.')
     settings = {key: value for key, value in settings.items()
                 if key in reference}
     for key in reference:
         if key in settings:
             settings[key] = type_check(settings[key], reference[key])
         else:
-            settings[key] = reference[key]
+            settings[key] = deepcopy(reference[key])
     return settings
 
 
@@ -74,61 +85,57 @@ def read_config(settings_filename):
     default_config = os.path.join(os.path.dirname(uf3.__file__),
                                   "default_options.yaml")
     with open(default_config, "r") as f:
-        default_settings = yaml.load(f, Loader=yaml.Loader)
+        default_settings = yaml.safe_load(f)
     with open(settings_filename, "r") as f:
-        settings = yaml.load(f, Loader=yaml.Loader)
-
-    for key in settings:
-        if key not in default_settings:
-            continue
-        settings[key] = type_check(settings[key], default_settings[key])
-    return settings
+        settings = yaml.safe_load(f)
+    return consistency_check({} if settings is None else settings, default_settings)
 
 
 def generate_handlers(settings: Dict) -> Dict:
     """Initialize and return handlers from configuration dictionary."""
+    settings = deepcopy(settings)
     handlers = {}
     if "data" in settings:
         data_settings = settings["data"]["keys"]
         try:
             handlers["data"] = io.DataCoordinator.from_config(data_settings)
         except (KeyError, ValueError):
-            pass
-    if "elements" in settings and "degree" in settings:
+            warnings.warn('Unable to initialize data handler.', RuntimeWarning)
+    if settings.get("elements") and "degree" in settings:
         try:
             chemical_system = composition.ChemicalSystem(
                 element_list=settings["elements"],
                 degree=settings["degree"])
             handlers["chemical_system"] = chemical_system
         except (KeyError, ValueError):
-            pass
+            warnings.warn('Unable to initialize chemical system.', RuntimeWarning)
     if "basis" in settings and "chemical_system" in handlers:
         basis_block = settings["basis"]
-        basis_block["chemical_system"] = handlers["chemical_system"]
+        basis_block.setdefault("element_list", handlers["chemical_system"].element_list)
+        basis_block.setdefault("degree", handlers["chemical_system"].degree)
         try:
             bspline_config = bspline.BSplineBasis.from_config(basis_block)
             handlers["basis"] = bspline_config
         except (KeyError, ValueError):
-            pass
+            warnings.warn('Unable to initialize basis handler.', RuntimeWarning)
     if "features" in settings:
         if "chemical_system" in handlers and "basis" in handlers:
             try:
                 handlers["features"] = process.BasisFeaturizer(
-                    handlers["chemical_system"],
                     handlers["basis"],
-                    fit_forces=settings.get("fit_forces", True),
-                    prefix=settings.get("feature_prefix", "x"),
+                    fit_forces=settings["features"].get("fit_forces", True),
+                    prefix=settings["features"].get("column_prefix", "x"),
                 )
             except (KeyError, ValueError):
-                pass
+                warnings.warn('Unable to initialize feature handler.', RuntimeWarning)
     if "model" in settings and "basis" in handlers:
         if os.path.isfile(settings["model"]["model_path"]):
             try:
                 model = least_squares.WeightedLinearModel(handlers["basis"])
-                model.load(settings["model"]["model_path"])
+                model.load(filename=settings["model"]["model_path"])
                 handlers["model"] = model
             except (KeyError, ValueError):
-                pass
+                warnings.warn('Unable to load saved model.', RuntimeWarning)
     if "learning" in settings and "basis" in handlers:
         try:
             reg_params = settings["learning"]["regularizer"]
@@ -136,5 +143,5 @@ def generate_handlers(settings: Dict) -> Dict:
                 handlers["basis"], **reg_params)
             handlers["learning"] = learning_model
         except (KeyError, ValueError):
-            pass
+            warnings.warn('Unable to initialize learning model.', RuntimeWarning)
     return handlers
