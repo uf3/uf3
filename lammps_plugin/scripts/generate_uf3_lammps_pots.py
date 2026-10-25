@@ -82,7 +82,7 @@ def write_uf3_lammps_pot_files(chemical_sys,
         files[key] += f"AUTHOR: {author} CITATION:\n"
 
         files[key] += f"2B {interaction[0]} {interaction[1]}"
-        files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+        files[key] += f" {model.bspline_config.leading_trim[2]} {model.bspline_config.trailing_trim[2]}"
         if knots_spacing_type == "uk":
             files[key] += " uk\n"
         elif knots_spacing_type == "nk":
@@ -114,7 +114,7 @@ def write_uf3_lammps_pot_files(chemical_sys,
             files[key] += f"AUTHOR: {author} CITATION:\n"
 
             files[key] += f"3B {interaction[0]} {interaction[1]} {interaction[2]}"
-            files[key] += f" {model.bspline_config.leading_trim} {model.bspline_config.trailing_trim}"
+            files[key] += f" {model.bspline_config.leading_trim[3]} {model.bspline_config.trailing_trim[3]}"
             if knots_spacing_type == "uk":
                 files[key] += " uk\n"
             elif knots_spacing_type == "nk":
