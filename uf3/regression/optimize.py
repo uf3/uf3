@@ -19,6 +19,7 @@ def get_bspline_config(
     knot_spacing_3b: float,
     leading_trim: int,
     trailing_trim: int,
+    offset_1b : bool = True,
 ):
     """
     Function for getting bspline_config object. We recommend using this function
@@ -44,6 +45,7 @@ def get_bspline_config(
             to suppress. Useful for ensuring smooth cutoffs.
         trailing_trim (int): number of basis functions at trailing edge
             to suppress. Useful for ensuring smooth cutoffs.
+        offset_1b (bool): Whether to include or not a 1-body term
 
     Returns:
         bspline_config: bspline.BSplineBasis
@@ -121,6 +123,7 @@ def get_bspline_config(
         resolution_map=resolution_map,
         trailing_trim=trailing_trim,
         leading_trim=leading_trim,
+        offset_1b = offset_1b
     )
 
     return bspline_config
