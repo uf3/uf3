@@ -585,7 +585,7 @@ def df_from_tsv_text(text: str) -> pd.DataFrame:
     into DataFrame.
     """
     buffer = pio.StringIO(text)  # pandas expects file buffer
-    df = pd.read_csv(buffer, delim_whitespace=True)
+    df = pd.read_csv(buffer, sep=r"\s+")
     df = df.set_index("id").sort_index()
     return df
 
@@ -645,7 +645,7 @@ def parse_lammps_log(fname: str, log_regex: str = None) -> pd.DataFrame:
         text = f.read()
         for text_block in re.compile(log_regex).findall(text):
             buffer = pio.StringIO(text_block)
-            df = pd.read_csv(buffer, delim_whitespace=True)
+            df = pd.read_csv(buffer, sep=r"\s+")
             log_blocks.append(df)
     df_log = pd.concat(log_blocks, ignore_index=True)
     df_log = df_log[~df_log.duplicated()]
@@ -920,7 +920,7 @@ def cache_data(df_data: pd.DataFrame,
     geometries = df_data['geometry']
 
     with ase_db.connect(filename, append=append, serial=serial) as database:
-        for name, geom in geometries.iteritems():
+        for name, geom in geometries.items():
             energy = geom.info[energy_key]
             forces = np.vstack([geom.arrays['fx'],
                                 geom.arrays['fy'],
