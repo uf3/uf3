@@ -16,8 +16,10 @@ from uf3.util import json_io
 from uf3.util import parallel
 
 
+
 class VarianceRecorder:
     """Convenience class for computing online variance and mean"""
+
     def __init__(self, mean=0, std=0, n=0):
         self.mean = mean
         self.std = std
@@ -34,36 +36,38 @@ class VarianceRecorder:
         Returns:
             (current mean, current standard deviation, current entry count)
         """
-        if self.n == 0:
-            self.mean = np.mean(batch, axis=0)
-            self.std = np.std(batch, axis=0)
-            self.n = len(batch)
-            return self.mean, self.std, self.n
-        else:
-            batch_std = np.std(batch, axis=0)
-            batch_mean = np.mean(batch, axis=0)
-            m = float(self.n)
-            n = len(batch)
-            std = (m / (m + n) * self.std**2
-                   + n / (m + n) * batch_std**2
-                   + m * n / (m + n)**2 * (self.mean - batch_mean)**2)
-            self.std = np.sqrt(std)
-            self.mean = m / (m + n) * self.mean + n / (m + n) * batch_mean
-            self.n += n
-            return self.mean, self.std, self.n
+        batch = np.asarray(batch)
+        batch_mean = np.mean(batch, axis=0)
+        batch_std = np.std(batch, axis=0)
+        batch_len = len(batch)
 
-    def update_with_components(self, df, keys=None):
+        if self.n == 0:
+            self.mean = batch_mean
+            self.std = batch_std
+        else:
+            total_count = self.n + batch_len
+            delta_mean = batch_mean - self.mean
+
+            new_var = (
+                (self.n * (self.std ** 2 + delta_mean ** 2) + batch_len * batch_std ** 2) /
+                total_count
+            )
+
+            self.mean += batch_len / total_count * delta_mean
+            self.std = np.sqrt(new_var)
+
+        self.n += batch_len
+
+        return self.mean, self.std, self.n
+
+    def update_with_components(self, df: pd.DataFrame, keys=None) -> Tuple:
         """Wrapper for dataframe with multiple columns of interest"""
         if keys is None:
             keys = ["fx", "fy", "fz"]
-        batch = []
-        for j, *components in df[keys].itertuples():
-            if any([component is np.nan for component in components]):
-                continue
-            if np.ndim(components) > 1:  # if components are not scalars
-                components = list(np.concatenate(components))
-            batch.extend(components)
-        self.update(batch)
+
+        components = df[keys].dropna().values.flatten()
+        self.update(components)
+
         return self.mean, self.std, self.n
 
 
@@ -353,14 +357,16 @@ class WeightedLinearModel(BasicLinearModel):
         return gram, ordinate
 
     def fit_from_file(self,
-                      filename: str,
-                      subset: Collection,
-                      weight: float = 0.5,
-                      batch_size=2500,
-                      sample_weights: Dict = None,
-                      energy_key="energy",
-                      progress: str = "bar",
-                      drop_columns: List[str] = None):
+                    filename: str,
+                    subset: Collection,
+                    weight: float = 0.5,
+                    batch_size=2500,
+                    sample_weights: Dict = None,
+                    energy_key="energy",
+                    progress: str = "bar",
+                    drop_columns: List[str] = None,
+                    gram_ord_file: str = None,
+                    overwrite: bool = False):
         """
         Accumulate inputs and outputs from batched parsing of HDF5 file
         and compute direct solution via LU decomposition.
@@ -379,9 +385,85 @@ class WeightedLinearModel(BasicLinearModel):
                 the cutoffs of the feature vectors from HDF5 file. No internal
                 checks are performed to see if dropping provided columns produce
                 features of the intended cutoffs. Use with Caution.
+                gram_ord_file (str): path to npz file for saving gram and ordinate.
+            overwrite (bool): whether to overwrite npz file if it exists.
+        """
+        _, n_entries_h5, _, _ = io.analyze_hdf_tables(filename)
+        n_entries = int(n_entries_h5)
+        if not os.path.isfile(filename):
+            raise FileNotFoundError(f'File not found: {filename}')
+
+        if ((gram_ord_file is not None) and (os.path.isfile(gram_ord_file))):
+            gram_ordinate = np.load(gram_ord_file)
+            if n_entries == gram_ordinate["n_entries"]:
+                gram_e = gram_ordinate["gram_e"]
+                gram_f = gram_ordinate["gram_f"]
+                ord_e = gram_ordinate["ord_e"]
+                ord_f = gram_ordinate["ord_f"]
+                energy_weight = gram_ordinate["energy_weight"]
+                force_weight = gram_ordinate["force_weight"]
+            elif overwrite == True:
+                gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress,
+                                                                drop_columns=drop_columns)
+                self.save_gram_ordinate(gram_ord_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
+
+            else:
+                raise ValueError("Number of entries in HDF5 file and npz file are not the same.")
+        elif gram_ord_file is not None:
+            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress,
+                                                                drop_columns=drop_columns)
+            self.save_gram_ordinate(gram_ord_file, gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries)
+        else:
+            gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries = self.generate_gram_ordinate(filename,
+                                                                subset,
+                                                                batch_size=batch_size,
+                                                                sample_weights=sample_weights,
+                                                                energy_key=energy_key,
+                                                                progress=progress,
+                                                                drop_columns=drop_columns)
+
+        gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
+                                                        ord_f, energy_weight,
+                                                        force_weight, weight)
+        self.fit_with_gram(gram, ordinate)
+
+    def generate_gram_ordinate(self,
+                                filename: str,
+                                subset: Collection,
+                                batch_size=2500,
+                                sample_weights: Dict = None,
+                                energy_key="energy",
+                                progress: str = "bar",
+                                drop_columns: List[str] = None):
+
+        """
+        Generate gram and ordinate arrays.
+
+        Args:
+            filename (str): path to HDF5 file.
+            subset (list): list of keys for training.
+            batch_size (int): batch size, in rows, for matrix multiplication
+                operations in constructing gram matrices.
+            sample_weights (dict):
+            energy_key (str): column name for energies, default "energy".
+            progress (str): style for progress indicators.
+            drop_columns (list): list of columns to drop. Used when modifying
+                the cutoffs of the feature vectors from HDF5 file. No internal
+                checks are performed to see if dropping provided columns produce
+                features of the intended cutoffs. Use with Caution.
         """
         if not os.path.isfile(filename):
-            raise FileNotFoundError(filename)
+            raise FileNotFoundError(f'File not found: {filename}')
         n_tables, _, table_names, _ = io.analyze_hdf_tables(filename)
         gram_e, gram_f, ord_e, ord_f = self.initialize_gram_ordinate()
         e_variance = VarianceRecorder()
@@ -414,13 +496,59 @@ class WeightedLinearModel(BasicLinearModel):
                                                        f_variance.n,
                                                        e_variance.std,
                                                        f_variance.std)
-        gram, ordinate = self.combine_weighted_gram(gram_e,
-                                                    gram_f,
-                                                    ord_e,
-                                                    ord_f,
-                                                    energy_weight,
-                                                    force_weight,
-                                                    weight)
+        _, n_entries, _, _ = io.analyze_hdf_tables(filename)
+
+            
+        return gram_e, gram_f, ord_e, ord_f, energy_weight, force_weight, n_entries
+
+    def save_gram_ordinate(self, 
+                            gram_ord_file: str,
+                            gram_e: np.ndarray,
+                            gram_f: np.ndarray,
+                            ord_e: np.ndarray,
+                            ord_f: np.ndarray,
+                            energy_weight: float,
+                            force_weight: float,
+                            n_entries: int):
+        """
+        Saving gram and ordinate to npz files for later fitting.
+
+        Args:
+            gram_ord_file (str): path to output npz file.
+            gram_e (np.ndarray): gram matrix (x^T x) for energies.
+            gram_f (np.ndarray): gram matrix (x^T x) for forces.
+            ord_e (np.ndarray): ordinate (x^T y) for energies.
+            ord_f (np.ndarray): ordinate (x^T y) for forces.
+            energy_weight: 1 / (# energies * sqrt(Var(energies)))
+            force_weight: 1 / (# forces * sqrt(Var(forces)))
+            n_entries (int): number of energy and force entries.
+        """
+    
+        np.savez_compressed(gram_ord_file,gram_e=gram_e, gram_f=gram_f,
+                             ord_e=ord_e, ord_f=ord_f, energy_weight=energy_weight,
+                              force_weight=force_weight, n_entries=n_entries)
+
+    def fit_from_gram(self,
+                    gram_ordinate_file: str,
+                    weight: float = 0.5):
+        """
+        Fit model with saved gram and ordinate npz file.
+
+        Args:
+            gram_ordinate_file (str): path to npz file.
+            weight (float): parameter balancing contribution from energies
+                vs. forces. Higher values favor energies; defaults to 0.5.
+        """
+        gram_ordinate = np.load(gram_ordinate_file)
+        gram_e = gram_ordinate["gram_e"]
+        gram_f = gram_ordinate["gram_f"]
+        ord_e = gram_ordinate["ord_e"]
+        ord_f = gram_ordinate["ord_f"]
+        energy_weight = gram_ordinate["energy_weight"]
+        force_weight = gram_ordinate["force_weight"]
+        gram, ordinate = self.combine_weighted_gram(gram_e, gram_f, ord_e,
+                                                        ord_f, energy_weight,
+                                                        force_weight, weight)
         self.fit_with_gram(gram, ordinate)
 
     def initialize_gram_ordinate(self):
