@@ -369,8 +369,8 @@ class BSplineBasis:
         self.frozen_c = cf
 
     def get_regularization_matrix(self,
-                                  ridge_map={},
-                                  curvature_map={},
+                                  ridge_map=None,
+                                  curvature_map=None,
                                   **kwargs):
         """
         Compute the overall regularzation matrix for least squares.
@@ -389,6 +389,9 @@ class BSplineBasis:
             combined_matrix (np.ndarray): regularization matrix made up of
                 individual matrices per n-body interaction.
         """
+        ridge_map = {} if ridge_map is None else dict(ridge_map)
+        curvature_map = {} if curvature_map is None else dict(curvature_map)
+
         for k in kwargs:
             if k.lower()[0] == 'r':
                 ridge_map[int(re.sub('[^0-9]', '', k))] = float(kwargs[k])

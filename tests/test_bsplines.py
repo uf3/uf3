@@ -306,6 +306,43 @@ class TestBSplineConfig:
         assert bspline_handler.r_max_map[('Xe', 'Xe')] == 8.0
         assert bspline_handler.resolution_map[('Ne', 'Xe')] == 10
 
+    @pytest.mark.parametrize('keyword', ['ridge_2b', 'curvature_2b'])
+    def test_regularizer_defaults_are_independent(self, keyword):
+        chemistry = composition.ChemicalSystem(['Ne'], degree=2)
+        basis = BSplineBasis(chemistry)
+        defaults = regularize.DEFAULT_REGULARIZER_GRID
+        ridge_map = {1: defaults['ridge_1b'],
+                     2: defaults['ridge_2b'],
+                     3: defaults['ridge_3b']}
+        curvature_map = {1: 0.0,
+                         2: defaults['curve_2b'],
+                         3: defaults['curve_3b']}
+        expected = basis.get_regularization_matrix(ridge_map, curvature_map)
+
+        custom = basis.get_regularization_matrix(**{keyword: 100})
+        assert not np.array_equal(custom, expected)
+        np.testing.assert_array_equal(basis.get_regularization_matrix(),
+                                      expected)
+        other_basis = BSplineBasis(chemistry)
+        np.testing.assert_array_equal(other_basis.get_regularization_matrix(),
+                                      expected)
+
+    def test_regularizer_overrides_preserve_input_maps(self):
+        chemistry = composition.ChemicalSystem(['Ne'], degree=2)
+        basis = BSplineBasis(chemistry)
+        ridge_map = {1: 4, 2: 0.25}
+        curvature_map = {2: 1}
+        original_ridge = ridge_map.copy()
+        original_curvature = curvature_map.copy()
+
+        actual = basis.get_regularization_matrix(ridge_map, curvature_map,
+                                                 r2=9, c2=16)
+
+        assert ridge_map == original_ridge
+        assert curvature_map == original_curvature
+        expected = basis.get_regularization_matrix({1: 4, 2: 9}, {2: 16})
+        np.testing.assert_array_equal(actual, expected)
+
     def test_regularizer_degree_2(self):
         ridge_map = {1: 4, 2: 0.25}
         curvature_map = {2: 1}
